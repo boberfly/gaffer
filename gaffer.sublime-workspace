@@ -1,0 +1,686 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"RenderElement",
+				"RenderElementMgr"
+			],
+			[
+				"Common",
+				"CommonRollout"
+			],
+			[
+				"repos",
+				"repository_list\tstatement"
+			],
+			[
+				"getXRefFile",
+				"xrefs.getXRefFile"
+			],
+			[
+				"python",
+				"pythonStartupScriptList"
+			],
+			[
+				"GetMat",
+				"getMaterialGBufID"
+			],
+			[
+				"RenderEle",
+				"RenderElementManager\tstatement"
+			],
+			[
+				"getLayer",
+				"getLayerFromName"
+			],
+			[
+				"spnBuck",
+				"spnBucketSubdivs"
+			],
+			[
+				"spnProgre",
+				"spnProgressiveThreshold"
+			],
+			[
+				"matteplus",
+				"matteplusWidget"
+			],
+			[
+				"GetPlugin",
+				"GetPluginInfoEntryWithDefault"
+			],
+			[
+				"render",
+				"renderarguments\tstatement"
+			],
+			[
+				"GetBool",
+				"GetBooleanPluginInfoEntryWithDefault"
+			],
+			[
+				"root",
+				"root_block\tstatement"
+			],
+			[
+				"rep",
+				"replace_attribute"
+			],
+			[
+				"scene",
+				"scene_filename\tstatement"
+			],
+			[
+				"create",
+				"create_skeleton\tfunction"
+			],
+			[
+				"getchild",
+				"get_child_blocks\tfunction"
+			],
+			[
+				"asser",
+				"assertEqual\tfunction"
+			],
+			[
+				"temp",
+				"temp_filename\tstatement"
+			],
+			[
+				"open",
+				"openBrackets\tstatement"
+			],
+			[
+				"nuke",
+				"nuke"
+			],
+			[
+				"d",
+				"deployment_server"
+			],
+			[
+				"idmap_config_hypoet",
+				"idmap_config_hypothetical_backend"
+			]
+		]
+	},
+	"buffers":
+	[
+		{
+			"contents": "# CMake version required\ncmake_minimum_required( VERSION 2.8 )\n\n# Declare a Cortex Project\nproject( Gaffer )\n\n# Declare the version\nset( GAFFER_MILESTONE_VERSION 0 )\nset( GAFFER_MAJOR_VERSION 42 )\nset( GAFFER_MINOR_VERSION 0 )\nset( GAFFER_PATCH_VERSION 0 )\n\nadd_definitions( -DGAFFER_MILESTONE_VERSION=${GAFFER_MILESTONE_VERSION}\n                 -DGAFFER_MAJOR_VERSION=${GAFFER_MAJOR_VERSION}\n                 -DGAFFER_MINOR_VERSION=${GAFFER_MINOR_VERSION}\n                 -DGAFFER_PATCH_VERSION=${GAFFER_PATCH_VERSION} )\n\noption( WITH_TESTS \"Compile tests\" OFF )\n\n#-******************************************************************************\n#-******************************************************************************\n# PLATFORM SPECIFIC\n#-******************************************************************************\n#-******************************************************************************\n\n# Windows flag\nset( WINDOWS FALSE )\nif( \"${CMAKE_SYSTEM_NAME}\" MATCHES \"Windows\" )\n  set( WINDOWS TRUE )\nendif()\n\nset( DARWIN FALSE )\nif( \"${CMAKE_SYSTEM_NAME}\" MATCHES \"Darwin\" )\n  set( DARWIN TRUE )\n  if( ${CMAKE_SYSTEM_VERSION} MATCHES \"13.\" )\n       ADD_DEFINITIONS( \"-std=c++11\" )\n  endif()\nendif()\n\nset( LINUX FALSE )\nif( \"${CMAKE_SYSTEM_NAME}\" MATCHES \"Linux\" )\n  set( LINUX TRUE )\nendif()\n\n# Set some debug vs opt flags\nIF ( \"${CMAKE_BUILD_TYPE}\" MATCHES \"Debug\" )\n  ADD_DEFINITIONS( -DDEBUG=1 -UNDEBUG )\n  IF ( NOT WINDOWS )\n    ADD_DEFINITIONS( -pipe -Wall -O0)\n  ENDIF()\nELSEIF ( \"${CMAKE_BUILD_TYPE}\" MATCHES \"Release\" )\n  ADD_DEFINITIONS( -DNDEBUG=1 -UDEBUG )\n  IF ( NOT WINDOWS )\n    ADD_DEFINITIONS( -pipe -Wall -Werror -O3 -DNDEBUG -DBOOST_DISABLE_ASSERTS -Wno-unused-local-typedefs -Wno-strict-aliasing -Wno-maybe-uninitialized ) #-Wno-return-type )\n  ENDIF()\nENDIF()\n\nif( ${WINDOWS} )\n  add_definitions( -DGAFFER_PLATFORM=win)\n  add_definitions( -DOPENEXR_DLL -DNOMINMAX -D__PRETTY_FUNCTION__=__FUNCSIG__ -DBOOST_ALL_DYN_LINK )\n  set( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} /MP )\n  set( PLATFORM_LIBS winmm.lib Ws2_32.lib )\nendif()\n\n#-******************************************************************************\n#-******************************************************************************\n# GLOBAL PACKAGE & INCLUDE/LINK DEPENDENCY\n#-******************************************************************************\n#-******************************************************************************\n\n# check in the source directory\nset( CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake )\n\nfind_package( TBB REQUIRED )\nfind_package( PythonLibs 2.7 REQUIRED )\nfind_package( Boost REQUIRED COMPONENTS signals iostreams filesystem date_time wave regex system chrono python )\nfind_package( IlmBase REQUIRED )\nfind_package( OpenEXR REQUIRED )\nfind_package( Cortex REQUIRED )\nfind_package( OpenColorIO REQUIRED )\nfind_package( OpenImageIO REQUIRED )\nfind_package( OSL REQUIRED )\nfind_package( FreeType REQUIRED )\nfind_package( PNG REQUIRED ) # For freetype linking\nfind_package( Arnold )\nfind_package( OpenGL REQUIRED )\nfind_package( GLEW REQUIRED )\nfind_package( Qt5 5.6 REQUIRED Core Gui OpenGL )\nfind_package( Appleseed REQUIRED )\nfind_package( OpenVDB REQUIRED )\n\ninclude_directories( ${TBB_INCLUDE_DIRS} )\ninclude_directories( ${PYTHON_INCLUDE_DIRS} )\ninclude_directories( ${Boost_INCLUDE_DIRS} )\ninclude_directories( ${ILMBASE_INCLUDE_DIR} )\ninclude_directories( ${OPENEXR_INCLUDE_DIRS} )\ninclude_directories( ${Cortex_INCLUDE_DIRS} )\ninclude_directories( ${FREETYPE_INCLUDE_DIRS} )\nif (Arnold_FOUND)\n  include_directories( ${CORTEX_ARNOLD_INCLUDE_PATH} )\nendif()\ninclude_directories( ${APPLESEED_INCLUDE_DIRS} )\n\nlink_directories( ${TBB_LIBRARY_DIRS} )\nlink_directories( ${Boost_LIBRARY_DIRS} )\n\n# Boost definitions\nadd_definitions( -DBOOST_FILESYSTEM_VERSION=3 )\nadd_definitions( -DBOOST_FILESYSTEM_NO_DEPRICATED )\nadd_definitions( -DBOOST_SIGNALS_NO_DEPRECATION_WARNING )\nadd_definitions( -DBOOST_PYTHON_MAX_ARITY=20 )\n\n# Base libs to link to\nset( BASE_LIBS \n     ${Boost_SIGNALS_LIBRARY}\n     ${Boost_IOSTREAMS_LIBRARY}\n     ${Boost_FILESYSTEM_LIBRARY}\n     ${Boost_DATE_TIME_LIBRARY}\n     ${Boost_THREAD_LIBRARY}\n     ${Boost_WAVE_LIBRARY}\n     ${Boost_REGEX_LIBRARY}\n     ${Boost_SYSTEM_LIBRARY}\n     ${Boost_CHRONO_LIBRARY}\n     ${TBB_LIBRARIES}\n     ${Ilmbase_HALF_LIBRARY}\n     ${Ilmbase_IEX_LIBRARY}\n     ${Ilmbase_IEXMATH_LIBRARY}\n     ${Ilmbase_ILMTHREAD_LIBRARY}\n     ${Ilmbase_IMATH_LIBRARY}\n     ${Openexr_ILMIMF_LIBRARY}\n     ${Cortex_IECORE_LIBRARY})\n\nset( BASE_PYTHON_LIBS \n     ${PYTHON_LIBRARIES}\n     ${Boost_PYTHON_LIBRARY}\n     ${Cortex_IECOREPYTHON_LIBRARY}\n     Gaffer)\n\n#-******************************************************************************\n#-******************************************************************************\n# GAFFER\n#-******************************************************************************\n#-******************************************************************************\n\n# Includes\ninclude_directories( ${CMAKE_SOURCE_DIR}/include )\n\nset( GAFFER_LIB_NAMES \n  Gaffer\n  GafferAppleseed\n  GafferCortex\n  GafferDispatch\n  GafferImage\n  GafferImageUI\n  GafferOSL\n  GafferDelight\n  GafferScene\n  GafferSceneUI\n  GafferUI\n  GafferVDB\n  GafferVDBUI\n  )\nif (Arnold_FOUND)\n  SET(GAFFER_LIB_NAMES ${GAFFER_LIB_NAMES} GafferArnold GafferArnoldUI)\nendif()\n\nset( GAFFERBINDINGS_LIB_NAMES \n  Gaffer\n  GafferDispatch\n  )\n\nset( GAFFERTEST_LIB_NAMES \n  Gaffer\n  GafferImage\n  GafferScene\n  )\n\nset( GAFFER_PYTHON_NAMES \n  Gaffer\n  GafferAppleseed\n  GafferCortex\n  GafferDispatch\n  GafferImage\n  GafferOSL\n  GafferDelight\n  GafferScene\n  GafferTractor\n  GafferVDB\n  )\nif (Arnold_FOUND)\n  SET(GAFFER_PYTHON_NAMES ${GAFFER_PYTHON_NAMES} GafferArnold)\nendif()\n\n# Get lists of files\nforeach( GAFFER_LIB ${GAFFER_LIB_NAMES} )\n  string( TOUPPER ${GAFFER_LIB} _GAFFER_LIB )\n  file( GLOB ${_GAFFER_LIB}_CXX_FILES RELATIVE ${CMAKE_SOURCE_DIR} src/${GAFFER_LIB}/*.cpp )\n  file( GLOB ${_GAFFER_LIB}_H_FILES RELATIVE ${CMAKE_SOURCE_DIR} include/${GAFFER_LIB}/*.h include/${GAFFER_LIB}/*.inl )\n  file( GLOB ${_GAFFER_LIB}_CXX_MODULE_FILES RELATIVE ${CMAKE_SOURCE_DIR} src/${GAFFER_LIB}Module/*.cpp )\n  file( GLOB ${_GAFFER_LIB}_H_MODULE_FILES RELATIVE ${CMAKE_SOURCE_DIR} src/${GAFFER_LIB}Module/*.h src/${GAFFER_LIB}Module/*.inl )\nendforeach()\n\n# Get test lists of files\nforeach( GAFFER_LIB ${GAFFERTEST_LIB_NAMES} )\n  string( TOUPPER ${GAFFER_LIB} _GAFFER_LIB )\n  file( GLOB ${_GAFFER_LIB}TEST_CXX_FILES RELATIVE ${CMAKE_SOURCE_DIR} src/${GAFFER_LIB}Test/*.cpp )\n  file( GLOB ${_GAFFER_LIB}TEST_H_FILES RELATIVE ${CMAKE_SOURCE_DIR} include/${GAFFER_LIB}Test/*.h include/${GAFFER_LIB}Test/*.inl )\n  set( ${_GAFFER_LIB}TEST_CXX_MODULE_FILES src/${GAFFER_LIB}TestModule/${GAFFER_LIB}TestModule.cpp)\nendforeach()\n\n# Get binding list of files\nforeach( GAFFER_LIB ${GAFFERBINDINGS_LIB_NAMES} )\n  string( TOUPPER ${GAFFER_LIB} _GAFFER_LIB )\n  file( GLOB ${_GAFFER_LIB}BINDINGS_CXX_FILES RELATIVE ${CMAKE_SOURCE_DIR} src/${GAFFER_LIB}Bindings/*.cpp )\n  file( GLOB ${_GAFFER_LIB}BINDINGS_H_FILES RELATIVE ${CMAKE_SOURCE_DIR} include/${GAFFER_LIB}Bindings/*.h include/${GAFFER_LIB}Bindings/*.inl )\nendforeach()\n\n# Get python list of files\nforeach( GAFFER_LIB ${GAFFER_PYTHON_NAMES} )\n  string( TOUPPER ${GAFFER_LIB} _GAFFER_LIB )\n  file( GLOB ${_GAFFER_LIB}_PY_FILES RELATIVE ${CMAKE_SOURCE_DIR} python/${GAFFER_LIB}/*.py \n    python/${GAFFER_LIB}Test/*.py python/${GAFFER_LIB}UI/*.py python/${GAFFER_LIB}UITest/*.py )\nendforeach()\n\n# Gaffer\nadd_library( Gaffer SHARED ${GAFFER_CXX_FILES} ${GAFFER_H_FILES} )\ntarget_link_libraries( Gaffer ${BASE_LIBS} )\n\n# Gaffer Bindings\nadd_library( GafferBindings SHARED ${GAFFERBINDINGS_CXX_FILES} ${GAFFERBINDINGS_H_FILES} )\ntarget_link_libraries( GafferBindings ${BASE_LIBS} ${BASE_PYTHON_LIBS} )\n\n# Gaffer Module\nadd_library( _Gaffer MODULE ${GAFFER_CXX_MODULE_FILES} ${GAFFER_H_MODULE_FILES} )\ntarget_link_libraries( _Gaffer ${BASE_LIBS} ${BASE_PYTHON_LIBS} GafferBindings )\n\n# Gaffer Test\nadd_library( GafferTest SHARED ${GAFFERTEST_CXX_FILES} ${GAFFERTEST_H_FILES} )\ntarget_link_libraries( GafferTest ${BASE_LIBS} Gaffer )\n\n# Gaffer Test Module\nadd_library( _GafferTest MODULE ${GAFFERTEST_CXX_MODULE_FILES} )\ntarget_link_libraries( _GafferTest ${BASE_LIBS} ${BASE_PYTHON_LIBS} GafferBindings GafferTest )\n\n# GafferUI\nadd_library( GafferUI SHARED ${GAFFERUI_CXX_FILES} ${GAFFERUI_H_FILES} )\ntarget_link_libraries( GafferUI Gaffer GafferScene ${BASE_LIBS} ${Iex_LIB} ${Cortex_IECOREGL_LIBRARY} ${OPENGL_LIBRARIES} ${GLEW_LIBRARY} ${PLATFORM_LIBS} )\ntarget_compile_definitions( GafferUI PRIVATE -DQT_NO_KEYWORDS -DQ_COMPILER_CONSTEXPR )\n\n# GafferUI Python Module\nadd_library( _GafferUI MODULE ${GAFFERUI_CXX_MODULE_FILES} ${GAFFERUI_H_MODULE_FILES} )\ntarget_link_libraries( _GafferUI GafferUI GafferBindings ${BASE_LIBS} ${BASE_PYTHON_LIBS} Qt5::Core Qt5::Gui Qt5::OpenGL )\ntarget_compile_definitions( _GafferUI PRIVATE -DQT_NO_KEYWORDS -DQ_COMPILER_CONSTEXPR )\n\n# GafferDisptach\nadd_library( GafferDispatch SHARED ${GAFFERDISPATCH_CXX_FILES} ${GAFFERDISPATCH_H_FILES} )\ntarget_link_libraries( GafferDispatch ${BASE_LIBS} Gaffer )\n\n# GafferDispatch Bindings\nadd_library( GafferDispatchBindings SHARED ${GAFFERDISPATCHBINDINGS_CXX_FILES} ${GAFFERDISPATCHBINDINGS_H_FILES} )\ntarget_link_libraries( GafferDispatchBindings ${BASE_LIBS} ${BASE_PYTHON_LIBS} GafferBindings GafferDispatch )\n\n# GafferDispatch Python Module\nadd_library( _GafferDispatch MODULE ${GAFFERDISPATCH_CXX_MODULE_FILES} )\ntarget_link_libraries( _GafferDispatch ${BASE_LIBS} ${BASE_PYTHON_LIBS} GafferBindings GafferDispatchBindings )\n\n# GafferImage\nadd_library( GafferImage SHARED ${GAFFERIMAGE_CXX_FILES} ${GAFFERIMAGE_H_FILES} )\ntarget_link_libraries( GafferImage Gaffer GafferDispatch ${BASE_LIBS} ${ILMBASE_IEX_LIBRARY} ${OPENIMAGEIO_LIBRARIES} ${OPENCOLORIO_LIBRARIES} ${FREETYPE_LIBRARIES} ${PNG_LIBRARIES} ${Cortex_IECOREIMAGE_LIBRARY} ${PLATFORM_LIBS} )\n\n# GafferImage Python Module\nadd_library( _GafferImage MODULE ${GAFFERIMAGE_CXX_MODULE_FILES} ${GAFFERIMAGE_H_MODULE_FILES} )\ntarget_link_libraries( _GafferImage GafferImage GafferBindings GafferDispatchBindings ${BASE_LIBS} ${BASE_PYTHON_LIBS} )\n\n# GafferImage Test\nadd_library( GafferImageTest SHARED ${GAFFERIMAGETEST_CXX_FILES} ${GAFFERIMAGETEST_H_FILES} )\ntarget_link_libraries( GafferImageTest ${BASE_LIBS} Gaffer GafferImage ${OPENIMAGEIO_LIBRARIES} )\n\n# GafferImage Test Module\nadd_library( _GafferImageTest MODULE ${GAFFERIMAGETEST_CXX_MODULE_FILES} )\ntarget_link_libraries( _GafferImageTest ${BASE_LIBS} ${BASE_PYTHON_LIBS} GafferImage GafferImageTest )\n\n# GafferImageUI\nadd_library( GafferImageUI SHARED ${GAFFERIMAGEUI_CXX_FILES} ${GAFFERIMAGEUI_H_FILES} )\ntarget_link_libraries( GafferImageUI Gaffer GafferImage GafferUI ${BASE_LIBS} ${OPENGL_LIBRARIES} ${GLEW_LIBRARY} )\n\n# GafferImageUI Python Module\nadd_library( _GafferImageUI MODULE ${GAFFERIMAGEUI_CXX_MODULE_FILES} ${GAFFERIMAGEUI_H_MODULE_FILES} )\ntarget_link_libraries( _GafferImageUI GafferImageUI GafferBindings ${BASE_LIBS} ${BASE_PYTHON_LIBS} )\n\n# GafferScene\nfile( GLOB IECORESCENE_PREVIEW_H_FILES RELATIVE ${CMAKE_SOURCE_DIR} include/GafferScene/Private/IECoreScenePreview/*.h )\nfile( GLOB IECORESCENE_PREVIEW_CPP_FILES RELATIVE ${CMAKE_SOURCE_DIR} src/GafferScene/IECoreScenePreview/*.cpp )\nfile( GLOB IECOREGL_PREVIEW_CPP_FILES RELATIVE ${CMAKE_SOURCE_DIR} src/GafferScene/IECoreGLPreview/*.cpp )\nadd_library( GafferScene SHARED ${GAFFERSCENE_CXX_FILES} ${GAFFERSCENE_H_FILES} ${IECORESCENE_PREVIEW_H_FILES} ${IECORESCENE_PREVIEW_CPP_FILES} ${IECOREGL_PREVIEW_CPP_FILES} )\ntarget_link_libraries( GafferScene ${BASE_LIBS} Gaffer ${ILMBASE_IEX_LIBRARY} ${Cortex_IECOREGL_LIBRARY} ${Cortex_IECOREALEMBIC_LIBRARY} GafferImage GafferDispatch ${Cortex_IECORESCENE_LIBRARY} ${Cortex_IECOREGL_LIBRARY} ${OPENGL_LIBRARIES} ${GLEW_LIBRARY} )\n\n# GafferScene Python Module\nadd_library( _GafferScene MODULE ${GAFFERSCENE_CXX_MODULE_FILES} ${GAFFERSCENE_H_MODULE_FILES} )\ntarget_link_libraries( _GafferScene GafferScene GafferBindings GafferDispatchBindings ${BASE_LIBS} ${BASE_PYTHON_LIBS} )\n\n# GafferScene Test\nadd_library( GafferSceneTest SHARED ${GAFFERSCENETEST_CXX_FILES} ${GAFFERIMAGETEST_H_FILES} )\ntarget_link_libraries( GafferSceneTest ${BASE_LIBS} Gaffer GafferScene GafferDispatch )\n\n# GafferScene Test Module\nadd_library( _GafferSceneTest MODULE ${GAFFERSCENETEST_CXX_MODULE_FILES} )\ntarget_link_libraries( _GafferSceneTest ${BASE_LIBS} ${BASE_PYTHON_LIBS} GafferBindings GafferScene GafferSceneTest GafferDispatch )\n\n# GafferSceneUI\nadd_library( GafferSceneUI SHARED ${GAFFERSCENEUI_CXX_FILES} ${GAFFERSCENEUI_H_FILES} )\ntarget_link_libraries( GafferSceneUI ${BASE_LIBS} Gaffer GafferUI GafferImage GafferScene GafferSceneUI GafferImageUI ${ILMBASE_IEX_LIBRARY} ${Cortex_IECOREGL_LIBRARY} ${OPENGL_LIBRARIES} ${GLEW_LIBRARY} )\n\n# GafferSceneUI Python Module\nadd_library( _GafferSceneUI MODULE ${GAFFERSCENEUI_CXX_MODULE_FILES} ${GAFFERSCENEUI_H_MODULE_FILES} )\ntarget_link_libraries( _GafferSceneUI GafferSceneUI ${BASE_LIBS} ${BASE_PYTHON_LIBS} GafferBindings )\n\n# GafferCortex\nadd_library( GafferCortex SHARED ${GAFFERCORTEX_CXX_FILES} ${GAFFERCORTEX_H_FILES} )\ntarget_link_libraries( GafferCortex ${BASE_LIBS} Gaffer GafferDispatch )\n\n# GafferCortex Python Module\nadd_library( _GafferCortex MODULE ${GAFFERCORTEX_CXX_MODULE_FILES} ${GAFFERCORTEX_H_MODULE_FILES} )\ntarget_link_libraries( _GafferCortex GafferCortex GafferBindings ${BASE_LIBS} ${BASE_PYTHON_LIBS} )\n\n# GafferOSL\nadd_library( GafferOSL SHARED ${GAFFEROSL_CXX_FILES} ${GAFFEROSL_H_FILES} )\ntarget_link_libraries( GafferOSL ${BASE_LIBS} Gaffer GafferScene GafferImage ${OPENIMAGEIO_LIBRARIES} ${OSL_QUERY_LIBRARY} ${OSL_EXEC_LIBRARY} ${ILMBASE_IEX_LIBRARY} )\n\n# GafferOSL Python Module\nadd_library( _GafferOSL MODULE ${GAFFEROSL_CXX_MODULE_FILES} )\ntarget_link_libraries( _GafferOSL ${BASE_LIBS} ${BASE_PYTHON_LIBS} GafferBindings GafferScene GafferImage GafferOSL GafferAppleseed ${Ilmbase_IEX_LIBRARY} )\n\n# GafferVDB\nadd_library( GafferVDB SHARED ${GAFFERVDB_CXX_FILES} ${GAFFERVDB_H_FILES} )\ntarget_link_libraries( GafferVDB ${BASE_LIBS} Gaffer GafferScene ${OpenVDB_LIBRARIES} ${Cortex_IECORESCENE_LIBRARY} )\ntarget_compile_options( GafferVDB PRIVATE -DOPENVDB_3_ABI_COMPATIBLE )\n\n# GafferVDB Python Module\nadd_library( _GafferVDB MODULE ${GAFFERVDB_CXX_MODULE_FILES} )\ntarget_link_libraries( _GafferVDB GafferVDB ${BASE_LIBS} ${BASE_PYTHON_LIBS} GafferBindings GafferScene ${OpenVDB_LIBRARIES} ${Cortex_IECORESCENE_LIBRARY} )\ntarget_compile_options( _GafferVDB PRIVATE -DOPENVDB_3_ABI_COMPATIBLE )\n\n# GafferVDBUI\nadd_library( GafferVDBUI SHARED ${GAFFERVDBUI_CXX_FILES} ${GAFFERVDBUI_H_FILES} )\ntarget_link_libraries( GafferVDBUI ${BASE_LIBS} Gaffer GafferVDB GafferSceneUI ${OpenVDB_LIBRARIES} ${Cortex_IECOREGL_LIBRARY} )\ntarget_compile_options( GafferVDBUI PRIVATE -DOPENVDB_3_ABI_COMPATIBLE )\n\n# GafferVDBUI Python Module\nadd_library( _GafferVDBUI MODULE ${GAFFERVDBUI_CXX_MODULE_FILES} )\ntarget_link_libraries( _GafferVDBUI GafferVDBUI )\n\n# GafferAppleseed\nfile( GLOB IECOREAPPLESEED_PREVIEW_CXX_FILES RELATIVE ${CMAKE_SOURCE_DIR} src/GafferAppleseed/IECoreAppleseedPreview/*.cpp )\nadd_library( GafferAppleseed SHARED ${GAFFERAPPLESEED_CXX_FILES} ${GAFFERAPPLESEED_H_FILES} ${IECOREAPPLESEED_PREVIEW_CXX_FILES} )\ntarget_link_libraries( GafferAppleseed ${BASE_LIBS} Gaffer GafferDispatch GafferScene ${APPLESEED_LIBRARY} ${Cortex_IECOREAPPLESEED_LIBRARY} ${OPENIMAGEIO_LIBRARIES} ${OSL_QUERY_LIBRARY} )\ntarget_compile_options( GafferAppleseed PRIVATE -DAPPLESEED_ENABLE_IMATH_INTEROP -DAPPLESEED_USE_SSE )\n\n# GafferAppleseed Python Module\nadd_library( _GafferAppleseed MODULE ${GAFFERAPPLESEED_CXX_MODULE_FILES} )\ntarget_link_libraries( _GafferAppleseed ${BASE_LIBS} ${BASE_PYTHON_LIBS} GafferDispatch GafferScene GafferBindings GafferAppleseed )\ntarget_compile_options( _GafferAppleseed PRIVATE -DAPPLESEED_ENABLE_IMATH_INTEROP -DAPPLESEED_USE_SSE )\n\nif (Arnold_FOUND)\n  # GafferArnold\n  file( GLOB IECOREARNOLD_PREVIEW_CXX_FILES RELATIVE ${CMAKE_SOURCE_DIR} src/GafferArnold/IECoreArnoldPreview/*.cpp )\n  add_library( GafferArnold SHARED ${GAFFERARNOLD_CXX_FILES} ${GAFFERARNOLD_H_FILES} ${IECOREARNOLD_PREVIEW_CXX_FILES} )\n  target_link_libraries( GafferArnold ${BASE_LIBS} Gaffer GafferDispatch GafferScene GafferOSL GafferVDB ${OpenVDB_LIBRARIES} ${CORTEX_ARNOLD_LIBS} ${Cortex_IECOREARNOLD_LIBRARY} )\n  target_compile_options( GafferArnold PRIVATE -DOPENVDB_3_ABI_COMPATIBLE )\n\n  # GafferArnold Python Module\n  add_library( _GafferArnold MODULE ${GAFFERARNOLD_CXX_MODULE_FILES} )\n  target_link_libraries( _GafferArnold ${BASE_LIBS} ${BASE_PYTHON_LIBS} GafferScene GafferBindings GafferDispatch GafferArnold GafferBindings )\n\n  # GafferArnoldUI\n  add_library( GafferArnoldUI SHARED ${GAFFERARNOLDUI_CXX_FILES} ${GAFFERARNOLDUI_H_FILES} )\n  target_link_libraries( GafferArnoldUI ${BASE_LIBS} Gaffer GafferScene GafferSceneUI GafferOSL ${Cortex_IECOREGL_LIBRARY} )\n\n  # GafferArnoldUI Python Module\n  add_library( _GafferArnoldUI MODULE ${GAFFERARNOLDUI_CXX_MODULE_FILES} )\n  target_link_libraries( _GafferArnoldUI GafferArnoldUI )\nendif()\n\n# GafferDelight\nadd_library( GafferDelight SHARED ${GAFFERDELIGHT_CXX_FILES} ${GAFFERDELIGHT_H_FILES} )\ntarget_link_libraries( GafferDelight ${BASE_LIBS} Gaffer GafferDispatch GafferScene )\n\n# GafferDelight Python Module\nadd_library( _GafferDelight MODULE ${GAFFERDELIGHT_CXX_MODULE_FILES} )\ntarget_link_libraries( _GafferDelight ${BASE_LIBS} ${BASE_PYTHON_LIBS} GafferScene GafferBindings GafferDispatch GafferDelight GafferBindings )\n\n# Python modules need special naming\nforeach( GAFFER_LIB ${GAFFER_LIB_NAMES} )\n  if( DARWIN )\n    set_target_properties( _${GAFFER_LIB} PROPERTIES SUFFIX \".so\" )\n    set_target_properties( _${GAFFER_LIB} PROPERTIES PREFIX \"\" )\n  elif( WINDOWS )\n    set_target_properties( _${GAFFER_LIB} PROPERTIES SUFFIX \".pyd\" )\n  else()\n    set_target_properties( _${GAFFER_LIB} PROPERTIES PREFIX \"\" )\n  endif()\nendforeach()\n\n# Python modules need special naming\nif( WIN32 )\n  set_target_properties( _Gaffer PROPERTIES SUFFIX \".pyd\" )\n  set_target_properties( _GafferAppleseed PROPERTIES SUFFIX \".pyd\" )\n  if (Arnold_FOUND)\n    set_target_properties( _GafferArnold PROPERTIES SUFFIX \".pyd\" )\n    set_target_properties( _GafferArnoldUI PROPERTIES SUFFIX \".pyd\" )\n  endif()\n  set_target_properties( _GafferCortex PROPERTIES SUFFIX \".pyd\" )\n  set_target_properties( _GafferDispatch PROPERTIES SUFFIX \".pyd\" )\n  set_target_properties( _GafferImage PROPERTIES SUFFIX \".pyd\" )\n  set_target_properties( _GafferImageUI PROPERTIES SUFFIX \".pyd\" )\n  set_target_properties( _GafferOSL PROPERTIES SUFFIX \".pyd\" )\n  set_target_properties( _GafferDelight PROPERTIES SUFFIX \".pyd\" )\n  set_target_properties( _GafferScene PROPERTIES SUFFIX \".pyd\" )\n  set_target_properties( _GafferSceneUI PROPERTIES SUFFIX \".pyd\" )\n  set_target_properties( _GafferUI PROPERTIES SUFFIX \".pyd\" )\n  set_target_properties( _GafferTest PROPERTIES SUFFIX \".pyd\" )\n  set_target_properties( _GafferSceneTest PROPERTIES SUFFIX \".pyd\" )\n  set_target_properties( _GafferImageTest PROPERTIES SUFFIX \".pyd\" )\n  set_target_properties( _GafferVDB PROPERTIES SUFFIX \".pyd\" )\n  set_target_properties( _GafferVDBUI PROPERTIES SUFFIX \".pyd\" )\nendif()\n\n# Dependencies\nadd_dependencies( GafferAppleseed Gaffer GafferDispatch GafferScene )\nif (Arnold_FOUND)\n  add_dependencies( GafferArnold Gaffer GafferDispatch GafferScene GafferOSL )\n  add_dependencies( GafferArnoldUI Gaffer GafferScene GafferOSL GafferArnoldUI )\nendif()\nadd_dependencies( GafferCortex Gaffer GafferDispatch )\nadd_dependencies( GafferDispatch Gaffer )\nadd_dependencies( GafferImage Gaffer GafferDispatch )\nadd_dependencies( GafferImageUI Gaffer GafferImage GafferUI GafferBindings GafferImage GafferDispatch GafferImageUI )\nadd_dependencies( GafferOSL Gaffer GafferScene GafferImage ) \nadd_dependencies( GafferDelight Gaffer GafferDispatch GafferScene )\nadd_dependencies( GafferScene Gaffer GafferImage GafferDispatch )\nadd_dependencies( GafferSceneUI Gaffer GafferUI GafferImage GafferImageUI GafferScene )\nadd_dependencies( GafferUI Gaffer GafferScene )\n\n# Binding Dependencies\nadd_dependencies( GafferBindings Gaffer )\nadd_dependencies( GafferDispatchBindings Gaffer GafferBindings GafferDispatch )\n\n# Test Dependencies\nadd_dependencies( GafferTest Gaffer )\nadd_dependencies( GafferImageTest Gaffer GafferImage )\nadd_dependencies( GafferSceneTest Gaffer GafferScene GafferDispatch )\n\n# Module dependencies\nadd_dependencies( _Gaffer Gaffer GafferBindings )\nadd_dependencies( _GafferCortex Gaffer GafferCortex GafferBindings )\nadd_dependencies( _GafferDispatch Gaffer GafferDispatch GafferBindings GafferDispatchBindings )\nadd_dependencies( _GafferImage Gaffer GafferImage GafferBindings GafferDispatchBindings )\nadd_dependencies( _GafferImageUI Gaffer GafferImageUI GafferBindings )\nadd_dependencies( _GafferScene Gaffer GafferScene GafferBindings GafferDispatchBindings )\nadd_dependencies( _GafferSceneUI Gaffer GafferSceneUI GafferImageUI GafferBindings )\nadd_dependencies( _GafferUI Gaffer GafferUI GafferBindings )\nadd_dependencies( _GafferOSL GafferBindings GafferScene GafferImage GafferOSL )\nadd_dependencies( _GafferAppleseed GafferDispatch GafferScene GafferBindings GafferAppleseed )\nif (Arnold_FOUND)\n  add_dependencies( _GafferArnold Gaffer GafferScene GafferBindings GafferDispatch GafferArnold )\n  add_dependencies( _GafferArnoldUI Gaffer GafferArnoldUI )\nendif()\nadd_dependencies( _GafferDelight Gaffer GafferScene GafferBindings GafferDispatch GafferDelight )\n\nadd_dependencies( _GafferTest Gaffer GafferBindings GafferTest )\nadd_dependencies( _GafferImageTest Gaffer GafferImage GafferImageTest )\nadd_dependencies( _GafferSceneTest Gaffer GafferBindings GafferScene GafferSceneTest GafferDispatch )\n\n# Install Libs\nforeach( GAFFER_LIB ${GAFFER_LIB_NAMES} )\n  string( TOUPPER ${GAFFER_LIB} _GAFFER_LIB )\n  install( TARGETS ${GAFFER_LIB}\n           DESTINATION lib/ )\n  install( FILES ${${_GAFFER_LIB}_H_FILES}\n           DESTINATION include/${GAFFER_LIB} )\nendforeach()\n\n# Install Test Libs\nforeach( GAFFER_LIB ${GAFFERTEST_LIB_NAMES} )\n  string( TOUPPER ${GAFFER_LIB} _GAFFER_LIB )\n  install( TARGETS ${GAFFER_LIB}Test\n           DESTINATION lib/ )\n  install( TARGETS _${GAFFER_LIB}Test\n           DESTINATION python/${GAFFER_LIB}Test )\n  install( FILES ${${_GAFFER_LIB}_H_FILES}\n           DESTINATION include/${GAFFER_LIB}Test )\nendforeach()\n\n# Install Modules\nforeach( GAFFER_LIB ${GAFFER_LIB_NAMES} )\n  string( TOUPPER ${GAFFER_LIB} _GAFFER_LIB )\n  install( TARGETS _${GAFFER_LIB}\n           DESTINATION python/${GAFFER_LIB} )\nendforeach()\n\n# Install Bindings\nforeach( GAFFER_LIB ${GAFFERBINDINGS_LIB_NAMES} )\n  string( TOUPPER ${GAFFER_LIB} _GAFFER_LIB )\n  install( TARGETS ${GAFFER_LIB}Bindings \n           DESTINATION lib/ )\n  install( FILES ${${_GAFFER_LIB}BINDINGS_H_FILES}\n           DESTINATION include/${GAFFER_LIB} )\nendforeach()\n\n# Install Gaffer Files\ninstall( DIRECTORY ${CMAKE_SOURCE_DIR}/apps\n         DESTINATION . )\nif (Arnold_FOUND)\n  install( DIRECTORY ${CMAKE_SOURCE_DIR}/arnold\n         DESTINATION . )\nendif()\ninstall( DIRECTORY ${CMAKE_SOURCE_DIR}/bin\n         DESTINATION . )\ninstall( DIRECTORY ${CMAKE_SOURCE_DIR}/glsl\n         DESTINATION . )\ninstall( DIRECTORY ${CMAKE_SOURCE_DIR}/python\n         DESTINATION . )\nif (Arnold_FOUND)\n  install( DIRECTORY ${CMAKE_SOURCE_DIR}/arnold\n         DESTINATION . )\nendif()\ninstall( DIRECTORY ${CMAKE_SOURCE_DIR}/shaders\n         DESTINATION . )\ninstall( DIRECTORY ${CMAKE_SOURCE_DIR}/startup\n         DESTINATION . )\n",
+			"file": "CMakeLists.txt",
+			"file_size": 24106,
+			"file_write_time": 131662972622845728,
+			"settings":
+			{
+				"buffer_size": 23576,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "include/Gaffer/TransformPlug.h",
+			"settings":
+			{
+				"buffer_size": 3668,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "include/Gaffer/CompoundNumericPlug.h",
+			"settings":
+			{
+				"buffer_size": 9094,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "include/Gaffer/TypedObjectPlug.h",
+			"settings":
+			{
+				"buffer_size": 18477,
+				"line_ending": "Windows"
+			}
+		}
+	],
+	"build_system": "",
+	"build_system_choices":
+	[
+		[
+			[
+				[
+					"Anaconda Python Builder",
+					""
+				],
+				[
+					"Packages/Python/Python.sublime-build",
+					""
+				],
+				[
+					"Packages/Python/Python.sublime-build",
+					"Syntax Check"
+				]
+			],
+			[
+				"Anaconda Python Builder",
+				""
+			]
+		]
+	],
+	"build_varint": "",
+	"command_palette":
+	{
+		"height": 203.0,
+		"last_filter": "diff",
+		"selected_items":
+		[
+			[
+				"diff",
+				"Diffy Compare"
+			],
+			[
+				"spcaes",
+				"Indentation: Convert to Spaces"
+			],
+			[
+				"tabs",
+				"Indentation: Convert to Tabs"
+			],
+			[
+				"space",
+				"Indentation: Convert to Spaces"
+			],
+			[
+				"install",
+				"Package Control: Install Package"
+			],
+			[
+				"package resource",
+				"PackageResourceViewer: Open Resource"
+			],
+			[
+				"spaces",
+				"Indentation: Convert to Spaces"
+			],
+			[
+				"anaconda",
+				"Anaconda: Disable linting on this file"
+			],
+			[
+				"anacond",
+				"Anaconda: Disable linting on this file"
+			],
+			[
+				"ana",
+				"Anaconda: Disable linting on this file"
+			],
+			[
+				"pep8",
+				"Anaconda: Autoformat PEP8 Errors"
+			],
+			[
+				"max",
+				"Sublime3dsMax: Send File to 3ds Max"
+			],
+			[
+				"instll",
+				"Package Control: Install Package"
+			],
+			[
+				"anaconda: ",
+				"Anaconda: McCabe complexity check"
+			],
+			[
+				"anacon",
+				"Anaconda: Set Python interpreter"
+			],
+			[
+				"package",
+				"Package Control: Install Package"
+			],
+			[
+				"upgrade",
+				"Package Control: Upgrade Package"
+			]
+		],
+		"width": 380.0
+	},
+	"console":
+	{
+		"height": 126.0,
+		"history":
+		[
+			"import urllib.request,os,hashlib; h = '2915d1851351e5ee549c20394736b442' + '8bc59f460fa1548d1514676163dafc88'; pf = 'Package Control.sublime-package'; ipp = sublime.installed_packages_path(); urllib.request.install_opener( urllib.request.build_opener( urllib.request.ProxyHandler()) ); by = urllib.request.urlopen( 'http://packagecontrol.io/' + pf.replace(' ', '%20')).read(); dh = hashlib.sha256(by).hexdigest(); print('Error validating download (got %s instead of %s), please try manual install' % (dh, h)) if dh != h else open(os.path.join( ipp, pf), 'wb' ).write(by)"
+		]
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"expanded_folders":
+	[
+		"/M/gaffer",
+		"/M/gaffer/include",
+		"/M/gaffer/include/Gaffer"
+	],
+	"file_history":
+	[
+		"/M/gaffer/src/Gaffer/BoxIn.cpp",
+		"/M/gaffer/include/GafferDispatch/TypeIds.h",
+		"/M/gaffer/python/Gaffer/PythonExpressionEngine.py",
+		"/M/gaffer_0.42.0.0/include/IECore/TypedData.inl",
+		"/M/gaffer/include/Gaffer/Action.h",
+		"/M/gaffer/include/Gaffer/ArrayPlug.h",
+		"/M/gaffer/buildWindows.bat",
+		"/C/Users/eric/Downloads/Gaffer_Gaffer_for_Windows_refs_heads_msvc2017b2.log",
+		"/M/gafferDependencies/winbuild/buildAll.bat",
+		"/M/cortex/contrib/cmake/buildCortexWindows.bat",
+		"/M/gafferDependencies/winbuild/buildPySide.bat",
+		"/M/gafferDependencies/pyside-setup-6d8dee0/utils.py",
+		"/C/BuildAgent/work/fc827ed41966cf81/pyside-setup-6d8dee0/utils.py",
+		"/M/gafferDependencies/winbuild/buildBoost.bat",
+		"/M/gafferDependencies/winbuild/buildJPEG.bat",
+		"/M/gafferDependencies/OpenColorIO-1.0.9/CMakeLists.txt",
+		"/M/gafferDependencies/winbuild/buildBlosc.bat",
+		"/M/gafferDependencies/winbuild/buildZLIB.bat",
+		"/M/gafferDependencies/winbuild/buildXerces.bat",
+		"/M/gafferDependencies/winbuild/buildVDB.bat",
+		"/M/gafferDependencies/winbuild/buildTIFF.bat",
+		"/M/gafferDependencies/winbuild/buildTBB.bat",
+		"/M/gafferDependencies/winbuild/buildQt.bat",
+		"/M/gafferDependencies/winbuild/buildCortex.bat",
+		"/M/gafferDependencies/winbuild/buildFonts.bat",
+		"/M/gafferDependencies/winbuild/buildAlembic.bat",
+		"/M/gafferDependencies/winbuild/buildPython.bat",
+		"/M/gafferDependencies/winbuild/buildOCIO.bat",
+		"/M/gafferDependencies/hdf5-1.8.11/config/cmake/ConfigureChecks.cmake",
+		"/M/gafferDependencies/hdf5-1.8.11/config/cmake/HDF5Tests.c",
+		"/M/gafferDependencies/winbuild/buildOpenSSL.bat",
+		"/M/gafferDependencies/winbuild/buildOSL.bat",
+		"/M/gafferDependencies/winbuild/buildPackage.bat",
+		"/M/gafferDependencies/winbuild/buildPNG.bat",
+		"/M/gafferDependencies/winbuild/buildPyOpenGL.bat",
+		"/M/gafferDependencies/winbuild/buildEXR.bat",
+		"/M/gafferDependencies/winbuild/buildFreeType.bat",
+		"/M/gafferDependencies/winbuild/buildGLEW.bat",
+		"/M/gafferDependencies/winbuild/buildHDF5.bat",
+		"/M/gafferDependencies/winbuild/buildLLVM.bat",
+		"/M/gafferDependencies/winbuild/buildOIIO.bat",
+		"/T/pc2reader.py",
+		"//cache.hypothetical.world/Users$/eric/Documents/houdini16.5/houdini.pref",
+		"/M/test.bat",
+		"/M/sub_test.bat",
+		"/M/gafferDependencies/winbuild/buildAppleseed.bat",
+		"/C/Users/eric/Downloads/gaffer-0.42.0.0-windows-msvc2017/bin/gaffer_env.bat",
+		"/C/Users/eric/Desktop/tryGaffer.py",
+		"/C/Users/eric/Downloads/gaffer-0.42.0.0-windows-msvc2017/bin/gaffer.bat",
+		"/C/Users/eric/Downloads/gaffer-0.42.0.0-windows-msvc2017/python/Gaffer/__init__.py",
+		"/C/Users/eric/Downloads/gaffer-0.42.0.0-windows-msvc2017/python/IECore/__init__.py",
+		"/L/nuke/init.py",
+		"/L/nuke/cryptomatte_utilities.py",
+		"/M/gafferDependencies/boost_1_61_0/tools/build/src/tools/msvc.jam",
+		"/M/gafferDependencies/boost_1_61_0/project-config.jam",
+		"//taskcache.hypothetical.world/task_cache/TSG007-winter_2018_2018_02_05_17_48_50_0956/TSG007-001-k_series_white_cam_a.vrscene",
+		"/M/gafferDependencies/Python-2.7.13/python-cmake-buildsystem/.gitignore",
+		"/M/gafferDependencies/Python-2.7.13/python-cmake-buildsystem/cmake/lib/CMakeLists.txt",
+		"/C/Users/eric/Downloads/boost_binary/boost_1_61_0/lib64-msvc-14.0/boost_atomic-vc140-mt-1_61.dll",
+		"/M/gafferDependencies/boost_1_61_0/tools/build/src/engine/build.jam",
+		"/C/Users/eric/Downloads/python-cmake-buildsystem-master/cmake/lib/CMakeLists.txt",
+		"/M/maxscript/maxscript.sublime-project",
+		"/L/nuke/SplitMultiLightChannels.py",
+		"/L/nuke/DeadlineNukeClient.py",
+		"/L/nuke/versionControl.py",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a68e6e44940b0204c2741b3/TSG007-001-shaker_white.nk",
+		"/M/pipeline/Hypothetical/Action/Vrscene.py",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a678bf34940b0b070246007/vrscene_export.ms",
+		"/M/maxscript/startup/hy_deadlinesubmit.ms",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a678a294940b0b194563d77/vrscene_export.ms",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a67893a4940b0b8f84139e0/vrscene_export.ms",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a6789af4940b0c2bcadf780/vrscene_export.ms",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a67857e4940b01c34e1391f/vrscene_export.ms",
+		"//queue.hypothetical.world/deadline_repository/plugins/3dsmax/3dsmax.py",
+		"//queue.hypothetical.world/deadline_repository/plugins/3dsmax/3dsmax.py.old",
+		"/M/Scripts - Deadline/scripts/Jobs/FetchJobOutput.py",
+		"/M/XOO001-LA_looks/pipeline/submit_all_viewport_previews.py",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a500eed4940b089d48d3d0f/vrscene_export.ms",
+		"//taskcache.hypothetical.world/task_cache/XOO001-LA_looks_2018_01_10_11_45_56_0311/animated_light_test.vrscene",
+		"/C/Users/eric/Desktop/animated light test.vrscene",
+		"/C/Users/eric/Desktop/test.ms",
+		"/C/Users/eric/Downloads/gaffer-0.34.0.0-windows/bin/gaffer.bat",
+		"/C/Users/eric/Desktop/test.py",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a50064a4940b07828e00ce9/vrscene_export.ms",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a500b0e4940b0a2e4035eea/vrscene_export.ms",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a440c434940b086c8fc01b5/vrscene_export.ms",
+		"/M/maxscript/createVrayLightSelectElements.ms",
+		"/M/gaffer/bin/gaffer.bat",
+		"/C/Users/eric/Downloads/gaffer-0.34.0.0-windows/bin/gaffer.py",
+		"/C/Users/eric/Downloads/collectFiles_1.2/collectFiles.py",
+		"/M/MAY002-november_2017_renderings/pipeline/renamewritenodes.py",
+		"/C/Users/eric/Downloads/vraystd_adv_36004_linux_x64_gcc-4.4_hwlic_utf8/vraystd_changelog.txt",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a3848ef4940b05c589d499a/vrscene_export.ms",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a39361d4940b097a890b79f/vrscene_export.ms",
+		"/M/maxscript/setup_material_ids.ms",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a3833414940b0629c576bbd/vrscene_export.ms",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a380c1c4940b01d3c062fd0/vrscene_export.ms",
+		"/C/Users/eric/Downloads/Nuke11.1v1-linux-x86-release-64.tgz",
+		"/M/maxscript/set_all_material_ids.ms",
+		"/M/pipeline/Hypothetical/Deadline/MaxPlugin.py",
+		"/M/maxscript/vray_conform_materials.ms",
+		"/C/Users/eric/AppData/Roaming/Sublime Text 3/Packages/Send to 3ds Max/sublime3dsmax.py",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a3143e94940b0f8a0169d85/vrscene_export.ms",
+		"/C/Users/eric/Downloads/dcmodels_2017_12_07_dOy/DC_GammaTool_v1.00.ms",
+		"/M/pipeline/Hypothetical/Deadline/DeadlineSubmission.py",
+		"/M/maxscript/maxplus python info.txt",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a30170c4940b0c6cc0a2e95/vrscene_export.ms",
+		"//queue.hypothetical.world/deadline_repository/jobs/5a2eee794940b05628a3f502/vrscene_export.ms",
+		"/P/Hypothetical/Action/Vrscene.py",
+		"/M/maxscript/toggle_vrproxy_view.ms",
+		"/M/maxscript/hypotheticalStartup.ms",
+		"/C/Users/eric/Desktop/crypto_test.vrscene",
+		"/C/Users/eric/Downloads/pbjgN0.json",
+		"/Q/TOT003-contemporary_bath_2017_11_27_12_11_51_0614/crytpo_test.vrscene",
+		"/C/Program Files/Chaos Group/V-Ray/Standalone for x64/samples/vray_plugins/rchannels/cryptomatte/cryptomatte.cpp",
+		"/C/Users/eric/Desktop/nuke_test.vrscene",
+		"/C/Users/eric/Desktop/crypto_test2.vrscene",
+		"/C/Users/eric/Downloads/appsdk-win-full-stable-1.22.00-vray36002-20170720/examples/py/advanced/01-render-elements.py",
+		"/C/Users/eric/Downloads/appsdk-win-full-stable-1.22.00-vray36002-20170720/examples/py/modification/09-output-parameters.py",
+		"/C/Users/eric/Downloads/appsdk-win-full-stable-1.22.00-vray36002-20170720/examples/py/modification/06-change-settings.py",
+		"/C/Users/eric/Desktop/crytpo_test2.vrscene",
+		"/C/Program Files/Chaos Group/V-Ray/Standalone for x64/scenes/aniso_test.vrscene",
+		"/C/Program Files/Chaos Group/V-Ray/Standalone for x64/scenes/renderchannels.vrscene",
+		"/C/Users/eric/Desktop/crytpo_test.vrscene",
+		"/L/materials/shaders/gold.osl",
+		"/L/materials/shaders/Complex_Fresnel_IOR.osl",
+		"/M/HYP054-2017_Summer_Reel/pipeline/export_all_vrscenes.ms",
+		"/C/Users/eric/Downloads/complex_ior/complex_ior.osl"
+	],
+	"find":
+	{
+		"height": 40.0
+	},
+	"find_in_files":
+	{
+		"height": 104.0,
+		"where_history":
+		[
+			"M:\\gafferDependencies\\pyside-setup-6d8dee0",
+			"M:\\gafferDependencies\\OpenColorIO-1.0.9",
+			"M:\\gafferDependencies\\hdf5-1.8.11"
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": false,
+		"find_history":
+		[
+			"valueEntry",
+			"arnold",
+			"INCLUDE_ARNOLD",
+			"run_process",
+			"nmake",
+			"Running process in",
+			"C:\\BuildAgent\\temp\\buildTmp",
+			"patch",
+			"llwidthArgs[]",
+			"char *llwidthArgs[] =",
+			"f"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"selected": 2,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "CMakeLists.txt",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 23576,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								3025,
+								3025
+							]
+						],
+						"settings":
+						{
+							"origPos":
+							[
+								0.0,
+								756.0
+							],
+							"syncScroll": false,
+							"syntax": "Packages/Text/Plain text.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 756.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 2,
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "include/Gaffer/TransformPlug.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 3668,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								2046,
+								2046
+							]
+						],
+						"settings":
+						{
+							"origPos":
+							[
+								0.0,
+								216.0
+							],
+							"syncScroll": false,
+							"syntax": "Packages/C++/C++.sublime-syntax",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 216.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 1,
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "include/Gaffer/CompoundNumericPlug.h",
+					"semi_transient": true,
+					"settings":
+					{
+						"buffer_size": 9094,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								4555,
+								4555
+							]
+						],
+						"settings":
+						{
+							"origPos":
+							[
+								0.0,
+								1890.0
+							],
+							"syncScroll": false,
+							"syntax": "Packages/C++/C++.sublime-syntax",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 1890.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 0,
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "include/Gaffer/TypedObjectPlug.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 18477,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								2512,
+								2512
+							]
+						],
+						"settings":
+						{
+							"origPos":
+							[
+								0.0,
+								324.0
+							],
+							"syncScroll": false,
+							"syntax": "Packages/C++/C++.sublime-syntax",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 324.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 3,
+					"type": "text"
+				}
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 26.0
+	},
+	"input":
+	{
+		"height": 31.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.exec":
+	{
+		"height": 315.0
+	},
+	"output.find_results":
+	{
+		"height": 0.0
+	},
+	"pinned_build_system": "",
+	"project": "gaffer.sublime-project",
+	"replace":
+	{
+		"height": 48.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 500.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"",
+				"M:\\cortex\\cortex.sublime-project"
+			]
+		],
+		"width": 380.0
+	},
+	"select_symbol":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"selected_group": 0,
+	"settings":
+	{
+	},
+	"show_minimap": false,
+	"show_open_files": false,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 243.0,
+	"status_bar_visible": true,
+	"template_settings":
+	{
+	}
+}

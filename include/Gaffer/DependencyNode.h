@@ -38,6 +38,7 @@
 #ifndef GAFFER_DEPENDENCYNODE_H
 #define GAFFER_DEPENDENCYNODE_H
 
+#include "Gaffer/Export.h"
 #include "Gaffer/Node.h"
 #include "Gaffer/TypedPlug.h"
 

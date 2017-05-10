@@ -37,6 +37,7 @@
 #ifndef GAFFER_COMPOUNDPATHFILTER_H
 #define GAFFER_COMPOUNDPATHFILTER_H
 
+#include "Gaffer/Export.h"
 #include "Gaffer/PathFilter.h"
 
 namespace Gaffer

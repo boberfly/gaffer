@@ -37,6 +37,7 @@
 #ifndef GAFFER_BOX_H
 #define GAFFER_BOX_H
 
+#include "Gaffer/Export.h"
 #include "Gaffer/SubGraph.h"
 
 namespace Gaffer

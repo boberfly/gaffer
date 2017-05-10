@@ -37,6 +37,7 @@
 #ifndef GAFFER_BACKDROP_H
 #define GAFFER_BACKDROP_H
 
+#include "Gaffer/Export.h"
 #include "Gaffer/Node.h"
 #include "Gaffer/NumericPlug.h"
 

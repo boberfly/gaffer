@@ -38,6 +38,7 @@
 #ifndef GAFFER_PREFERENCES_H
 #define GAFFER_PREFERENCES_H
 
+#include "Gaffer/Export.h"
 #include "Gaffer/Node.h"
 
 namespace Gaffer

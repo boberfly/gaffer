@@ -45,6 +45,8 @@
 
 #include "tbb/enumerable_thread_specific.h"
 
+#include "Gaffer/Export.h"
+
 namespace Gaffer
 {
 

@@ -38,6 +38,7 @@
 #ifndef GAFFER_TRANSFORMPLUG_H
 #define GAFFER_TRANSFORMPLUG_H
 
+#include "Gaffer/Export.h"
 #include "Gaffer/CompoundNumericPlug.h"
 
 namespace Gaffer

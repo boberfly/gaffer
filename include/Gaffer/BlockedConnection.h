@@ -42,6 +42,8 @@
 #include "boost/noncopyable.hpp"
 #include "boost/signals.hpp"
 
+#include "Gaffer/Export.h"
+
 namespace Gaffer
 {
 

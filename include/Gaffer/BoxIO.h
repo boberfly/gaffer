@@ -37,6 +37,7 @@
 #ifndef GAFFER_BOXIO_H
 #define GAFFER_BOXIO_H
 
+#include "Gaffer/Export.h"
 #include "Gaffer/Node.h"
 #include "Gaffer/Plug.h"
 

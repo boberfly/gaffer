@@ -37,6 +37,7 @@
 #ifndef GAFFER_FILESEQUENCEPATHFILTER_H
 #define GAFFER_FILESEQUENCEPATHFILTER_H
 
+#include "Gaffer/Export.h"
 #include "Gaffer/PathFilter.h"
 #include "Gaffer/TypeIds.h"
 

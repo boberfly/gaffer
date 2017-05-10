@@ -41,6 +41,8 @@
 
 #include <string>
 
+#include "Gaffer/Export.h"
+
 namespace Gaffer
 {
 

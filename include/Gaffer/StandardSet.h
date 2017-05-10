@@ -38,6 +38,7 @@
 #ifndef GAFFER_STANDARDSET_H
 #define GAFFER_STANDARDSET_H
 
+#include "Gaffer/Export.h"
 #include "Gaffer/Set.h"
 
 #include "boost/multi_index/ordered_index.hpp"

@@ -37,6 +37,7 @@
 #ifndef GAFFER_DOT_H
 #define GAFFER_DOT_H
 
+#include "Gaffer/Export.h"
 #include "Gaffer/DependencyNode.h"
 #include "Gaffer/NumericPlug.h"
 

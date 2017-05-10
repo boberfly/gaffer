@@ -37,6 +37,7 @@
 #ifndef GAFFER_CHILDSET_H
 #define GAFFER_CHILDSET_H
 
+#include "Gaffer/Export.h"
 #include "Gaffer/Set.h"
 
 namespace Gaffer

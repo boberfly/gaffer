@@ -38,6 +38,7 @@
 #ifndef GAFFER_APPLICATIONROOT_H
 #define GAFFER_APPLICATIONROOT_H
 
+#include "Gaffer/Export.h"
 #include "Gaffer/ScriptNode.h"
 
 namespace Gaffer
