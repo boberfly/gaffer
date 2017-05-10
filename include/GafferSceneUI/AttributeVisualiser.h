@@ -43,6 +43,8 @@
 
 #include "IECore/CompoundObject.h"
 
+#include "GafferSceneUI/Export.h"
+
 namespace GafferSceneUI
 {
 
