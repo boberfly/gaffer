@@ -38,10 +38,7 @@ import os
 import errno
 import signal
 import shlex
-if os.name == 'posix' and sys.version_info[0] < 3:
-    import subprocess32 as subprocess
-else:
-    import subprocess
+import subprocess32 as subprocess
 import threading
 import time
 import traceback
