@@ -1072,7 +1072,7 @@ _styleSheet = string.Template(
 
 ).substitute( {
 
-	"GAFFER_ROOT" : os.environ["GAFFER_ROOT"],
+	"GAFFER_ROOT" : os.environ["GAFFER_ROOT"] if os.name == 'posix' else os.environ["GAFFER_ROOT"].replace("\\", "/"),
 	"backgroundDarkest" : "rgb( 0, 0, 0 )",
 	"backgroundDark" : "rgb( 60, 60, 60 )",
 	"backgroundDarkTransparent" : "rgba( 60, 60, 60, 100 )",
