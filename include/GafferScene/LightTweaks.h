@@ -57,7 +57,7 @@ class GAFFERSCENE_API LightTweaks : public SceneElementProcessor
 		/// Compound plug type used to represent a tweak.
 		/// Add instances of these to the tweaksPlug() to
 		/// add tweaks.
-		class TweakPlug : public Gaffer::Plug
+		class GAFFERSCENE_API TweakPlug : public Gaffer::Plug
 		{
 
 			public :
