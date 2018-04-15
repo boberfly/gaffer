@@ -92,7 +92,7 @@ for menuItem, url in [
 ## Node creation menu
 ###########################################################################
 
-moduleSearchPath = IECore.SearchPath( os.environ["PYTHONPATH"] )
+moduleSearchPath = IECore.SearchPath( os.environ["PYTHONPATH"], os.path.sep )
 
 nodeMenu = GafferUI.NodeMenu.acquire( application )
 
