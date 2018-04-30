@@ -69,8 +69,8 @@ using namespace IECoreCycles;
 struct Converters
 {
 
-	ObjectAlgo::Converter converter;
-	ObjectAlgo::MotionConverter motionConverter;
+	NodeAlgo::Converter converter;
+	NodeAlgo::MotionConverter motionConverter;
 
 };
 
@@ -182,7 +182,7 @@ void convertPrimitiveVariable( std::string &name, const IECoreScene::PrimitiveVa
 		}
 		else
 		{
-			msg( Msg::Warning, "IECoreCyles::ObjectAlgo::convertPrimitiveVariable", boost::format( "Variable \"%s\" has unsupported type \"%s\" (expected FloatVectorData)." ) % name % value.data->typeName() );
+			msg( Msg::Warning, "IECoreCyles::NodeAlgo::convertPrimitiveVariable", boost::format( "Variable \"%s\" has unsupported type \"%s\" (expected FloatVectorData)." ) % name % value.data->typeName() );
 			attributes.remove( name );
 		}
 	}
@@ -201,7 +201,7 @@ void convertPrimitiveVariable( std::string &name, const IECoreScene::PrimitiveVa
 		}
 		else
 		{
-			msg( Msg::Warning, "IECoreCyles::ObjectAlgo::convertPrimitiveVariable", boost::format( "Variable \"%s\" has unsupported type \"%s\" (expected V3fVectorData)." ) % name % value.data->typeName() );
+			msg( Msg::Warning, "IECoreCyles::NodeAlgo::convertPrimitiveVariable", boost::format( "Variable \"%s\" has unsupported type \"%s\" (expected V3fVectorData)." ) % name % value.data->typeName() );
 			attributes.remove( name );
 		}
 	}
@@ -216,10 +216,10 @@ void convertPrimitiveVariable( std::string &name, const IECoreScene::PrimitiveVa
 namespace IECoreCycles
 {
 
-namespace ObjectAlgo
+namespace NodeAlgo
 {
 
-ccl::Object convert( const IECore::Object *object, const std::string &nodeName )
+ccl::Camera *convert( const IECore::Object *object, const std::string &nodeName )
 {
 	Registry &r = registry();
 	auto it = r.find( object->typeId() );
@@ -230,7 +230,65 @@ ccl::Object convert( const IECore::Object *object, const std::string &nodeName )
 	return it->second.converter( object, nodeName );
 }
 
-ccl::Object convert( const std::vector<const IECore::Object *> &samples, const std::string &nodeName )
+ccl::Camera *convert( const std::vector<const IECore::Object *> &samples, const std::string &nodeName )
+{
+	Registry &r = registry();
+	auto it = r.find( samples.front()->typeId() );
+	if( it == r.end() )
+	{
+		return false;
+	}
+	if( it->second.motionConverter )
+	{
+		return it->second.motionConverter( samples, nodeName );
+	}
+	else
+	{
+		return it->second.converter( samples.front(), nodeName );
+	}
+}
+
+ccl::Light *convert( const IECore::Object *object, const std::string &nodeName )
+{
+	Registry &r = registry();
+	auto it = r.find( object->typeId() );
+	if( it == r.end() )
+	{
+		return false;
+	}
+	return it->second.converter( object, nodeName );
+}
+
+ccl::Light *convert( const std::vector<const IECore::Object *> &samples, const std::string &nodeName )
+{
+	Registry &r = registry();
+	auto it = r.find( samples.front()->typeId() );
+	if( it == r.end() )
+	{
+		return false;
+	}
+	if( it->second.motionConverter )
+	{
+		return it->second.motionConverter( samples, nodeName );
+	}
+	else
+	{
+		return it->second.converter( samples.front(), nodeName );
+	}
+}
+
+ccl::Mesh *convert( const IECore::Object *object, const std::string &nodeName )
+{
+	Registry &r = registry();
+	auto it = r.find( object->typeId() );
+	if( it == r.end() )
+	{
+		return false;
+	}
+	return it->second.converter( object, nodeName );
+}
+
+ccl::Mesh *convert( const std::vector<const IECore::Object *> &samples, const std::string &nodeName )
 {
 	Registry &r = registry();
 	auto it = r.find( samples.front()->typeId() );
@@ -253,6 +311,6 @@ void registerConverter( IECore::TypeId fromType, Converter converter, MotionConv
 	registry()[fromType] = { converter, motionConverter };
 }
 
-} // namespace ObjectAlgo
+} // namespace NodeAlgo
 
 } // namespace IECoreCycles

@@ -49,7 +49,7 @@ using namespace IECoreCycles;
 namespace
 {
 
-ccl::Camera *convert( const IECoreScene::Camera *camera, const std::string &nodeName )
+ccl::Camera *convertStatic( const IECoreScene::Camera *camera, const std::string &nodeName )
 {
 	CameraPtr cameraCopy = camera->copy();
 	cameraCopy->addStandardParameters();
@@ -116,5 +116,13 @@ ccl::Camera *convert( const IECoreScene::Camera *camera, const std::string &node
 
 	return cclCamera;
 }
+
+ccl::Camera *convertAnimated( const IECoreScene::Camera *camera, const std::string &nodeName )
+{
+	// Not sure if Cortex can even do motion blurred cameras?
+	return convertStatic( camera[0], &nodeName );
+}
+
+NodeAlgo::ConverterDescription<ccl::Camera, Camera> g_description( convertStatic, convertAnimated );
 
 } // namespace

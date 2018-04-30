@@ -222,25 +222,23 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh )
 
 	// Finally, do a generic conversion of anything that remains.
 	for( PrimitiveVariableMap::iterator it = variablesToConvert.begin(), eIt = variablesToConvert.end(); it != eIt; ++it )
-		ObjectAlgo::convertPrimitiveVariable( it->first, it->second, attributes );
+		NodeAlgo::convertPrimitiveVariable( it->first, it->second, attributes );
 
 	return cmesh;
 }
 
-ccl::Object *convertStatic( const IECoreScene::MeshPrimitive *mesh, const std::string &nodeName )
+ccl::Mesh *convertStatic( const IECoreScene::MeshPrimitive *mesh, const std::string &nodeName )
 {
-	ccl::Object *result = new ccl::Object();
+	ccl::Mesh *result = ::convertCommon(mesh);
 	result->name = nodeName.c_str();
-	result->mesh& = convertCommon(mesh);
 
 	return result;
 }
 
-ccl::Object *convertAnimated( const vector<const IECoreScene::MeshPrimitive *> &meshes, const std::vector &sampleTimes const std::string &nodeName )
+ccl::Mesh *convertAnimated( const vector<const IECoreScene::MeshPrimitive *> &meshes, const std::vector &sampleTimes const std::string &nodeName )
 {
-	ccl::Object *result = new ccl::Object();
+	ccl::Mesh *result = ::convertCommon(meshes[0]);
 	result->name = nodeName.c_str();
-	result->mesh& = convertCommon(meshes[0]);
 
 	// Add the motion position/normal attributes
 	result->mesh.motion_steps = meshes.size();
@@ -318,6 +316,6 @@ ccl::Object *convertAnimated( const vector<const IECoreScene::MeshPrimitive *> &
 	return result;
 }
 
-ObjectAlgo::ConverterDescription<MeshPrimitive> g_description( convertStatic, convertAnimated );
+NodeAlgo::ConverterDescription<ccl::Mesh, MeshPrimitive> g_description( convertStatic, convertAnimated );
 
 } // namespace

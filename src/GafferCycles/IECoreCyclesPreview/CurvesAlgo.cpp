@@ -87,28 +87,26 @@ ccl::Mesh *convertCommon( const IECoreScene::CurvesPrimitive *curve )
 	variablesToConvert.erase( "width" );
 
 	for( PrimitiveVariableMap::iterator it = variablesToConvert.begin(), eIt = variablesToConvert.end(); it != eIt; ++it )
-		ObjectAlgo::convertPrimitiveVariable( it->first, it->second, cmesh->attributes );
+		NodeAlgo::convertPrimitiveVariable( it->first, it->second, cmesh->attributes );
 
 	return cmesh;
 }
 
-ccl::Object *convertStatic( const IECoreScene::CurvesPrimitive *curve, const std::string &nodeName )
+ccl::Mesh *convertStatic( const IECoreScene::CurvesPrimitive *curve, const std::string &nodeName )
 {
-	ccl::Object *result = new ccl::Object();
+	ccl::Mesh *result = ::convertCommon(mesh);
 	result->name = nodeName.c_str();
-	result->mesh& = ::convertCommon(mesh);
 
 	return result;
 }
 
-ccl::Object *convertAnimated( const vector<const IECoreScene::CurvesPrimitive *> &curves, const std::string &nodeName )
+ccl::Mesh *convertAnimated( const vector<const IECoreScene::CurvesPrimitive *> &curves, const std::string &nodeName )
 {
-	ccl::Object *result = new ccl::Object();
+	ccl::Mesh *result = ::convertCommon(mesh);
 	result->name = nodeName.c_str();
-	result->mesh& = ::convertCommon(mesh);
 
 	// Add the motion position/normal attributes
-	result->mesh.motion_steps = meshes.size();
+	mesh->motion_steps = meshes.size();
 	ccl::Attribute *attr_mP = attributes.add( "motion_P", ATTR_STD_MOTION_VERTEX_POSITION );
 	float3 *mP = attr_mP->data_float3();
 
@@ -148,6 +146,6 @@ ccl::Object *convertAnimated( const vector<const IECoreScene::CurvesPrimitive *>
 	return result;
 }
 
-ObjectAlgo::ConverterDescription<CurvesPrimitive> g_description( convertStatic, convertAnimated );
+NodeAlgo::ConverterDescription<ccl::Mesh, CurvesPrimitive> g_description( convertStatic, convertAnimated );
 
 } // namespace

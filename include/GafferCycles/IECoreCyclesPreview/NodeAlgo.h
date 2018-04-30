@@ -56,46 +56,59 @@ namespace IECoreCycles
 namespace NodeAlgo
 {
 
-IECORECYCLES_API ccl::Camera *convert( const IECoreScene::Camera *camera, const std::string &nodeName );
+/// A Cycles 'Object' is not necessarily a global thing for all objects, hence why Camera and Lights
+/// are treated separately. They all however subclass from ccl::Node so they all are compatible with
+/// Cycles' internal Node/Socket API to form connections or apply parameters.
 
-IECORECYCLES_API ccl::Light *convert( const IECoreScene::Light *light, const std::string &nodeName );
-
-/// Converts the specified IECore::Object into an equivalent
-/// Cycles object, returning nullptr if no conversion is
-/// available.
-IECORECYCLES_API ccl::Object *convert( const IECore::Object *object, const std::string &nodeName );
+/// Converts the specified IECoreScene::Camera into a ccl::Camera.
+IECORECYCLES_API ccl::Camera *convert( const IECore::Object *object, const std::string &nodeName );
 /// As above, but converting a moving object. If no motion converter
 /// is available, the first sample is converted instead.
-IECORECYCLES_API ccl::Object *convert( const std::vector<const IECore::Object *> &samples, const std::string &nodeName );
+IECORECYCLES_API ccl::Camera *convert( const std::vector<const IECore::Object *> &samples, const std::string &nodeName );
 
-/// Signature of a function which can convert an IECore::Object
-/// into a Cycles Object.
-typedef ccl::Object * (*Converter)( const IECore::Object *, const std::string &nodeName );
-typedef ccl::Object * (*MotionConverter)( const std::vector<const IECore::Object *> &samples, const std::string &nodeName );
+/// Converts the specified IECoreScene::Light into a ccl::Light.
+IECORECYCLES_API ccl::Light  *convert( const IECore::Object *object, const std::string &nodeName );
+/// As above, but converting a moving object. If no motion converter
+/// is available, the first sample is converted instead.
+IECORECYCLES_API ccl::Light  *convert( const std::vector<const IECore::Object *> &samples, const std::string &nodeName );
+
+/// Converts the specified IECoreScene::MeshPrimitive or CurvesPrimitive into a ccl::Mesh.
+IECORECYCLES_API ccl::Mesh   *convert( const IECore::Object *object, const std::string &nodeName );
+/// As above, but converting a moving object. If no motion converter
+/// is available, the first sample is converted instead.
+IECORECYCLES_API ccl::Mesh   *convert( const std::vector<const IECore::Object *> &samples, const std::string &nodeName );
+
+/// Signature of a function which can convert into a Cycles Object/Node.
+typedef ccl::Camera * (*Converter)( const IECore::Object *, const std::string &nodeName );
+typedef ccl::Camera * (*MotionConverter)( const std::vector<const IECore::Object *> &samples, const std::string &nodeName );
+typedef ccl::Light  * (*Converter)( const IECore::Object *, const std::string &nodeName );
+typedef ccl::Light  * (*MotionConverter)( const std::vector<const IECore::Object *> &samples, const std::string &nodeName );
+typedef ccl::Mesh   * (*Converter)( const IECore::Object *, const std::string &nodeName );
+typedef ccl::Mesh   * (*MotionConverter)( const std::vector<const IECore::Object *> &samples, const std::string &nodeName );
 
 /// Registers a converter for a specific type.
 /// Use the ConverterDescription utility class in preference to
 /// this, since it provides additional type safety.
 IECORECYCLES_API void registerConverter( IECore::TypeId fromType, Converter converter, MotionConverter motionConverter = nullptr );
 
-/// Class which registers a converter for type T automatically
+/// Class which registers a converter for type U to type T automatically
 /// when instantiated.
-template<typename T>
+template<typename T, U>
 class ConverterDescription
 {
 
 	public :
 
 		/// Type-specific conversion functions.
-		typedef ccl::Object * (*Converter)( const T *, const std::string& );
-		typedef ccl::Object * (*MotionConverter)( const std::vector<const T *> &, const std::string& );
+		typedef T * (*Converter)( const U *, const std::string& );
+		typedef T * (*MotionConverter)( const std::vector<const U *> &, const std::string& );
 
 		ConverterDescription( Converter converter, MotionConverter motionConverter = nullptr )
 		{
 			registerConverter(
-				T::staticTypeId(),
-				reinterpret_cast<ObjectAlgo::Converter>( converter ),
-				reinterpret_cast<ObjectAlgo::MotionConverter>( motionConverter )
+				U::staticTypeId(),
+				reinterpret_cast<NodeAlgo::Converter>( converter ),
+				reinterpret_cast<NodeAlgo::MotionConverter>( motionConverter )
 			);
 		}
 
