@@ -150,7 +150,7 @@ std::string Dispatcher::createJobDirectory( const Context *context ) const
 	long i = -1;
 	for( const auto &d : boost::filesystem::directory_iterator( jobDirectory ) )
 	{
-		i = std::max( i, strtol( d.path().filename().c_str(), nullptr, 10 ) );
+		i = std::max( i, strtol( d.path().filename().string().c_str(), nullptr, 10 ) );
 	}
 
 	// Now create the next directory and return it. We do this in a loop
