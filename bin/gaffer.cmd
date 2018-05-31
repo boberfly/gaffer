@@ -1,3 +1,5 @@
+SETLOCAL
+
 set GAFFER_ROOT=%~dp0%..
 
 set HOME=%USERPROFILE%
@@ -28,7 +30,7 @@ set GAFFEROSL_CODE_DIRECTORY=%OSL_SHADER_PATHS%;%USERPROFILE%\gaffer\oslCode
 
 set PYTHONHOME=%GAFFER_ROOT%
 
-set PYTHONPATH=%GAFFER_ROOT%\python;%PYTHONPATH%
+set PYTHONPATH=%GAFFER_ROOT%\python;%GAFFER_ROOT%\lib64\site-packages;%PYTHONPATH%
 
 set PATH=%GAFFER_ROOT%\lib;%PATH%
 
@@ -53,4 +55,6 @@ set PYTHONPATH=%PYTHONPATH%;%ARNOLD_ROOT%\python
 
 
 rem Run Gaffer
-rem python %GAFFER_ROOT%/bin/gaffer.py %1 %2
+python %GAFFER_ROOT%/bin/gaffer.py %*
+
+ENDLOCAL
