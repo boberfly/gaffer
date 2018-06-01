@@ -8,7 +8,7 @@ project( Gaffer )
 
 # Declare the version
 set( GAFFER_MILESTONE_VERSION 0 )
-set( GAFFER_MAJOR_VERSION 45 )
+set( GAFFER_MAJOR_VERSION 46 )
 set( GAFFER_MINOR_VERSION 0 )
 set( GAFFER_PATCH_VERSION 0 )
 
@@ -19,7 +19,7 @@ add_definitions( -DGAFFER_MILESTONE_VERSION=${GAFFER_MILESTONE_VERSION}
 
 option( WITH_TESTS "Compile tests" OFF )
 
-set( GAFFER_SOURCE_DIR ${CMAKE_SOURCE_DIR} )
+set( GAFFER_SOURCE_DIR ${CMAKE_SOURCE_DIR}/../.. )
 
 #-******************************************************************************
 #-******************************************************************************
@@ -92,6 +92,7 @@ find_package( GLEW REQUIRED )
 find_package( Qt5 5.6 REQUIRED Core Gui OpenGL )
 find_package( Appleseed REQUIRED )
 find_package( OpenVDB REQUIRED )
+find_package( 3Delight )
 
 include_directories( ${GAFFER_SOURCE_DIR}/include )
 include_directories( ${TBB_INCLUDE_DIRS} )
@@ -101,8 +102,8 @@ include_directories( ${ILMBASE_INCLUDE_DIR} )
 include_directories( ${OPENEXR_INCLUDE_DIRS} )
 include_directories( ${Cortex_INCLUDE_DIRS} )
 include_directories( ${FREETYPE_INCLUDE_DIRS} )
-if (Arnold_FOUND)
-  include_directories( ${CORTEX_ARNOLD_INCLUDE_PATH} )
+if (ARNOLD_FOUND)
+  include_directories( ${ARNOLD_INCLUDE_DIRS} )
 endif()
 include_directories( ${APPLESEED_INCLUDE_DIRS} )
 
@@ -158,15 +159,17 @@ set( GAFFER_LIB_NAMES
   GafferImage
   GafferImageUI
   GafferOSL
-  GafferDelight
   GafferScene
   GafferSceneUI
   GafferUI
   GafferVDB
   GafferVDBUI
   )
-if (Arnold_FOUND)
+if (ARNOLD_FOUND)
   SET(GAFFER_LIB_NAMES ${GAFFER_LIB_NAMES} GafferArnold GafferArnoldUI)
+endif()
+if (3Delight_FOUND)
+  SET(GAFFER_LIB_NAMES ${GAFFER_LIB_NAMES} GafferDelight)
 endif()
 
 set( GAFFERBINDINGS_LIB_NAMES
@@ -185,13 +188,15 @@ set( GAFFER_PYTHON_NAMES
   GafferDispatch
   GafferImage
   GafferOSL
-  GafferDelight
   GafferScene
   GafferTractor
   GafferVDB
   )
-if (Arnold_FOUND)
+if (ARNOLD_FOUND)
   SET(GAFFER_PYTHON_NAMES ${GAFFER_PYTHON_NAMES} GafferArnold)
+endif()
+if (3Delight_FOUND)
+  SET(GAFFER_PYTHON_NAMES ${GAFFER_PYTHON_NAMES} GafferDelight)
 endif()
 
 # Get lists of files
@@ -314,9 +319,9 @@ execute_process(
 )
 
 set(outputPNGs "")
-build_svg_exports( ${CMAKE_CURRENT_BINARY_DIR}/resources/graphics.svg )
-build_svg_exports( ${CMAKE_CURRENT_BINARY_DIR}/resources/GafferLogo.svg )
-build_svg_exports( ${CMAKE_CURRENT_BINARY_DIR}/resources/GafferLogoMini.svg )
+build_svg_exports( ${GAFFER_SOURCE_DIR}/resources/graphics.svg )
+build_svg_exports( ${GAFFER_SOURCE_DIR}/resources/GafferLogo.svg )
+build_svg_exports( ${GAFFER_SOURCE_DIR}/resources/GafferLogoMini.svg )
 
 add_custom_target(Graphics ALL DEPENDS ${outputPNGs})
 
@@ -446,11 +451,11 @@ target_link_libraries( _GafferAppleseed ${BASE_LIBS} ${BASE_PYTHON_LIBS} GafferD
 target_compile_options( _GafferAppleseed PRIVATE -DAPPLESEED_ENABLE_IMATH_INTEROP -DAPPLESEED_USE_SSE )
 
 
-if (Arnold_FOUND)
+if (ARNOLD_FOUND)
   # GafferArnold
   file( GLOB IECOREARNOLD_PREVIEW_CXX_FILES RELATIVE ${CMAKE_SOURCE_DIR} src/GafferArnold/IECoreArnoldPreview/*.cpp )
   add_library( GafferArnold SHARED ${GAFFERARNOLD_CXX_FILES} ${GAFFERARNOLD_H_FILES} ${IECOREARNOLD_PREVIEW_CXX_FILES} )
-  target_link_libraries( GafferArnold ${BASE_LIBS} Gaffer GafferDispatch GafferScene GafferOSL GafferVDB ${OpenVDB_LIBRARIES} ${CORTEX_ARNOLD_LIBS} ${Cortex_IECOREARNOLD_LIBRARY} )
+  target_link_libraries( GafferArnold ${BASE_LIBS} Gaffer GafferDispatch GafferScene GafferOSL GafferVDB ${OpenVDB_LIBRARIES} ${ARNOLD_LIBRARIES} ${Cortex_IECOREARNOLD_LIBRARY} )
   target_compile_options( GafferArnold PRIVATE )
 
 
@@ -467,31 +472,33 @@ if (Arnold_FOUND)
   target_link_libraries( _GafferArnoldUI GafferArnoldUI )
 endif()
 
-# GafferDelight
-add_library( GafferDelight SHARED ${GAFFERDELIGHT_CXX_FILES} ${GAFFERDELIGHT_H_FILES} )
-target_link_libraries( GafferDelight ${BASE_LIBS} Gaffer GafferDispatch GafferScene )
+if (3Delight_FOUND)
+  # GafferDelight
+  add_library( GafferDelight SHARED ${GAFFERDELIGHT_CXX_FILES} ${GAFFERDELIGHT_H_FILES} )
+  target_link_libraries( GafferDelight ${BASE_LIBS} Gaffer GafferDispatch GafferScene ${3Delight_LIBRARIES} )
 
-# GafferDelight Python Module
-add_library( _GafferDelight MODULE ${GAFFERDELIGHT_CXX_MODULE_FILES} )
-target_link_libraries( _GafferDelight ${BASE_LIBS} ${BASE_PYTHON_LIBS} GafferScene GafferBindings GafferDispatch GafferDelight GafferBindings )
+  # GafferDelight Python Module
+  add_library( _GafferDelight MODULE ${GAFFERDELIGHT_CXX_MODULE_FILES} )
+  target_link_libraries( _GafferDelight ${BASE_LIBS} ${BASE_PYTHON_LIBS} GafferScene GafferBindings GafferDispatch GafferDelight GafferBindings )
 
-# Python modules need special naming
-foreach( GAFFER_LIB ${GAFFER_LIB_NAMES} )
-  if( DARWIN )
-    set_target_properties( _${GAFFER_LIB} PROPERTIES SUFFIX ".so" )
-    set_target_properties( _${GAFFER_LIB} PROPERTIES PREFIX "" )
-  elif( WINDOWS )
-    set_target_properties( _${GAFFER_LIB} PROPERTIES SUFFIX ".pyd" )
-  else()
-    set_target_properties( _${GAFFER_LIB} PROPERTIES PREFIX "" )
-  endif()
-endforeach()
+  # Python modules need special naming
+  foreach( GAFFER_LIB ${GAFFER_LIB_NAMES} )
+    if( DARWIN )
+      set_target_properties( _${GAFFER_LIB} PROPERTIES SUFFIX ".so" )
+      set_target_properties( _${GAFFER_LIB} PROPERTIES PREFIX "" )
+    elif( WINDOWS )
+      set_target_properties( _${GAFFER_LIB} PROPERTIES SUFFIX ".pyd" )
+    else()
+      set_target_properties( _${GAFFER_LIB} PROPERTIES PREFIX "" )
+    endif()
+  endforeach()
+endif()
 
 # Python modules need special naming
 if( WIN32 )
   set_target_properties( _Gaffer PROPERTIES SUFFIX ".pyd" )
   set_target_properties( _GafferAppleseed PROPERTIES SUFFIX ".pyd" )
-  if (Arnold_FOUND)
+  if (ARNOLD_FOUND)
     set_target_properties( _GafferArnold PROPERTIES SUFFIX ".pyd" )
     set_target_properties( _GafferArnoldUI PROPERTIES SUFFIX ".pyd" )
   endif()
@@ -500,7 +507,9 @@ if( WIN32 )
   set_target_properties( _GafferImage PROPERTIES SUFFIX ".pyd" )
   set_target_properties( _GafferImageUI PROPERTIES SUFFIX ".pyd" )
   set_target_properties( _GafferOSL PROPERTIES SUFFIX ".pyd" )
-  set_target_properties( _GafferDelight PROPERTIES SUFFIX ".pyd" )
+  if (3Delight_FOUND)
+    set_target_properties( _GafferDelight PROPERTIES SUFFIX ".pyd" )
+  endif()
   set_target_properties( _GafferScene PROPERTIES SUFFIX ".pyd" )
   set_target_properties( _GafferSceneUI PROPERTIES SUFFIX ".pyd" )
   set_target_properties( _GafferUI PROPERTIES SUFFIX ".pyd" )
@@ -550,7 +559,7 @@ add_custom_target(Shaders ALL DEPENDS ${COMPILED_OSL_SHADERS})
 
 # Dependencies
 add_dependencies( GafferAppleseed Gaffer GafferDispatch GafferScene )
-if (Arnold_FOUND)
+if (ARNOLD_FOUND)
   add_dependencies( GafferArnold Gaffer GafferDispatch GafferScene GafferOSL )
   add_dependencies( GafferArnoldUI Gaffer GafferScene GafferOSL GafferArnoldUI )
 endif()
@@ -559,7 +568,9 @@ add_dependencies( GafferDispatch Gaffer )
 add_dependencies( GafferImage Gaffer GafferDispatch )
 add_dependencies( GafferImageUI Gaffer GafferImage GafferUI GafferBindings GafferImage GafferDispatch GafferImageUI )
 add_dependencies( GafferOSL Gaffer GafferScene GafferImage )
-add_dependencies( GafferDelight Gaffer GafferDispatch GafferScene )
+if (3Delight_FOUND)
+  add_dependencies( GafferDelight Gaffer GafferDispatch GafferScene )
+endif()
 add_dependencies( GafferScene Gaffer GafferImage GafferDispatch )
 add_dependencies( GafferSceneUI Gaffer GafferUI GafferImage GafferImageUI GafferScene )
 add_dependencies( GafferUI Gaffer GafferScene )
@@ -582,11 +593,13 @@ add_dependencies( _GafferSceneUI Gaffer GafferSceneUI GafferImageUI GafferBindin
 add_dependencies( _GafferUI Gaffer GafferUI GafferBindings )
 add_dependencies( _GafferOSL GafferBindings GafferScene GafferImage GafferOSL )
 add_dependencies( _GafferAppleseed GafferDispatch GafferScene GafferBindings GafferAppleseed )
-if (Arnold_FOUND)
+if (ARNOLD_FOUND)
   add_dependencies( _GafferArnold Gaffer GafferScene GafferBindings GafferDispatch GafferArnold )
   add_dependencies( _GafferArnoldUI Gaffer GafferArnoldUI )
 endif()
-add_dependencies( _GafferDelight Gaffer GafferScene GafferBindings GafferDispatch GafferDelight )
+if (3Delight_FOUND)
+  add_dependencies( _GafferDelight Gaffer GafferScene GafferBindings GafferDispatch GafferDelight )
+endif()
 
 add_dependencies( _GafferTest Gaffer GafferBindings GafferTest )
 add_dependencies( _GafferSceneTest Gaffer GafferBindings GafferScene GafferSceneTest GafferDispatch )
@@ -630,7 +643,7 @@ endforeach()
 # Install Gaffer Files
 install( DIRECTORY ${GAFFER_SOURCE_DIR}/apps
          DESTINATION . )
-if (Arnold_FOUND)
+if (ARNOLD_FOUND)
   install( DIRECTORY ${GAFFER_SOURCE_DIR}/arnold
          DESTINATION . )
 endif()
@@ -640,7 +653,7 @@ install( DIRECTORY ${GAFFER_SOURCE_DIR}/glsl
          DESTINATION . )
 install( DIRECTORY ${GAFFER_SOURCE_DIR}/python
          DESTINATION . )
-if (Arnold_FOUND)
+if (ARNOLD_FOUND)
   install( DIRECTORY ${GAFFER_SOURCE_DIR}/arnold
          DESTINATION . )
 endif()
