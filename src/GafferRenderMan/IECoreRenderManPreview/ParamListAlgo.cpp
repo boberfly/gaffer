@@ -51,42 +51,42 @@ namespace
 struct ParameterConverter
 {
 
-	void operator()( const BoolData *data, RtUString name, RixParamList &paramList ) const
+	void operator()( const BoolData *data, RtUString name, RtParamList &paramList ) const
 	{
 		paramList.SetInteger( name, data->readable() );
 	}
 
-	void operator()( const IntData *data, RtUString name, RixParamList &paramList ) const
+	void operator()( const IntData *data, RtUString name, RtParamList &paramList ) const
 	{
 		paramList.SetInteger( name, data->readable() );
 	}
 
-	void operator()( const FloatData *data, RtUString name, RixParamList &paramList ) const
+	void operator()( const FloatData *data, RtUString name, RtParamList &paramList ) const
 	{
 		paramList.SetFloat( name, data->readable() );
 	}
 
-	void operator()( const StringData *data, RtUString name, RixParamList &paramList ) const
+	void operator()( const StringData *data, RtUString name, RtParamList &paramList ) const
 	{
 		paramList.SetString( name, RtUString( data->readable().c_str() ) );
 	}
 
-	void operator()( const Color3fData *data, RtUString name, RixParamList &paramList ) const
+	void operator()( const Color3fData *data, RtUString name, RtParamList &paramList ) const
 	{
 		paramList.SetColor( name, RtColorRGB( data->readable().getValue() ) );
 	}
 
-	void operator()( const V2iData *data, RtUString name, RixParamList &paramList ) const
+	void operator()( const V2iData *data, RtUString name, RtParamList &paramList ) const
 	{
 		paramList.SetIntegerArray( name, data->readable().getValue(), 2 );
 	}
 
-	void operator()( const V2fData *data, RtUString name, RixParamList &paramList ) const
+	void operator()( const V2fData *data, RtUString name, RtParamList &paramList ) const
 	{
 		paramList.SetFloatArray( name, data->readable().getValue(), 2 );
 	}
 
-	void operator()( const V3fData *data, RtUString name, RixParamList &paramList ) const
+	void operator()( const V3fData *data, RtUString name, RtParamList &paramList ) const
 	{
 		switch( data->getInterpretation() )
 		{
@@ -99,12 +99,12 @@ struct ParameterConverter
 		}
 	}
 
-	void operator()( const IntVectorData *data, RtUString name, RixParamList &paramList ) const
+	void operator()( const IntVectorData *data, RtUString name, RtParamList &paramList ) const
 	{
 		paramList.SetIntegerArray( name, data->readable().data(), data->readable().size() );
 	}
 
-	void operator()( const Data *data, RtUString name, RixParamList &paramList ) const
+	void operator()( const Data *data, RtUString name, RtParamList &paramList ) const
 	{
 		IECore::msg(
 			IECore::Msg::Warning,
@@ -127,12 +127,12 @@ namespace IECoreRenderMan
 namespace ParamListAlgo
 {
 
-void convertParameter( const RtUString &name, const Data *data, RixParamList &paramList )
+void convertParameter( const RtUString &name, const Data *data, RtParamList &paramList )
 {
 	dispatch( data, ParameterConverter(), name, paramList );
 }
 
-void convertParameters( const IECore::CompoundDataMap &parameters, RixParamList &paramList )
+void convertParameters( const IECore::CompoundDataMap &parameters, RtParamList &paramList )
 {
 	for( auto &p : parameters )
 	{

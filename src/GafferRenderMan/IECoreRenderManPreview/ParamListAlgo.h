@@ -38,9 +38,7 @@
 #include "IECore/CompoundData.h"
 
 #include "Riley.h"
-#include "RixParamList.h"
-
-#include <memory>
+#include "RtParamList.h"
 
 namespace IECoreRenderMan
 {
@@ -48,55 +46,8 @@ namespace IECoreRenderMan
 namespace ParamListAlgo
 {
 
-namespace Detail
-{
-
-struct ParamListDeleter
-{
-
-	ParamListDeleter( RixRileyManager *manager )
-		:	m_manager( manager )
-	{
-	}
-	void operator()( RixParamList *p ) const
-	{
-		m_manager->DestroyRixParamList( p );
-	}
-
-	private :
-
-		RixRileyManager *m_manager;
-
-};
-
-} // namespace Detail
-
-using RixParamListPtr = std::unique_ptr<RixParamList, Detail::ParamListDeleter>;
-
-/// Convenience function to make a scoped parameter list
-inline RixParamListPtr makeParamList( RixRileyManager *manager = nullptr )
-{
-	if( !manager )
-	{
-		manager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
-	}
-	return RixParamListPtr( manager->CreateRixParamList(), Detail::ParamListDeleter( manager ) );
-}
-
-inline RixParamListPtr makePrimitiveVariableList( size_t numUniform, size_t numVertex, size_t numVarying, size_t numFaceVarying, RixRileyManager *manager = nullptr )
-{
-	if( !manager )
-	{
-		manager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
-	}
-	return RixParamListPtr(
-		manager->CreateRixParamList( numUniform, numVertex, numVarying, numFaceVarying ),
-		Detail::ParamListDeleter( manager )
-	);
-}
-
-void convertParameter( const RtUString &name, const IECore::Data *data, RixParamList &paramList );
-void convertParameters( const IECore::CompoundDataMap &parameters, RixParamList &paramList );
+void convertParameter( const RtUString &name, const IECore::Data *data, RtParamList &paramList );
+void convertParameters( const IECore::CompoundDataMap &parameters, RtParamList &paramList );
 
 } // namespace ParamListAlgo
 
