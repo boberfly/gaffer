@@ -195,33 +195,30 @@ class RenderManCamera :  public IECoreScenePreview::Renderer::ObjectInterface
 		// calls of any sort before `RenderManGlobals::ensureWorld()` will trigger
 		// RenderMan crashes, so we must bide our time and convert things later.
 		RenderManCamera( const IECoreScene::Camera *camera, const std::function<void ()> &destructor = std::function<void ()>() )
-			:	m_options( ParamListAlgo::makeParamList() ),
-				m_projectionParameters( ParamListAlgo::makeParamList() ),
-				m_parameters( ParamListAlgo::makeParamList() ),
-				m_destructor( destructor )
+			:	m_destructor( destructor )
 		{
 			// Options
 
 			const V2i resolution = camera->getResolution();
-			m_options->SetIntegerArray( Rix::k_Ri_FormatResolution, resolution.getValue(), 2 );
-			m_options->SetFloat( Rix::k_Ri_FormatPixelAspectRatio, camera->getPixelAspectRatio() );
+			m_options.SetIntegerArray( Rix::k_Ri_FormatResolution, resolution.getValue(), 2 );
+			m_options.SetFloat( Rix::k_Ri_FormatPixelAspectRatio, camera->getPixelAspectRatio() );
 
 			const V2f shutter = camera->getShutter();
-			m_options->SetFloatArray( Rix::k_Ri_Shutter, shutter.getValue(), 2 );
+			m_options.SetFloatArray( Rix::k_Ri_Shutter, shutter.getValue(), 2 );
 
 			// Parameters
 
-			m_parameters->SetFloat( Rix::k_nearClip, camera->getClippingPlanes()[0] );
-			m_parameters->SetFloat( Rix::k_farClip, camera->getClippingPlanes()[1] );
+			m_parameters.SetFloat( Rix::k_nearClip, camera->getClippingPlanes()[0] );
+			m_parameters.SetFloat( Rix::k_farClip, camera->getClippingPlanes()[1] );
 
 			// Projection
 
 			/// \todo Fill projection from camera
-			m_projectionParameters->SetFloat( Rix::k_fov, 35.0f );
+			m_projectionParameters.SetFloat( Rix::k_fov, 35.0f );
 
 			m_projection = {
 				riley::ShadingNode::k_Projection, RtUString( "PxrCamera" ),
-				RtUString( "projection" ), m_projectionParameters.get()
+				RtUString( "projection" ), m_projectionParameters
 			};
 
 			transform( M44f() );
@@ -245,14 +242,14 @@ class RenderManCamera :  public IECoreScenePreview::Renderer::ObjectInterface
 			return m_cameraToWorldTransform;
 		}
 
-		const RixParamList &parameters() const
+		const RtParamList &parameters() const
 		{
-			return *m_parameters;
+			return m_parameters;
 		}
 
-		const RixParamList &options() const
+		const RtParamList &options() const
 		{
-			return *m_options;
+			return m_options;
 		}
 
 		// ObjectInterface methods
@@ -296,16 +293,16 @@ class RenderManCamera :  public IECoreScenePreview::Renderer::ObjectInterface
 
 		RtUString m_name;
 
-		ParamListAlgo::RixParamListPtr m_options;
+		RtParamList m_options;
 
 		riley::ShadingNode m_projection;
-		ParamListAlgo::RixParamListPtr m_projectionParameters;
+		RtParamList m_projectionParameters;
 
 		riley::Transform m_cameraToWorldTransform;
 		vector<M44f> m_transformSamples;
 		vector<float> m_transformTimes;
 
-		ParamListAlgo::RixParamListPtr m_parameters;
+		RtParamList m_parameters;
 
 		std::function<void ()> m_destructor;
 
@@ -345,19 +342,19 @@ class RenderManGlobals : public boost::noncopyable
 			if( char *p = getenv( "RMAN_DISPLAYS_PATH" ) )
 			{
 				string searchPath = string( p ) + ":@";
-				m_options->SetString( Rix::k_searchpath_display, RtUString( searchPath.c_str() ) );
+				m_options.SetString( Rix::k_searchpath_display, RtUString( searchPath.c_str() ) );
 			}
 
 			if( char *p = getenv( "OSL_SHADER_PATHS" ) )
 			{
 				string searchPath = string( p ) + ":@";
-				m_options->SetString( Rix::k_searchpath_shader, RtUString( searchPath.c_str() ) );
+				m_options.SetString( Rix::k_searchpath_shader, RtUString( searchPath.c_str() ) );
 			}
 
 			if( session->renderType == IECoreScenePreview::Renderer::Interactive )
 			{
-				m_options->SetInteger( Rix::k_hider_incremental, 1 );
-				m_options->SetString( Rix::k_bucket_order, RtUString( "circle" ) );
+				m_options.SetInteger( Rix::k_hider_incremental, 1 );
+				m_options.SetString( Rix::k_bucket_order, RtUString( "circle" ) );
 			}
 		}
 
@@ -412,12 +409,12 @@ class RenderManGlobals : public boost::noncopyable
 				{
 					if( auto *d = reportedCast<const IntData>( value, "option", name ) )
 					{
-						m_options->SetInteger( RtUString( "Ri:Frame" ), d->readable() );
+						m_options.SetInteger( RtUString( "Ri:Frame" ), d->readable() );
 					}
 				}
 				else
 				{
-					m_options->Remove( RtUString( "Ri:Frame" ) );
+					m_options.Remove( RtUString( "Ri:Frame" ) );
 				}
 			}
 			else if( name == g_sampleMotionOption )
@@ -426,12 +423,12 @@ class RenderManGlobals : public boost::noncopyable
 				{
 					if( auto *d = reportedCast<const BoolData>( value, "option", name ) )
 					{
-						m_options->SetInteger( RtUString( "hider:samplemotion" ), d->readable() );
+						m_options.SetInteger( RtUString( "hider:samplemotion" ), d->readable() );
 					}
 				}
 				else
 				{
-					m_options->Remove( RtUString( "hider:samplemotion" ) );
+					m_options.Remove( RtUString( "hider:samplemotion" ) );
 				}
 			}
 			else if( boost::starts_with( name.c_str(), g_renderManPrefix.c_str() ) )
@@ -441,12 +438,12 @@ class RenderManGlobals : public boost::noncopyable
 				{
 					if( auto data = runTimeCast<const Data>( value ) )
 					{
-						ParamListAlgo::convertParameter( renderManName, data, *m_options );
+						ParamListAlgo::convertParameter( renderManName, data, m_options );
 					}
 				}
 				else
 				{
-					m_options->Remove( renderManName );
+					m_options.Remove( renderManName );
 				}
 			}
 			else if( boost::starts_with( name.c_str(), "user:" ) )
@@ -456,12 +453,12 @@ class RenderManGlobals : public boost::noncopyable
 				{
 					if( auto data = runTimeCast<const Data>( value ) )
 					{
-						ParamListAlgo::convertParameter( renderManName, data, *m_options );
+						ParamListAlgo::convertParameter( renderManName, data, m_options );
 					}
 				}
 				else
 				{
-					m_options->Remove( renderManName );
+					m_options.Remove( renderManName );
 				}
 			}
 		}
@@ -541,7 +538,7 @@ class RenderManGlobals : public boost::noncopyable
 			}
 
 			updateCamera();
-			m_session->riley->SetOptions( *m_options );
+			m_session->riley->SetOptions( m_options );
 
 			// Make integrator
 
@@ -659,25 +656,25 @@ class RenderManGlobals : public boost::noncopyable
 			}
 
 			vector<riley::DisplayChannelId> &result = inserted.first->second;
-			auto params = ParamListAlgo::makeParamList();
+			RtParamList params;
 
 			if( output->getData() == "rgba" )
 			{
-				params->SetString( Rix::k_name, RtUString( "Ci" ) );
-				params->SetInteger( Rix::k_type, (int)RixDataType::k_color );
-				result.push_back( m_session->riley->CreateDisplayChannel( *params ) );
+				params.SetString( Rix::k_name, RtUString( "Ci" ) );
+				params.SetInteger( Rix::k_type, (int)RtDataType::k_color );
+				result.push_back( m_session->riley->CreateDisplayChannel( params ) );
 
-				params->SetString( Rix::k_name, RtUString( "a" ) );
-				params->SetInteger( Rix::k_type, (int)RixDataType::k_float );
+				params.SetString( Rix::k_name, RtUString( "a" ) );
+				params.SetInteger( Rix::k_type, (int)RtDataType::k_float );
 				result.push_back(
-					m_session->riley->CreateDisplayChannel( *params )
+					m_session->riley->CreateDisplayChannel( params )
 				);
 			}
 			else if( output->getData() == "rgb" )
 			{
-				params->SetString( Rix::k_name, RtUString( "Ci" ) );
-				params->SetInteger( Rix::k_type, (int)RixDataType::k_color );
-				result.push_back( m_session->riley->CreateDisplayChannel( *params ) );
+				params.SetString( Rix::k_name, RtUString( "Ci" ) );
+				params.SetInteger( Rix::k_type, (int)RixDataType::k_color );
+				result.push_back( m_session->riley->CreateDisplayChannel( params ) );
 			}
 			else
 			{
@@ -725,7 +722,7 @@ class RenderManGlobals : public boost::noncopyable
 		}
 
 		ConstSessionPtr m_session;
-		ParamListAlgo::RixParamListPtr m_options;
+		RtParamList m_options;
 
 		std::unordered_map<InternedString, ConstOutputPtr> m_outputs;
 
@@ -860,7 +857,7 @@ const RixDataType *parameterType( const Shader *shader, IECore::InternedString p
 
 using HandleSet = std::unordered_set<InternedString>;
 
-void convertConnection( const IECoreScene::ShaderNetwork::Connection &connection, const IECoreScene::Shader *shader, RixParamList &paramList )
+void convertConnection( const IECoreScene::ShaderNetwork::Connection &connection, const IECoreScene::Shader *shader, RtParamList &paramList )
 {
 	const RixDataType *type = parameterType( shader, connection.destination.name );
 	if( !type )
@@ -876,33 +873,29 @@ void convertConnection( const IECoreScene::ShaderNetwork::Connection &connection
 
 	const RtUString referenceU( reference.c_str() );
 
-    RixParamList::ParamInfo const info = {
-	RtUString( connection.destination.name.c_str() ),
-	*type, 1,
-	RixDetailType::k_reference,
-	false,
-	false
-    };
+	RtParamList::ParamInfo const info = {
+		RtUString( connection.destination.name.c_str() ),
+		*type, 1,
+		RixDetailType::k_reference,
+		false,
+		false
+	};
 
-    paramList.SetParam( info, &referenceU, 0 );
+	paramList.SetParam( info, &referenceU, 0 );
 }
 
-void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, const IECoreScene::ShaderNetwork *shaderNetwork, vector<riley::ShadingNode> &shadingNodes, vector<ParamListAlgo::RixParamListPtr> &paramLists, HandleSet &visited )
+void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, const IECoreScene::ShaderNetwork *shaderNetwork, vector<riley::ShadingNode> &shadingNodes, HandleSet &visited )
 {
 	if( !visited.insert( outputParameter.shader ).second )
 	{
 		return;
 	}
 
-	paramLists.push_back( ParamListAlgo::makeParamList() ); // Store to keep alive until `CreateMaterial()` call
-	RixParamList &paramList = *paramLists.back();
-
 	const IECoreScene::Shader *shader = shaderNetwork->getShader( outputParameter.shader );
 	riley::ShadingNode node = {
 		riley::ShadingNode::k_Pattern,
 		RtUString( shader->getName().c_str() ),
-		RtUString( outputParameter.shader.c_str() ),
-		&paramList
+		RtUString( outputParameter.shader.c_str() )
 	};
 
 	if( shader->getType() == "light" || shader->getType() == "renderman:light" )
@@ -914,12 +907,12 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 		node.type = riley::ShadingNode::k_Bxdf;
 	}
 
-	ParamListAlgo::convertParameters( shader->parameters(), paramList );
+	ParamListAlgo::convertParameters( shader->parameters(), node.params );
 
 	for( const auto &connection : shaderNetwork->inputConnections( outputParameter.shader ) )
 	{
-		convertShaderNetworkWalk( connection.source, shaderNetwork, shadingNodes, paramLists, visited );
-		convertConnection( connection, shader, paramList );
+		convertShaderNetworkWalk( connection.source, shaderNetwork, shadingNodes, visited );
+		convertConnection( connection, shader, node.params );
 	}
 
 	shadingNodes.push_back( node );
@@ -928,12 +921,10 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 riley::MaterialId convertShaderNetwork( const ShaderNetwork *network, riley::Riley *riley )
 {
 	vector<riley::ShadingNode> shadingNodes;
-	vector<ParamListAlgo::RixParamListPtr> paramLists;
 	shadingNodes.reserve( network->size() );
-	paramLists.reserve( network->size() );
 
 	HandleSet visited;
-	convertShaderNetworkWalk( network->getOutput(), network, shadingNodes, paramLists, visited );
+	convertShaderNetworkWalk( network->getOutput(), network, shadingNodes, visited );
 
 	return riley->CreateMaterial( shadingNodes.data(), shadingNodes.size() );
 }
@@ -941,12 +932,10 @@ riley::MaterialId convertShaderNetwork( const ShaderNetwork *network, riley::Ril
 riley::LightShaderId convertLightShaderNetwork( const ShaderNetwork *network, riley::Riley *riley )
 {
 	vector<riley::ShadingNode> shadingNodes;
-	vector<ParamListAlgo::RixParamListPtr> paramLists;
 	shadingNodes.reserve( network->size() );
-	paramLists.reserve( network->size() );
 
 	HandleSet visited;
-	convertShaderNetworkWalk( network->getOutput(), network, shadingNodes, paramLists, visited );
+	convertShaderNetworkWalk( network->getOutput(), network, shadingNodes, visited );
 
 	return riley->CreateLightShader(
 		shadingNodes.data(), shadingNodes.size(),
@@ -1127,14 +1116,14 @@ class RenderManAttributes : public IECoreScenePreview::Renderer::AttributesInter
 			return m_lightShader.get();
 		}
 
-		const RixParamList &paramList() const
+		const RtParamList &paramList() const
 		{
-			return *m_paramList;
+			return m_paramList;
 		}
 
 	private :
 
-		ParamListAlgo::RixParamListPtr m_paramList;
+		RtParamListPtr m_paramList;
 		IECoreScene::ConstShaderNetworkPtr m_surfaceShader;
 		IECoreScene::ConstShaderNetworkPtr m_lightShader;
 		ShaderCachePtr m_shaderCache;
