@@ -41,7 +41,7 @@
 #include "IECore/VectorTypedData.h"
 
 #include "Riley.h"
-#include "RixParamList.h"
+#include "RtParamList.h"
 
 #include <vector>
 
@@ -99,7 +99,7 @@ class ConverterDescription
 /// PrimitiveVariable conversion
 /// ============================
 
-void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVariable &primitiveVariable, RixParamList &paramList );
+void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVariable &primitiveVariable, RtParamList &paramList );
 
 } // namespace GeometryAlgo
 

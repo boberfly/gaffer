@@ -93,37 +93,37 @@ Registry &registry()
 	return r;
 }
 
-RixDetailType detail( IECoreScene::PrimitiveVariable::Interpolation interpolation )
+RtDetailType detail( IECoreScene::PrimitiveVariable::Interpolation interpolation )
 {
 	switch( interpolation )
 	{
 		case PrimitiveVariable::Invalid :
 			throw IECore::Exception( "No detail equivalent to PrimitiveVariable::Invalid" );
 		case PrimitiveVariable::Constant :
-			return RixDetailType::k_constant;
+			return RtDetailType::k_constant;
 		case PrimitiveVariable::Uniform :
-			return RixDetailType::k_uniform;
+			return RtDetailType::k_uniform;
 		case PrimitiveVariable::Vertex :
-			return RixDetailType::k_vertex;
+			return RtDetailType::k_vertex;
 		case PrimitiveVariable::Varying :
-			return RixDetailType::k_varying;
+			return RtDetailType::k_varying;
 		case PrimitiveVariable::FaceVarying :
-			return RixDetailType::k_facevarying;
+			return RtDetailType::k_facevarying;
 		default :
 			throw IECore::Exception( "Unknown PrimtiveVariable Interpolation" );
 	}
 }
 
-RixDataType dataType( IECore::GeometricData::Interpretation interpretation )
+RtDataType dataType( IECore::GeometricData::Interpretation interpretation )
 {
 	switch( interpretation )
 	{
 		case GeometricData::Vector :
-			return RixDataType::k_vector;
+			return RtDataType::k_vector;
 		case GeometricData::Normal :
-			return RixDataType::k_normal;
+			return RtDataType::k_normal;
 		default :
-			return RixDataType::k_point;
+			return RtDataType::k_point;
 	}
 }
 
@@ -132,34 +132,34 @@ struct PrimitiveVariableConverter
 
 	// Simple data
 
-	void operator()( const BoolData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RixParamList &paramList ) const
+	void operator()( const BoolData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
 	{
 		int b = data->readable();
 		paramList.SetIntegerDetail( name, &b, detail( primitiveVariable.interpolation ) );
 	}
 
-	void operator()( const IntData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RixParamList &paramList ) const
+	void operator()( const IntData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
 	{
 		paramList.SetIntegerDetail( name, &data->readable(), detail( primitiveVariable.interpolation ) );
 	}
 
-	void operator()( const FloatData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RixParamList &paramList ) const
+	void operator()( const FloatData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
 	{
 		paramList.SetFloatDetail( name, &data->readable(), detail( primitiveVariable.interpolation ) );
 	}
 
-	void operator()( const StringData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RixParamList &paramList ) const
+	void operator()( const StringData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
 	{
 		RtUString s( data->readable().c_str() );
 		paramList.SetStringDetail( name, &s, detail( primitiveVariable.interpolation ) );
 	}
 
-	void operator()( const Color3fData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RixParamList &paramList ) const
+	void operator()( const Color3fData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
 	{
 		paramList.SetColorDetail( name, reinterpret_cast<const RtColorRGB *>( data->readable().getValue() ), detail( primitiveVariable.interpolation ) );
 	}
 
-	void operator()( const V3fData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RixParamList &paramList ) const
+	void operator()( const V3fData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
 	{
 		paramList.SetParam(
 			{
@@ -176,13 +176,13 @@ struct PrimitiveVariableConverter
 
 	// Vector data
 
-	void operator()( const FloatVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RixParamList &paramList ) const
+	void operator()( const FloatVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
 	{
 		emit(
 			data,
 			{
 				name,
-				RixDataType::k_float,
+				RtDataType::k_float,
 				/* length = */ 1,
 				detail( primitiveVariable.interpolation ),
 				/* array = */ false,
@@ -192,13 +192,13 @@ struct PrimitiveVariableConverter
 		);
 	}
 
-	void operator()( const V2fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RixParamList &paramList ) const
+	void operator()( const V2fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
 	{
 		emit(
 			data,
 			{
 				name,
-				RixDataType::k_float,
+				RtDataType::k_float,
 				/* length = */ 2,
 				detail( primitiveVariable.interpolation ),
 				/* array = */ true,
@@ -208,7 +208,7 @@ struct PrimitiveVariableConverter
 		);
 	}
 
-	void operator()( const V3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RixParamList &paramList ) const
+	void operator()( const V3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
 	{
 		emit(
 			data,
@@ -224,13 +224,13 @@ struct PrimitiveVariableConverter
 		);
 	}
 
-	void operator()( const Color3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RixParamList &paramList ) const
+	void operator()( const Color3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
 	{
 		emit(
 			data,
 			{
 				name,
-				RixDataType::k_color,
+				RtDataType::k_color,
 				/* length = */ 1,
 				detail( primitiveVariable.interpolation ),
 				/* array = */ false,
@@ -240,7 +240,7 @@ struct PrimitiveVariableConverter
 		);
 	}
 
-	void operator()( const Data *data, RtUString name, const PrimitiveVariable &primitiveVariable, RixParamList &paramList ) const
+	void operator()( const Data *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
 	{
 		IECore::msg(
 			IECore::Msg::Warning,
@@ -252,11 +252,11 @@ struct PrimitiveVariableConverter
 	private :
 
 		template<typename T>
-		void emit( const T *data, const RixParamList::ParamInfo &paramInfo, const PrimitiveVariable &primitiveVariable, RixParamList &paramList ) const
+		void emit( const T *data, const RtParamList::ParamInfo &paramInfo, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
 		{
 			if( primitiveVariable.indices )
 			{
-				typedef RixParamList::Buffer<typename T::ValueType::value_type> Buffer;
+				typedef RtParamList::Buffer<typename T::ValueType::value_type> Buffer;
 				Buffer buffer( paramList, paramInfo, /* time = */ 0 );
 				buffer.Bind();
 
@@ -327,7 +327,7 @@ void registerConverter( IECore::TypeId fromType, Converter converter, MotionConv
 	registry()[fromType] = { converter, motionConverter };
 }
 
-void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVariable &primitiveVariable, RixParamList &paramList )
+void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVariable &primitiveVariable, RtParamList &paramList )
 {
 	dispatch( primitiveVariable.data.get(), PrimitiveVariableConverter(), name, primitiveVariable, paramList );
 }
@@ -345,7 +345,7 @@ namespace
 
 riley::GeometryMasterId convertStaticSphere( const IECoreScene::SpherePrimitive *sphere, riley::Riley *riley )
 {
-	auto primVars = ParamListAlgo::makePrimitiveVariableList(
+	RtParamList primVars(
 		sphere->variableSize( PrimitiveVariable::Uniform ),
 		sphere->variableSize( PrimitiveVariable::Vertex ),
 		sphere->variableSize( PrimitiveVariable::Varying ),
@@ -354,7 +354,7 @@ riley::GeometryMasterId convertStaticSphere( const IECoreScene::SpherePrimitive 
 
 	for( auto &primitiveVariable : sphere->variables )
 	{
-		GeometryAlgo::convertPrimitiveVariable( RtUString( primitiveVariable.first.c_str() ), primitiveVariable.second, *primVars );
+		GeometryAlgo::convertPrimitiveVariable( RtUString( primitiveVariable.first.c_str() ), primitiveVariable.second, primVars );
 	}
 
 	const float radius = sphere->radius();
@@ -362,13 +362,13 @@ riley::GeometryMasterId convertStaticSphere( const IECoreScene::SpherePrimitive 
 	const float zMax = sphere->zMax();
 	const float thetaMax = sphere->thetaMax();
 
-	primVars->SetFloatDetail( Rix::k_Ri_radius, &radius, RixDetailType::k_constant );
-	primVars->SetFloatDetail( Rix::k_Ri_zmin, &zMin, RixDetailType::k_constant );
-	primVars->SetFloatDetail( Rix::k_Ri_zmax, &zMax, RixDetailType::k_constant );
-	primVars->SetFloatDetail( Rix::k_Ri_thetamax, &thetaMax, RixDetailType::k_constant );
+	primVars.SetFloatDetail( Rix::k_Ri_radius, &radius, RtDetailType::k_constant );
+	primVars.SetFloatDetail( Rix::k_Ri_zmin, &zMin, RtDetailType::k_constant );
+	primVars.SetFloatDetail( Rix::k_Ri_zmax, &zMax, RtDetailType::k_constant );
+	primVars.SetFloatDetail( Rix::k_Ri_thetamax, &thetaMax, RtDetailType::k_constant );
 
 	return riley->CreateGeometryMaster(
-		Rix::k_Ri_Sphere, DisplacementId::k_InvalidId, *primVars
+		Rix::k_Ri_Sphere, DisplacementId::k_InvalidId, primVars
 	);
 }
 
@@ -385,7 +385,7 @@ namespace
 
 riley::GeometryMasterId convertStaticMesh( const IECoreScene::MeshPrimitive *mesh, riley::Riley *riley )
 {
-	auto primVars = ParamListAlgo::makePrimitiveVariableList(
+	RtParamList primVars(
 		mesh->variableSize( PrimitiveVariable::Uniform ),
 		mesh->variableSize( PrimitiveVariable::Vertex ),
 		mesh->variableSize( PrimitiveVariable::Varying ),
@@ -395,17 +395,17 @@ riley::GeometryMasterId convertStaticMesh( const IECoreScene::MeshPrimitive *mes
 	for( auto &primitiveVariable : mesh->variables )
 	{
 		const RtUString name( primitiveVariable.first == "uv" ? "st" : primitiveVariable.first.c_str() );
-		GeometryAlgo::convertPrimitiveVariable( name, primitiveVariable.second, *primVars );
+		GeometryAlgo::convertPrimitiveVariable( name, primitiveVariable.second, primVars );
 	}
 
-	primVars->SetIntegerDetail( Rix::k_Ri_nvertices, mesh->verticesPerFace()->readable().data(), RixDetailType::k_uniform );
-	primVars->SetIntegerDetail( Rix::k_Ri_vertices, mesh->vertexIds()->readable().data(), RixDetailType::k_facevarying );
+	primVars.SetIntegerDetail( Rix::k_Ri_nvertices, mesh->verticesPerFace()->readable().data(), RtDetailType::k_uniform );
+	primVars.SetIntegerDetail( Rix::k_Ri_vertices, mesh->vertexIds()->readable().data(), RtDetailType::k_facevarying );
 
 	RtUString geometryType = Rix::k_Ri_PolygonMesh;
 	if( mesh->interpolation() == "catmullClark" )
 	{
 		geometryType = Rix::k_Ri_SubdivisionMesh;
-		primVars->SetString( Rix::k_Ri_scheme, Rix::k_catmullclark );
+		primVars.SetString( Rix::k_Ri_scheme, Rix::k_catmullclark );
 
 		vector<RtUString> tagNames;
 		vector<RtInt> tagArgCounts;
@@ -434,14 +434,14 @@ riley::GeometryMasterId convertStaticMesh( const IECoreScene::MeshPrimitive *mes
 			tagFloatArgs.insert( tagFloatArgs.end(), mesh->cornerSharpnesses()->readable().begin(), mesh->cornerSharpnesses()->readable().end() );
 		}
 
-		primVars->SetStringArray( Rix::k_Ri_subdivtags, tagNames.data(), tagNames.size() );
-		primVars->SetIntegerArray( Rix::k_Ri_subdivtagnargs, tagArgCounts.data(), tagArgCounts.size() );
-		primVars->SetFloatArray( Rix::k_Ri_subdivtagfloatargs, tagFloatArgs.data(), tagFloatArgs.size() );
-		primVars->SetIntegerArray( Rix::k_Ri_subdivtagintargs, tagIntArgs.data(), tagIntArgs.size() );
+		primVars.SetStringArray( Rix::k_Ri_subdivtags, tagNames.data(), tagNames.size() );
+		primVars.SetIntegerArray( Rix::k_Ri_subdivtagnargs, tagArgCounts.data(), tagArgCounts.size() );
+		primVars.SetFloatArray( Rix::k_Ri_subdivtagfloatargs, tagFloatArgs.data(), tagFloatArgs.size() );
+		primVars.SetIntegerArray( Rix::k_Ri_subdivtagintargs, tagIntArgs.data(), tagIntArgs.size() );
 	}
 
 	return riley->CreateGeometryMaster(
-		geometryType, DisplacementId::k_InvalidId, *primVars
+		geometryType, DisplacementId::k_InvalidId, primVars
 	);
 }
 
@@ -458,7 +458,7 @@ namespace
 
 riley::GeometryMasterId convertStaticPoints( const IECoreScene::PointsPrimitive *points, riley::Riley *riley )
 {
-	auto primVars = ParamListAlgo::makePrimitiveVariableList(
+	RtParamList primVars(
 		points->variableSize( PrimitiveVariable::Uniform ),
 		points->variableSize( PrimitiveVariable::Vertex ),
 		points->variableSize( PrimitiveVariable::Varying ),
@@ -467,11 +467,11 @@ riley::GeometryMasterId convertStaticPoints( const IECoreScene::PointsPrimitive 
 
 	for( auto &primitiveVariable : points->variables )
 	{
-		GeometryAlgo::convertPrimitiveVariable( RtUString( primitiveVariable.first.c_str() ), primitiveVariable.second, *primVars );
+		GeometryAlgo::convertPrimitiveVariable( RtUString( primitiveVariable.first.c_str() ), primitiveVariable.second, primVars );
 	}
 
 	return riley->CreateGeometryMaster(
-		Rix::k_Ri_Points, DisplacementId::k_InvalidId, *primVars
+		Rix::k_Ri_Points, DisplacementId::k_InvalidId, primVars
 	);
 }
 
@@ -488,7 +488,7 @@ namespace
 
 riley::GeometryMasterId convertStaticCurves( const IECoreScene::CurvesPrimitive *curves, riley::Riley *riley )
 {
-	auto primVars = ParamListAlgo::makePrimitiveVariableList(
+	RtParamList primVars(
 		curves->variableSize( PrimitiveVariable::Uniform ),
 		curves->variableSize( PrimitiveVariable::Vertex ),
 		curves->variableSize( PrimitiveVariable::Varying ),
@@ -497,31 +497,31 @@ riley::GeometryMasterId convertStaticCurves( const IECoreScene::CurvesPrimitive 
 
 	for( auto &primitiveVariable : curves->variables )
 	{
-		GeometryAlgo::convertPrimitiveVariable( RtUString( primitiveVariable.first.c_str() ), primitiveVariable.second, *primVars );
+		GeometryAlgo::convertPrimitiveVariable( RtUString( primitiveVariable.first.c_str() ), primitiveVariable.second, primVars );
 	}
 
 	if( curves->basis().standardBasis() == StandardCubicBasis::Unknown )
 	{
 		IECore::msg( IECore::Msg::Warning, "IECoreRenderMan", "Unsupported CubicBasis" );
-		primVars->SetString( Rix::k_Ri_type, Rix::k_linear );
+		primVars.SetString( Rix::k_Ri_type, Rix::k_linear );
 	}
 	else if( curves->basis().standardBasis() == StandardCubicBasis::Linear )
 	{
-		primVars->SetString( Rix::k_Ri_type, Rix::k_linear );
+		primVars.SetString( Rix::k_Ri_type, Rix::k_linear );
 	}
 	else
 	{
-		primVars->SetString( Rix::k_Ri_type, Rix::k_cubic );
+		primVars.SetString( Rix::k_Ri_type, Rix::k_cubic );
 		switch( curves->basis().standardBasis() )
 		{
 			case StandardCubicBasis::Bezier :
-				primVars->SetString( Rix::k_Ri_Basis, Rix::k_bezier );
+				primVars.SetString( Rix::k_Ri_Basis, Rix::k_bezier );
 				break;
 			case StandardCubicBasis::BSpline :
-				primVars->SetString( Rix::k_Ri_Basis, Rix::k_bspline );
+				primVars.SetString( Rix::k_Ri_Basis, Rix::k_bspline );
 				break;
 			case StandardCubicBasis::CatmullRom :
-				primVars->SetString( Rix::k_Ri_Basis, Rix::k_catmullrom );
+				primVars.SetString( Rix::k_Ri_Basis, Rix::k_catmullrom );
 				break;
 			default :
 				// Should have dealt with Unknown and Linear above
@@ -529,11 +529,11 @@ riley::GeometryMasterId convertStaticCurves( const IECoreScene::CurvesPrimitive 
 		}
 	}
 
-	primVars->SetString( Rix::k_Ri_wrap, curves->periodic() ? Rix::k_periodic : Rix::k_nonperiodic );
-	primVars->SetIntegerDetail( Rix::k_Ri_nvertices, curves->verticesPerCurve()->readable().data(), RixDetailType::k_uniform );
+	primVars.SetString( Rix::k_Ri_wrap, curves->periodic() ? Rix::k_periodic : Rix::k_nonperiodic );
+	primVars.SetIntegerDetail( Rix::k_Ri_nvertices, curves->verticesPerCurve()->readable().data(), RtDetailType::k_uniform );
 
 	return riley->CreateGeometryMaster(
-		Rix::k_Ri_Curves, DisplacementId::k_InvalidId, *primVars
+		Rix::k_Ri_Curves, DisplacementId::k_InvalidId, primVars
 	);
 }
 
