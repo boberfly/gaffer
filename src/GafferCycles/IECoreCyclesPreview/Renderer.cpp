@@ -330,6 +330,20 @@ class CyclesOutput : public IECore::RefCounted
 					p["type"] = new StringData( tokens[0] );
 					passType = tokens[0];
 				}
+				else if( tokens[0] == "float" && tokens[1] == "Z" )
+				{
+					m_data = "depth";
+					p["name"] = new StringData( ccl::string_printf( "%s_%s", tokens[0].c_str(), tokens[1].c_str() ) );
+					p["type"] = new StringData( m_data );
+					passType = m_data;
+				}
+				else if( tokens[0] == "uint" && tokens[1] == "id" )
+				{
+					m_data = "object_id";
+					p["name"] = new StringData( ccl::string_printf( "%s_%s", tokens[0].c_str(), tokens[1].c_str() ) );
+					p["type"] = new StringData( m_data );
+					passType = m_data;
+				}
 			}
 
 			if( typeEnum.exists( passType ) )
@@ -2493,7 +2507,10 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 
 		void assignID( uint32_t id ) override
 		{
-			/// \todo Implement me
+			ccl::Object *object = m_instance.object();
+			if( !object )
+				return;
+			object->set_pass_id( id );
 		}
 
 	private :
@@ -2576,7 +2593,7 @@ class CyclesLight : public IECoreScenePreview::Renderer::ObjectInterface
 
 		void assignID( uint32_t id ) override
 		{
-			/// \todo Implement me
+			/// \todo Cycles seems to not render out id for lights
 		}
 
 	private :

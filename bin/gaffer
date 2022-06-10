@@ -244,6 +244,7 @@ fi
 if [[ $CYCLES_ROOT ]] ; then
 
 	prependToPath "$CYCLES_ROOT/bin" PATH
+	prependToPath "$CYCLES_ROOT/hydra" PXR_PLUGINPATH_NAME
 
 fi
 
