@@ -92,6 +92,11 @@ IECORECYCLES_API void convertLight( const IECoreScene::ShaderNetwork *light, ccl
 /// `ShaderCache::updateShaders()` performs.
 IECORECYCLES_API IECoreScene::ShaderNetworkPtr convertLightShader( const IECoreScene::ShaderNetwork *light );
 
+/// Converts any UsdPreviewSurface shaders and UsdLuxLights into native Cycles shaders. This conversion
+/// is performed automatically by `convert()`, `convertLight()` and `convertLightShader()`.
+/// It is mainly just exposed for the unit tests.
+IECORECYCLES_API void convertUSDShaders( IECoreScene::ShaderNetwork *shaderNetwork, const bool isDisplacement = false );
+
 } // namespace ShaderNetworkAlgo
 
 } // namespace IECoreCycles

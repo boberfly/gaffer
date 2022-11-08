@@ -64,6 +64,7 @@ IECORE_PUSH_DEFAULT_VISIBILITY
 IECORE_POP_DEFAULT_VISIBILITY
 
 using namespace std;
+using namespace Imath;
 using namespace IECore;
 using namespace IECoreScene;
 using namespace IECoreCycles;
@@ -540,6 +541,7 @@ ccl::ShaderGraph *convertGraph( const IECoreScene::ShaderNetwork *surfaceShader,
 
 		ShaderNetworkPtr toConvert = network->copy();
 		IECoreScene::ShaderNetworkAlgo::convertOSLComponentConnections( toConvert.get() );
+		IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( toConvert.get() );
 		ShaderMap converted;
 		ccl::ShaderNode *node = convertWalk( toConvert->getOutput(), toConvert.get(), namePrefix, shaderManager, graph, converted );
 
@@ -632,7 +634,10 @@ bool hasOSL( const ccl::Shader *cshader )
 
 void convertLight( const IECoreScene::ShaderNetwork *light, ccl::Light *cyclesLight )
 {
-	const IECoreScene::Shader *lightShader = light->outputShader();
+	ShaderNetworkPtr result = light->copy();
+	IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( result.get() );
+
+	const IECoreScene::Shader *lightShader = result->outputShader();
 	if( !lightShader )
 	{
 		msg( Msg::Warning, "IECoreCycles::ShaderNetworkAlgo::convertLight", "ShaderNetwork has no output shader" );
@@ -737,9 +742,12 @@ void convertLight( const IECoreScene::ShaderNetwork *light, ccl::Light *cyclesLi
 IECoreScene::ShaderNetworkPtr convertLightShader( const IECoreScene::ShaderNetwork *light )
 {
 	// Take a copy and replace the output shader (the light itself) with a
-	// Cycles emission or background shader as appropriate.
+	// Cycles emission or background shader as appropriate. Also do any
+	// USD Lux light conversions here.
 
 	ShaderNetworkPtr result = light->copy();
+	IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( result.get() );
+
 	result->removeShader( result->getOutput().shader );
 
 	IECoreScene::ShaderPtr outputShader;
@@ -780,7 +788,7 @@ IECoreScene::ShaderNetworkPtr convertLightShader( const IECoreScene::ShaderNetwo
 		{
 			if( colorInput )
 			{
-				IECoreScene::ShaderPtr tintShader = new IECoreScene::Shader( "vector_math", "cycles:surface" );
+				IECoreScene::ShaderPtr tintShader = new IECoreScene::Shader( "vector_math", "cycles:shader" );
 				tintShader->parameters()["math_type"] = new StringData( "multiply" );
 				tintShader->parameters()["vector2"] = new V3fData( strength );
 				const IECore::InternedString tintHandle = result->addShader( "tint", std::move( tintShader ) );
@@ -803,3 +811,727 @@ IECoreScene::ShaderNetworkPtr convertLightShader( const IECoreScene::ShaderNetwo
 } // namespace ShaderNetworkAlgo
 
 } // namespace IECoreCycles
+
+
+//////////////////////////////////////////////////////////////////////////
+// USD conversion code
+//////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+
+// Traits class to handle the GeometricTypedData fiasco.
+template<typename T>
+struct DataTraits
+{
+
+	using DataType = IECore::TypedData<T>;
+
+};
+
+template<typename T>
+struct DataTraits<Vec2<T> >
+{
+
+	using DataType = IECore::GeometricTypedData<Vec2<T>>;
+
+};
+
+template<typename T>
+struct DataTraits<Vec3<T> >
+{
+
+	using DataType = IECore::GeometricTypedData<Vec3<T>>;
+
+};
+
+Color3f blackbody( float kelvins )
+{
+	// Table borrowed from `UsdLuxBlackbodyTemperatureAsRgb()`, which in
+	// turn is borrowed from Colour Rendering of Spectra by John Walker.
+	static SplinefColor3f g_spline(
+		CubicBasisf::catmullRom(),
+		{
+			{  1000.0f, Color3f( 1.000000f, 0.027490f, 0.000000f ) },
+			{  1000.0f, Color3f( 1.000000f, 0.027490f, 0.000000f ) },
+			{  1500.0f, Color3f( 1.000000f, 0.149664f, 0.000000f ) },
+			{  2000.0f, Color3f( 1.000000f, 0.256644f, 0.008095f ) },
+			{  2500.0f, Color3f( 1.000000f, 0.372033f, 0.067450f ) },
+			{  3000.0f, Color3f( 1.000000f, 0.476725f, 0.153601f ) },
+			{  3500.0f, Color3f( 1.000000f, 0.570376f, 0.259196f ) },
+			{  4000.0f, Color3f( 1.000000f, 0.653480f, 0.377155f ) },
+			{  4500.0f, Color3f( 1.000000f, 0.726878f, 0.501606f ) },
+			{  5000.0f, Color3f( 1.000000f, 0.791543f, 0.628050f ) },
+			{  5500.0f, Color3f( 1.000000f, 0.848462f, 0.753228f ) },
+			{  6000.0f, Color3f( 1.000000f, 0.898581f, 0.874905f ) },
+			{  6500.0f, Color3f( 1.000000f, 0.942771f, 0.991642f ) },
+			{  7000.0f, Color3f( 0.906947f, 0.890456f, 1.000000f ) },
+			{  7500.0f, Color3f( 0.828247f, 0.841838f, 1.000000f ) },
+			{  8000.0f, Color3f( 0.765791f, 0.801896f, 1.000000f ) },
+			{  8500.0f, Color3f( 0.715255f, 0.768579f, 1.000000f ) },
+			{  9000.0f, Color3f( 0.673683f, 0.740423f, 1.000000f ) },
+			{  9500.0f, Color3f( 0.638992f, 0.716359f, 1.000000f ) },
+			{ 10000.0f, Color3f( 0.609681f, 0.695588f, 1.000000f ) },
+			{ 10000.0f, Color3f( 0.609681f, 0.695588f, 1.000000f ) },
+		}
+	);
+
+	Color3f c = g_spline( kelvins );
+	c /= c.dot( V3f( 0.2126f, 0.7152f, 0.0722f ) ); // Normalise luminance
+	return Color3f( max( c[0], 0.0f ), max( c[1], 0.0f ), max( c[2], 0.0f ) );
+}
+
+template<typename T>
+T parameterValue( const Shader *shader, InternedString parameterName, const T &defaultValue )
+{
+	if( auto d = shader->parametersData()->member<TypedData<T>>( parameterName ) )
+	{
+		return d->readable();
+	}
+
+	if constexpr( is_same_v<remove_cv_t<T>, Color3f> )
+	{
+		// Correction for USD files which author `float3` instead of `color3f`.
+		// See `ShaderNetworkAlgoTest.testConvertUSDFloat3ToColor3f()`.
+		if( auto d = shader->parametersData()->member<V3fData>( parameterName ) )
+		{
+			return d->readable();
+		}
+	}
+	else if constexpr( is_same_v<remove_cv_t<T>, string> )
+	{
+		// Support for USD `token`, which will be loaded as `InternedString`, but which
+		// we want to translate to `string`.
+		if( auto d = shader->parametersData()->member<InternedStringData>( parameterName ) )
+		{
+			return d->readable().string();
+		}
+	}
+
+	return defaultValue;
+}
+
+template<typename T>
+void transferUSDParameter( ShaderNetwork *network, InternedString shaderHandle, const Shader *usdShader, InternedString usdName, Shader *shader, InternedString name, const T &defaultValue )
+{
+	shader->parameters()[name] = new typename DataTraits<T>::DataType( parameterValue( usdShader, usdName, defaultValue ) );
+
+	if( ShaderNetwork::Parameter input = network->input( { shaderHandle, usdName } ) )
+	{
+		if( name != usdName )
+		{
+			network->addConnection( { input, { shaderHandle, name } } );
+			network->removeConnection( { input, { shaderHandle, usdName } } );
+		}
+	}
+}
+
+const InternedString g_aParameter( "a" );
+const InternedString g_alphaParameter( "alpha" );
+const InternedString g_angleParameter( "angle" );
+const InternedString g_attributeParameter( "attribute" );
+const InternedString g_baseColorParameter( "base_color" );
+const InternedString g_bParameter( "b" );
+const InternedString g_BSDFParameter( "BSDF" );
+const InternedString g_clearcoatParameter( "clearcoat" );
+const InternedString g_clearcoatRoughnessParameter( "clearcoatRoughness" );
+const InternedString g_clearcoatRoughnessCyclesParameter( "clearcoat_roughness" );
+const InternedString g_colorParameter( "color" );
+const InternedString g_colorRParameter( "color.r" );
+const InternedString g_colorGParameter( "color.g" );
+const InternedString g_colorBParameter( "color.b" );
+const InternedString g_colorspaceParameter( "colorspace" );
+const InternedString g_colorTemperatureParameter( "colorTemperature" );
+const InternedString g_diffuseParameter( "diffuse" );
+const InternedString g_diffuseColorParameter( "diffuseColor" );
+const InternedString g_displacementParameter( "displacement" );
+const InternedString g_emissionStrengthParameter( "emission_strength" );
+const InternedString g_emissionParameter( "emission" );
+const InternedString g_emissiveColorParameter( "emissiveColor" );
+const InternedString g_enableColorTemperatureParameter( "enableColorTemperature" );
+const InternedString g_exposureParameter( "exposure" );
+const InternedString g_extensionParameter( "extension" );
+const InternedString g_facParameter( "fac" );
+const InternedString g_fileParameter( "file" );
+const InternedString g_filenameParameter( "filename" );
+const InternedString g_gParameter( "g" );
+const InternedString g_heightParameter( "height" );
+const InternedString g_inParameter( "in" );
+const InternedString g_intensityParameter( "intensity" );
+const InternedString g_iorParameter( "ior" );
+const InternedString g_layerNameParameter( "layer_name" );
+const InternedString g_locationParameter( "location" );
+const InternedString g_mappingTypeParameter( "mapping_type" );
+const InternedString g_mathTypeParameter( "math_type" );
+const InternedString g_metallicParameter( "metallic" );
+const InternedString g_normalParameter( "normal" );
+const InternedString g_normalizeParameter( "normalize" );
+const InternedString g_occlusionParameter( "occlusion" );
+const InternedString g_opacityParameter( "opacity" );
+const InternedString g_opacityThresholdParameter( "opacityThreshold" );
+const InternedString g_parametricParameter( "parametric" );
+const InternedString g_projectionParameter( "projection");
+const InternedString g_rParameter( "r" );
+const InternedString g_radiusParameter( "radius" );
+const InternedString g_resultParameter( "result" );
+const InternedString g_rgbParameter( "rgb" );
+const InternedString g_roughnessParameter( "roughness" );
+const InternedString g_rotationParameter( "rotation" );
+const InternedString g_scaleParameter( "scale" );
+const InternedString g_shapingConeAngleParameter( "shaping:cone:angle" );
+const InternedString g_shapingConeSoftnessParameter( "shaping:cone:softness" );
+const InternedString g_sizeParameter( "size" );
+const InternedString g_sourceColorSpaceParameter( "sourceColorSpace" );
+const InternedString g_specularParameter( "specular" );
+const InternedString g_specularColorParameter( "specularColor" );
+const InternedString g_spotAngleParameter( "spot_angle" );
+const InternedString g_spotSmoothParameter( "spot_smooth" );
+const InternedString g_stParameter( "st" );
+const InternedString g_surfaceParameter( "surface" );
+const InternedString g_textureFileParameter( "texture:file" );
+const InternedString g_textureFormatParameter( "texture:format" );
+const InternedString g_texYmappingParameter( "tex_mapping__y_mapping" );
+const InternedString g_texZmappingParameter( "tex_mapping__z_mapping" );
+const InternedString g_translationParameter( "translation" );
+const InternedString g_treatAsPointParameter( "treatAsPoint" );
+const InternedString g_useSpecularWorkflowParameter( "useSpecularWorkflow" );
+const InternedString g_UVParameter( "UV" );
+const InternedString g_UVXParameter( "UV.x" );
+const InternedString g_valueParameter( "value" );
+const InternedString g_value1Parameter( "value1" );
+const InternedString g_value2Parameter( "value2" );
+const InternedString g_varnameParameter( "varname" );
+const InternedString g_vectorParameter( "vector" );
+const InternedString g_vector1Parameter( "vector1" );
+const InternedString g_vector2Parameter( "vector2" );
+const InternedString g_vectorXParameter( "vector.x" );
+const InternedString g_widthParameter( "width" );
+const InternedString g_wrapSParameter( "wrapS" );
+const InternedString g_wrapTParameter( "wrapT" );
+
+const InternedString replaceOutputParameter( const InternedString name, const InternedString shaderName )
+{
+	// See https://graphics.pixar.com/usd/release/spec_usdpreviewsurface.html for the possible
+	// core node outputs.
+	// UsdPreviewSurface -> 'principled_bsdf'
+	// USD token : surface -> Cycles closure : BSDF
+	// USD token : displacement -> Cycles closure : displacement
+	// UsdUVTexture -> 'texture_image'
+	// USD float  : r, g, b, a -> Cycles float : color.r, color.g, color.b, alpha
+	// USD float3 : rgb -> Cycles color : color
+	// UsdTransform2d -> 'mapping'
+	// USD float2 : result -> Cycles vector : vector (ignores z from the 'mapping' node.)
+	// UsdPrimvarReader* -> 'attribute' OR 'uvmap'
+	// Primvars return the name 'result' and could be many types and cycles can have different
+	// output plugs for the attribute node except for float2, which the uvmap node caters
+	// for and outputs the name 'UV'.
+	// USD float/int : result -> Cycles float 'attribute' : fac
+	// USD float2 : result -> Cycles float2 'uvmap' : UV
+	// USD float3/normal/point/vector : result -> Cycles float3 'attribute' : color
+	// USD float4 : result -> Cycles float3 'attribute' : color (+ float attribute : alpha)
+	/// \todo : What do we do with float4 primvars when cycles doesn't have float4 inputs?
+	/// Currently we just connect from color and ignore the alpha output.
+	if( name == g_surfaceParameter ) return g_BSDFParameter;
+	if( name == g_displacementParameter ) return g_displacementParameter;
+	if( name == g_aParameter ) return g_alphaParameter;
+	if( name == g_rParameter ) return g_colorRParameter;
+	if( name == g_gParameter ) return g_colorGParameter;
+	if( name == g_bParameter ) return g_colorBParameter;
+	if( name == g_rgbParameter ) return g_colorParameter;
+	if( name == g_resultParameter )
+	{
+		if( shaderName == "UsdTransform2d" )
+		{
+			return g_vectorParameter;
+		}
+		else if(
+			shaderName == "UsdPrimvarReader_float" ||
+			shaderName == "UsdPrimvarReader_int" )
+		{
+			return g_facParameter;
+		}
+		else if( shaderName == "UsdPrimvarReader_float2" )
+		{
+			return g_UVParameter;
+		}
+		else if(
+			shaderName == "UsdPrimvarReader_float3" ||
+			shaderName == "UsdPrimvarReader_float4" )
+		{
+			return g_colorParameter;
+		}
+		else if(
+			shaderName == "UsdPrimvarReader_normal" ||
+			shaderName == "UsdPrimvarReader_point" ||
+			shaderName == "UsdPrimvarReader_vector" )
+		{
+			return g_vectorParameter;
+		}
+		else
+		{
+			return InternedString(); // use the first output found
+		}
+	}
+
+	return name;
+}
+
+void transferUSDLightParameters( ShaderNetwork *network, InternedString shaderHandle, const Shader *usdShader, Shader *shader )
+{
+	Color3f color = parameterValue( usdShader, g_colorParameter, Color3f( 1 ) );
+	if( parameterValue( usdShader, g_enableColorTemperatureParameter, false ) )
+	{
+		color *= blackbody( parameterValue( usdShader, g_colorTemperatureParameter, 6500.0f ) );
+	}
+	shader->parameters()[g_colorParameter] = new Color3fData( color );
+
+	transferUSDParameter( network, shaderHandle, usdShader, g_exposureParameter, shader, g_exposureParameter, 0.0f );
+	transferUSDParameter( network, shaderHandle, usdShader, g_intensityParameter, shader, g_intensityParameter, 1.0f );
+	transferUSDParameter( network, shaderHandle, usdShader, g_normalizeParameter, shader, g_normalizeParameter, false );
+}
+
+void transferUSDShapingParameters( ShaderNetwork *network, InternedString shaderHandle, const Shader *usdShader, Shader *shader )
+{
+	if( auto d = usdShader->parametersData()->member<FloatData>( g_shapingConeAngleParameter ) )
+	{
+		shader->setName( "spot_light" );
+		shader->parameters()[g_spotAngleParameter] = new FloatData( d->readable() * 2.0f );
+		// USD docs don't currently specify any semantics for `shaping:cone:softness`, but we assume
+		// the semantics documented for RenderMan's PxrSphereLight, where it's basically specifying
+		// a penumbra as a 0-1 proportion of the cone. Relevant conversations on usd-interest :
+		//
+		// - https://groups.google.com/u/1/g/usd-interest/c/A6bc4OZjSB0/m/hwUL7Wf1AwAJ, in
+		//   which the opportunity to define semantics is declined.
+		// - https://groups.google.com/u/1/g/usd-interest/c/Ybe4aroAKbc/m/0Ui3DKMyCgAJ, in
+		//   which folks take their best guess.
+		if( parameterValue( usdShader, g_shapingConeSoftnessParameter, 0.0f ) > 1.0 )
+		{
+			// Houdini apparently has (or had?) its own interpretation of softness, with the "bar scene"
+			// containing lights with an angle of 20 degrees and a softness of 60! We have no idea how
+			// to interpret that, so punt for now.
+			/// \todo Hopefully things get more standardised and we can remove this, because the RenderMan
+			/// docs do imply that values above one are allowed.
+			IECore::msg( IECore::Msg::Warning, "transferUSDShapingParameters", "Ignoring `shaping:cone:softness` as it is greater than 1" );
+		}
+		else
+		{
+			transferUSDParameter( network, shaderHandle, usdShader, g_shapingConeSoftnessParameter, shader, g_spotSmoothParameter, 0.0f );
+		}
+	}
+}
+
+// Should be called after `transferUSDLightParameters()`, as it needs to examine
+// the transferred `color` parameter.
+void transferUSDTextureFile( ShaderNetwork *network, InternedString shaderHandle, const Shader *usdShader, const Shader *shader )
+{
+	const string textureFile = parameterValue( usdShader, g_textureFileParameter, string() );
+	if( !textureFile.empty() )
+	{
+		ShaderPtr imageShader;
+		if( shader->getName() == "background_light" )
+		{
+			imageShader = new Shader( "environment_texture", "cycles:shader" );
+			string format = parameterValue( usdShader, g_textureFormatParameter, string( "equirectangular" ) );
+			if( format == "mirroredBall" )
+			{
+				format = "mirror_ball";
+			}
+			else if( format == "latlong" )
+			{
+				format = "equirectangular";
+			}
+			else if( format != "mirror_ball" && format != "equirectangular" )
+			{
+				IECore::msg( IECore::Msg::Warning, "convertUSDShaders", boost::format( "Unsupported value \"%1%\" for DomeLight.format" ) % format );
+				format = "equirectangular";
+			}
+			imageShader->parameters()[g_projectionParameter] = new StringData( format );
+			// Set to Y-up + right-handedness.
+			imageShader->parameters()[g_scaleParameter] = new V3fData( V3f( -1.0f, 1.0f, 1.0f ) );
+			imageShader->parameters()[g_texYmappingParameter] = new StringData( "Z" );
+			imageShader->parameters()[g_texZmappingParameter] = new StringData( "Y" );
+		}
+		else
+		{
+			imageShader = new Shader( "image_texture", "cycles:shader" );
+		}
+		imageShader->parameters()[g_filenameParameter] = new StringData( textureFile );
+		const InternedString imageHandle = network->addShader( shaderHandle.string() + "Image", std::move( imageShader ) );
+
+		const Color3f color = parameterValue( shader, g_colorParameter, Color3f( 1 ) );
+		if( color != Color3f( 1 ) )
+		{
+			// Multiply image with color
+			ShaderPtr multiplyShader = new Shader( "vector_math" );
+			multiplyShader->parameters()[g_mathTypeParameter] = new StringData( "multiply" );
+			multiplyShader->parameters()[g_vector2Parameter] = new Color3fData( color );
+			const InternedString multiplyHandle = network->addShader( shaderHandle.string() + "Multiply", std::move( multiplyShader ) );
+			network->addConnection( ShaderNetwork::Connection( { multiplyHandle, g_vectorParameter }, { shaderHandle, g_colorParameter } ) );
+			network->addConnection( ShaderNetwork::Connection( { imageHandle, g_colorParameter }, { multiplyHandle, g_vector1Parameter } ) );
+		}
+		else
+		{
+			// Connect image directly
+			network->addConnection( ShaderNetwork::Connection( { imageHandle, g_colorParameter }, { shaderHandle, g_colorParameter } ) );
+		}
+
+		// For the correct coordinate mapping for quad lights, a geometry
+		// shader with the parametric output is needed.
+		if( shader->getName() == "quad_light" )
+		{
+			ShaderPtr geometryShader = new Shader( "geometry" );
+			const InternedString geometryHandle = network->addShader( shaderHandle.string() + "Geometry", std::move( geometryShader ) );
+			network->addConnection( ShaderNetwork::Connection( { geometryHandle, g_parametricParameter }, { imageHandle, g_vectorParameter } ) );
+		}
+	}
+}
+
+void removeInput( ShaderNetwork *network, const ShaderNetwork::Parameter &parameter )
+{
+	if( auto i = network->input( parameter ) )
+	{
+		network->removeConnection( { i, parameter } );
+	}
+}
+
+void replaceUSDShader( ShaderNetwork *network, InternedString handle, ShaderPtr &&newShader )
+{
+	// Get the old shader name so we can convert the output connections later.
+	const InternedString oldShaderName = network->getShader( handle )->getName();
+	// Replace original shader with the new.
+	network->setShader( handle, std::move( newShader ) );
+
+	// Fix up the output
+	ShaderNetwork::Parameter outParameter = network->getOutput();
+	if( outParameter.shader == handle )
+	{
+		outParameter.name = replaceOutputParameter( outParameter.name, oldShaderName );
+		network->setOutput( outParameter );
+	}
+
+	// Convert output connections as necessary.
+
+	// Iterating over a copy because we will modify the range during iteration.
+	ShaderNetwork::ConnectionRange range = network->outputConnections( handle );
+	vector<ShaderNetwork::Connection> outputConnections( range.begin(), range.end() );
+	for( auto &c : outputConnections )
+	{
+		network->removeConnection( c );
+		c.source.name = replaceOutputParameter( c.source.name, oldShaderName );
+		network->addConnection( c );
+	}
+
+	range = network->inputConnections( handle );
+	vector<ShaderNetwork::Connection> inputConnections( range.begin(), range.end() );
+	for( auto &c : inputConnections )
+	{
+		if( c.destination.name == g_specularParameter )
+		{
+			// Unfortunately the cycles principled v1 shader doesn't have specular colour
+			// so we only use the first channel, but fortunately principled v2 will
+			// address this as an artistic control and we can remove this.
+			if( c.source.name == g_colorParameter )
+			{
+				network->removeConnection( c );
+				c.source.name = g_colorRParameter;
+				network->addConnection( c );
+			}
+			else if( c.source.name == g_vectorParameter )
+			{
+				network->removeConnection( c );
+				c.source.name = g_vectorXParameter;
+				network->addConnection( c );
+			}
+			else if( c.source.name == g_UVParameter )
+			{
+				network->removeConnection( c );
+				c.source.name = g_UVXParameter;
+				network->addConnection( c );
+			}
+		}
+	}
+
+	if( oldShaderName == "DomeLight" ) 
+	{
+		for( auto &c : inputConnections )
+		{
+			IECore::msg( IECore::Msg::Warning, "DomeLight", boost::format( "%s > %s." ) % c.source.name % c.destination.name );
+		}
+	}
+}
+
+void convertUSDUVTextures( ShaderNetwork *network )
+{
+	for( const auto &[handle, shader] : network->shaders() )
+	{
+		if( shader->getName() != "UsdUVTexture" )
+		{
+			continue;
+		}
+
+		ShaderPtr imageShader = new Shader( "image_texture", "cycles:shader" );
+		transferUSDParameter( network, handle, shader.get(), g_fileParameter, imageShader.get(), g_filenameParameter, string() );
+		transferUSDParameter( network, handle, shader.get(), g_sourceColorSpaceParameter, imageShader.get(), g_colorspaceParameter, string() );
+		// Cycles just has one wrapping mode for a texture in both directions,
+		// we just pick whatever we can find.
+		string mode = parameterValue( shader.get(), g_wrapSParameter, string() );
+		if( mode == string() )
+		{
+			mode = parameterValue( shader.get(), g_wrapTParameter, string() );
+		}
+		// Cycles only supports black, clamp and periodic so we default to
+		// periodic if no other is found.
+		if( mode != "black" || mode != "clamp" || mode != "periodic" )
+		{
+			mode = "periodic";
+		}
+		imageShader->parameters()[g_extensionParameter] = new StringData( mode );
+
+		if( auto input = network->input( { handle, g_stParameter } ) )
+		{
+			transferUSDParameter( network, handle, shader.get(), g_stParameter, imageShader.get(), g_vectorParameter, V2f( 0 ) );
+		}
+
+		replaceUSDShader( network, handle, std::move( imageShader ) );
+	}
+}
+
+bool convertUSDPreviewSurfaceDisplacement( ShaderNetwork *shaderNetwork )
+{
+	for( const auto &[handle, shader] : shaderNetwork->shaders() )
+	{
+		if( shader->getName() != "UsdPreviewSurface" )
+		{
+			continue;
+		}
+
+		if( !shaderNetwork->input( { handle, g_displacementParameter } ) ||
+			parameterValue( shader.get(), g_displacementParameter, 0.0f ) == 0.0f )
+		{
+			// No displacement, empty out the ShaderNetwork.
+			shaderNetwork->setOutput( ShaderNetwork::Parameter() );
+			IECoreScene::ShaderNetworkAlgo::removeUnusedShaders( shaderNetwork );
+			return false;
+		}
+
+		ShaderPtr newShader = new Shader( "displacement", "cycles:displacement" );
+		transferUSDParameter( shaderNetwork, handle, shader.get(), g_displacementParameter, newShader.get(), g_heightParameter, 0.0f );
+		replaceUSDShader( shaderNetwork, handle, std::move( newShader ) );
+		IECoreScene::ShaderNetworkAlgo::removeUnusedShaders( shaderNetwork );
+
+		if( !shaderNetwork->input( { handle, g_heightParameter } ) )
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+} // namespace
+
+void IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( ShaderNetwork *shaderNetwork, const bool isDisplacement )
+{
+	// Displacement is an input for UsdPreviewSurface, it is intended
+	// that we make a different cycles shader network for this so that
+	// it outputs to cycles:displacement.
+	if( isDisplacement )
+	{
+		// Return out early if there's no shader network connected to displacement.
+		if( !convertUSDPreviewSurfaceDisplacement( shaderNetwork ) ) return;
+	}
+
+	// Must convert these first, before we convert the connected
+	// UsdPrimvarReader inputs.
+	convertUSDUVTextures( shaderNetwork );
+
+	for( const auto &[handle, shader] : shaderNetwork->shaders() )
+	{
+		ShaderPtr newShader;
+		if( !isDisplacement && shader->getName() == "UsdPreviewSurface" )
+		{
+			newShader = new Shader( "principled_bsdf", "cycles:surface" );
+
+			// Easy stuff with a one-to-one correspondence between `UsdPreviewSurface` and `principled_bsdf`.
+
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_diffuseColorParameter, newShader.get(), g_baseColorParameter, Color3f( 0.18 ) );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_roughnessParameter, newShader.get(), g_roughnessParameter, 0.5f );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_clearcoatParameter, newShader.get(), g_clearcoatParameter, 0.0f );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_clearcoatRoughnessParameter, newShader.get(), g_clearcoatRoughnessCyclesParameter, 0.01f );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_iorParameter, newShader.get(), g_iorParameter, 1.5f );
+
+			// Emission. UsdPreviewSurface only has `emissiveColor`, which we transfer to `emission`. But then
+			// we need to turn on Cycles's `emission_strength` so that the `emission` is actually used.
+
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_emissiveColorParameter, newShader.get(), g_emissionParameter, Color3f( 0 ) );
+			const bool hasEmission =
+				shaderNetwork->input( { handle, g_emissionParameter } ) ||
+				parameterValue( newShader.get(), g_emissionParameter, Color3f( 0 ) ) != Color3f( 0 );
+			;
+			newShader->parameters()[g_emissionStrengthParameter] = new FloatData( hasEmission ? 1.0f : 0.0f );
+
+			// Specular.
+
+			if( parameterValue<int>( shader.get(), g_useSpecularWorkflowParameter, 0 ) )
+			{
+				// > Note : Specular is strength for cycles `principled_bsdf`, it gets colour
+				// from base colour instead with specular_tint in the facing ratio while
+				// the grazing angle stays white. We just grab the first channel.
+				/// \todo : Revisit when principled v2 is released.
+				/// https://developer.blender.org/T99447
+				const Color3f specularColor = parameterValue( shader.get(), g_specularColorParameter, Color3f( 0 ) );
+				newShader->parameters()[g_specularParameter] = new FloatData( specularColor.x );
+
+				if( ShaderNetwork::Parameter input = shaderNetwork->input( { handle, g_specularColorParameter } ) )
+				{
+					// We will make sure to use the single-channel .r or .x component after the
+					// source parameter name is changed from the incoming node in `replaceUSDShader`.
+					shaderNetwork->addConnection( { input, { handle, g_specularParameter } } );
+					shaderNetwork->removeConnection( { input, { handle, g_specularColorParameter } } );
+					removeInput( shaderNetwork, { handle, g_metallicParameter } );
+				}
+			}
+			else
+			{
+				transferUSDParameter( shaderNetwork, handle, shader.get(), g_metallicParameter, newShader.get(), g_metallicParameter, 0.0f );
+			}
+
+			removeInput( shaderNetwork, { handle, g_specularColorParameter } );
+			// Normal maps disabled for now
+			/// \todo : revisit once MikkTspace is re-implemented
+			removeInput( shaderNetwork, { handle, g_normalParameter } );
+			// This should be handled in another convertUSDShaders shader network pass that is displacement-specific.
+			removeInput( shaderNetwork, { handle, g_displacementParameter } );
+			// No use for occlusion for a path tracer normally...
+			removeInput( shaderNetwork, { handle, g_occlusionParameter } );
+
+			// Opacity. USD has a funky `opacityThreshold` thing, that we need to implement
+			// with a little compare/multiply network.
+
+			float opacity = parameterValue( shader.get(), g_opacityParameter, 1.0f );
+			const float opacityThreshold = parameterValue( shader.get(), g_opacityThresholdParameter, 0.0f );
+			if( const ShaderNetwork::Parameter opacityInput = shaderNetwork->input( { handle, g_opacityParameter } ) )
+			{
+				if( opacityThreshold != 0.0f )
+				{
+					ShaderPtr compareShader = new Shader( "math", "cycles:shader" );
+					compareShader->parameters()[g_value2Parameter] = new FloatData( opacityThreshold );
+					compareShader->parameters()[g_mathTypeParameter] = new StringData( "greater_than" );
+					const InternedString compareHandle = shaderNetwork->addShader( handle.string() + "OpacityCompare", std::move( compareShader ) );
+					shaderNetwork->addConnection( ShaderNetwork::Connection( opacityInput, { compareHandle, g_value1Parameter } ) );
+					ShaderPtr multiplyShader = new Shader( "math", "cycles:shader" );
+					multiplyShader->parameters()[g_mathTypeParameter] = new StringData( "multiply" );
+					const InternedString multiplyHandle = shaderNetwork->addShader( handle.string() + "OpacityMultiply", std::move( multiplyShader ) );
+					shaderNetwork->addConnection( ShaderNetwork::Connection( opacityInput, { multiplyHandle, g_value1Parameter } ) );
+					shaderNetwork->addConnection( ShaderNetwork::Connection( { compareHandle, g_valueParameter }, { multiplyHandle, g_value2Parameter } ) );
+					shaderNetwork->removeConnection( ShaderNetwork::Connection( opacityInput, { handle, g_opacityParameter } ) );
+					shaderNetwork->addConnection( ShaderNetwork::Connection( { multiplyHandle, g_valueParameter }, { handle, g_alphaParameter } ) );
+				}
+				else
+				{
+					transferUSDParameter( shaderNetwork, handle, shader.get(), g_opacityParameter, newShader.get(), g_alphaParameter, 1.0f );
+				}
+			}
+			else
+			{
+				opacity = opacity > opacityThreshold ? opacity : 0.0f;
+			}
+
+			newShader->parameters()[g_alphaParameter] = new FloatData( opacity );
+		}
+		else if( shader->getName() == "UsdTransform2d" )
+		{
+			newShader = new Shader( "mapping", "cycles:shader" );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_inParameter, newShader.get(), g_vectorParameter, string() );
+			const V2f t = parameterValue( shader.get(), g_translationParameter, V2f( 0 ) );
+			const float r = parameterValue( shader.get(), g_rotationParameter, 0.0f );
+			const V2f s = parameterValue( shader.get(), g_scaleParameter, V2f( 1 ) );
+			newShader->parameters()[g_mappingTypeParameter] = new StringData( "texture" );
+			newShader->parameters()[g_locationParameter] = new V3fData( V3f( t.x, t.y, 0.0f ) );
+			newShader->parameters()[g_rotationParameter] = new V3fData( V3f( 0.0f, 0.0f, IECore::degreesToRadians( r ) ) );
+			newShader->parameters()[g_scaleParameter] = new V3fData( V3f( s.x, s.y, 1.0f ) );
+		}
+		else if(
+			shader->getName() == "UsdPrimvarReader_float" ||
+			shader->getName() == "UsdPrimvarReader_float3" ||
+			shader->getName() == "UsdPrimvarReader_float4" ||
+			shader->getName() == "UsdPrimvarReader_normal" ||
+			shader->getName() == "UsdPrimvarReader_point" ||
+			shader->getName() == "UsdPrimvarReader_vector" ||
+			shader->getName() == "UsdPrimvarReader_int" ||
+			shader->getName() == "UsdPrimvarReader_string"
+		)
+		{
+			newShader = new Shader( "attribute", "cycles:shader" );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_varnameParameter, newShader.get(), g_attributeParameter, string() );
+		}
+		else if( shader->getName() == "UsdPrimvarReader_float2" )
+		{
+			newShader = new Shader( "uvmap", "cycles:shader" );
+
+			if( parameterValue<string>( shader.get(), g_varnameParameter, "" ) == "st" )
+			{
+				newShader->parameters()[g_attributeParameter] = new StringData( "uv" );
+			}
+			else
+			{
+				transferUSDParameter( shaderNetwork, handle, shader.get(), g_varnameParameter, newShader.get(), g_attributeParameter, string() );
+			}
+		}
+		else if( shader->getName() == "SphereLight" )
+		{
+			newShader = new Shader( "point_light", "cycles:light" );
+			transferUSDLightParameters( shaderNetwork, handle, shader.get(), newShader.get() );
+			transferUSDShapingParameters( shaderNetwork, handle, shader.get(), newShader.get() );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_radiusParameter, newShader.get(), g_sizeParameter, 0.5f );
+			if( parameterValue( shader.get(), g_treatAsPointParameter, false ) )
+			{
+				newShader->parameters()[g_sizeParameter] = new FloatData( 0.0 );
+				newShader->parameters()[g_normalizeParameter] = new BoolData( true );
+			}
+		}
+		else if( shader->getName() == "DiskLight" )
+		{
+			newShader = new Shader( "disk_light", "cycles:light" );
+			transferUSDLightParameters( shaderNetwork, handle, shader.get(), newShader.get() );
+			transferUSDShapingParameters( shaderNetwork, handle, shader.get(), newShader.get() );
+			const float size = parameterValue( shader.get(), g_radiusParameter, 1.0f ) * 2.0f;
+			newShader->parameters()[g_widthParameter] = new FloatData( size );
+		}
+		else if( shader->getName() == "CylinderLight" )
+		{
+			// Do nothing, no cylinder light equivalent in cycles.
+		}
+		else if( shader->getName() == "DistantLight" )
+		{
+			newShader = new Shader( "distant_light", "cycles:light" );
+			transferUSDLightParameters( shaderNetwork, handle, shader.get(), newShader.get() );
+			transferUSDShapingParameters( shaderNetwork, handle, shader.get(), newShader.get() );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_angleParameter, newShader.get(), g_angleParameter, 0.53f );
+		}
+		else if( shader->getName() == "DomeLight" )
+		{
+			newShader = new Shader( "background_light", "cycles:light" );
+			transferUSDLightParameters( shaderNetwork, handle, shader.get(), newShader.get() );
+			transferUSDTextureFile( shaderNetwork, handle, shader.get(), newShader.get() );
+		}
+		else if( shader->getName() == "RectLight" )
+		{
+			newShader = new Shader( "quad_light", "cycles:light" );
+			transferUSDLightParameters( shaderNetwork, handle, shader.get(), newShader.get() );
+			const float width = parameterValue( shader.get(), g_widthParameter, 1.0f ) * 2.0f;
+			const float height = parameterValue( shader.get(), g_heightParameter, 1.0f ) * 2.0f;
+			newShader->parameters()[g_widthParameter] = new FloatData( width );
+			newShader->parameters()[g_heightParameter] = new FloatData( height );
+			transferUSDTextureFile( shaderNetwork, handle, shader.get(), newShader.get() );
+		}
+
+		if( newShader )
+		{
+			replaceUSDShader( shaderNetwork, handle, std::move( newShader ) );
+		}
+	}
+
+	IECoreScene::ShaderNetworkAlgo::removeUnusedShaders( shaderNetwork );
+
+}

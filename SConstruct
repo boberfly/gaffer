@@ -1237,6 +1237,21 @@ libraries = {
 
 	"GafferAppleseedUITest" : {},
 
+	"IECoreCycles" : {
+		"pythonEnvAppends" : {
+			"LIBPATH" : [ "$CYCLES_ROOT/lib" ],
+			"LIBS" : [
+				"IECoreScene$CORTEX_LIB_SUFFIX", "Gaffer", "GafferScene", "GafferCycles",
+			],
+			"CXXFLAGS" : [ systemIncludeArgument, "$CYCLES_ROOT/include" ],
+			"CPPDEFINES" : [
+				( "CCL_NAMESPACE_BEGIN", "namespace ccl {" ),
+				( "CCL_NAMESPACE_END", "}" ),
+			],
+		},
+		"requiredOptions" : [ "CYCLES_ROOT" ],
+	},
+
 	"GafferCycles" : {
 		"envAppends" : {
 			"LIBPATH" : [ "$CYCLES_ROOT/lib" ],

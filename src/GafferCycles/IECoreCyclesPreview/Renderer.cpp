@@ -906,6 +906,10 @@ IECore::InternedString g_transformBlurSegmentsAttributeName( "transformBlurSegme
 IECore::InternedString g_deformationBlurAttributeName( "deformationBlur" );
 IECore::InternedString g_deformationBlurSegmentsAttributeName( "deformationBlurSegments" );
 IECore::InternedString g_displayColorAttributeName( "render:displayColor" );
+// USD
+IECore::InternedString g_usdSurfaceAttributeName( "surface" );
+IECore::InternedString g_usdDisplacementAttributeName( "displacement" );
+IECore::InternedString g_usdLightAttributeName( "light" );
 // Cycles Attributes
 IECore::InternedString g_cclVisibilityAttributeName( "cycles:visibility" );
 IECore::InternedString g_useHoldoutAttributeName( "cycles:use_holdout" );
@@ -1006,7 +1010,10 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			const IECoreScene::ShaderNetwork *surfaceShaderAttribute = attribute<IECoreScene::ShaderNetwork>( g_cyclesSurfaceShaderAttributeName, attributes );
 			surfaceShaderAttribute = surfaceShaderAttribute ? surfaceShaderAttribute : attribute<IECoreScene::ShaderNetwork>( g_oslSurfaceShaderAttributeName, attributes );
 			surfaceShaderAttribute = surfaceShaderAttribute ? surfaceShaderAttribute : attribute<IECoreScene::ShaderNetwork>( g_oslShaderAttributeName, attributes );
+			surfaceShaderAttribute = surfaceShaderAttribute ? surfaceShaderAttribute : attribute<IECoreScene::ShaderNetwork>( g_usdSurfaceAttributeName, attributes );
 			const IECoreScene::ShaderNetwork *displacementShaderAttribute = attribute<IECoreScene::ShaderNetwork>( g_cyclesDisplacementShaderAttributeName, attributes );
+			//displacementShaderAttribute = displacementShaderAttribute ? displacementShaderAttribute : attribute<IECoreScene::ShaderNetwork>( g_usdDisplacementAttributeName, attributes );
+			//displacementShaderAttribute = displacementShaderAttribute ? displacementShaderAttribute : attribute<IECoreScene::ShaderNetwork>( g_usdSurfaceAttributeName, attributes );
 			const IECoreScene::ShaderNetwork *volumeShaderAttribute = attribute<IECoreScene::ShaderNetwork>( g_cyclesVolumeShaderAttributeName, attributes );
 			if( surfaceShaderAttribute || volumeShaderAttribute )
 			{
@@ -1026,6 +1033,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			// Light shader
 
 			m_lightAttribute = attribute<IECoreScene::ShaderNetwork>( g_lightAttributeName, attributes );
+			m_lightAttribute = m_lightAttribute ? m_lightAttribute : attribute<IECoreScene::ShaderNetwork>( g_usdLightAttributeName, attributes );
 			if( m_lightAttribute )
 			{
 				ShaderNetworkPtr lightShader = ShaderNetworkAlgo::convertLightShader( m_lightAttribute.get() );
