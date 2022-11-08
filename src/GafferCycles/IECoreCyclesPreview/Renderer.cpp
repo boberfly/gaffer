@@ -299,7 +299,7 @@ class CyclesOutput : public IECore::RefCounted
 	public :
 
 		CyclesOutput( const ccl::Session *session, const IECore::InternedString &name, const IECoreScene::Output *output )
-			: m_passType( ccl::PASS_NONE ), m_denoise( false ), m_interactive( false ), m_lightgroup( false )
+			: m_passType( ccl::PASS_NONE ), m_denoise( false ), m_interactive( false ), m_viewport( false ), m_lightgroup( false )
 		{
 			m_parameters = output->parametersData()->copy();
 			CompoundDataMap &p = m_parameters->writable();
@@ -307,10 +307,9 @@ class CyclesOutput : public IECore::RefCounted
 			p["path"] = new StringData( output->getName() );
 			p["driver"] = new StringData( output->getType() );
 
-			if( output->getType() == "ieDisplay" )
-				m_interactive = true;
-
+			m_interactive = output->getType() == "ieDisplay" ? true : false;
 			m_denoise = parameter<bool>( output->parameters(), "denoise", false );
+			m_viewport = parameter<string>( output->parameters(), "driverType", "" ) == "OutputBuffer::DisplayDriver" ? true : false;
 
 			const ccl::NodeEnum &typeEnum = *ccl::Pass::get_type_enum();
 			ccl::ustring passType;
@@ -391,6 +390,7 @@ class CyclesOutput : public IECore::RefCounted
 		std::string m_data;
 		bool m_denoise;
 		bool m_interactive;
+		bool m_viewport;
 		bool m_lightgroup;
 };
 
@@ -2464,6 +2464,7 @@ IECore::InternedString g_backgroundShaderOptionName( "cycles:background:shader" 
 //
 IECore::InternedString g_useFrameAsSeedOptionName( "cycles:integrator:useFrameAsSeed" );
 IECore::InternedString g_seedOptionName( "cycles:integrator:seed" );
+IECore::InternedString g_useDenoiseOptionName( "cycles:integrator:use_denoise" );
 
 ccl::PathRayFlag nameToRayType( const std::string &name )
 {
@@ -3042,6 +3043,12 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 				{
 					integrator->set_default_value( *input );
 				}
+
+				if( name == g_useDenoiseOptionName )
+				{
+					m_outputsChanged = true;
+				}
+
 				return;
 			}
 			else if( boost::starts_with( name.string(), "cycles:" ) )
@@ -3515,7 +3522,6 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			InternedString cryptoObject;
 			InternedString cryptoMaterial;
 			bool hasShadowCatcher = false;
-			bool hasDenoise = false;
 			for( auto &coutput : m_outputs )
 			{
 				if( ( m_renderType != Interactive && coutput.second->m_interactive ) ||
@@ -3556,12 +3562,20 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 				}
 
 				bool denoise = coutput.second->m_denoise;
-				hasDenoise |= denoise;
 				std::string name = denoise ? ccl::string_printf( "%s_denoised", coutput.second->m_data.c_str() ) : coutput.second->m_data;
 				ccl::Pass *pass = m_scene->create_node<ccl::Pass>();
 				pass->set_type( passType );
 				pass->set_name( ccl::ustring( name ) );
-				pass->set_mode( denoise ? ccl::PassMode::DENOISED : ccl::PassMode::NOISY );
+
+				// Allow the viewport to have a denoiser applied to default rgba pass.
+				if( m_scene->integrator->get_use_denoise() && passType == ccl::PASS_COMBINED && coutput.second->m_viewport )
+				{
+					pass->set_mode( ccl::PassMode::DENOISED );
+				}
+				else
+				{
+					pass->set_mode( denoise ? ccl::PassMode::DENOISED : ccl::PassMode::NOISY );
+				}
 
 				const IECore::CompoundDataPtr layer = coutput.second->m_parameters->copy();
 				layersData->writable()[name] = layer;
@@ -3642,7 +3656,6 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 					continue;
 
 				bool denoise = coutput.second->m_denoise;
-				hasDenoise |= denoise;
 				std::string name = denoise ? ccl::string_printf( "%s_denoised", coutput.second->m_data.c_str() ) : coutput.second->m_data;
 				ccl::Pass *pass = m_scene->create_node<ccl::Pass>();
 				pass->set_type( passType );
@@ -3668,7 +3681,6 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 
 			film->set_cryptomatte_passes( crypto );
 			film->set_use_approximate_shadow_catcher( !hasShadowCatcher );
-			m_scene->integrator->set_use_denoise( hasDenoise );
 			if( m_renderType == Interactive )
 				m_session->set_output_driver( ccl::make_unique<IEDisplayOutputDriver>( displayWindow, dataWindow, paramData ) );
 			else
