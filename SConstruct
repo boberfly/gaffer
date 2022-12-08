@@ -1239,12 +1239,11 @@ libraries = {
 
 	"GafferCycles" : {
 		"envAppends" : {
-			"LIBPATH" : [ "$CYCLES_ROOT/lib" ],
+			"LIBPATH" : [ "$CYCLES_ROOT/bin" ],
 			"LIBS" : [
 				"IECoreScene$CORTEX_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX",
 				"Gaffer", "GafferScene", "GafferDispatch", "GafferOSL",
-				"cycles_session", "cycles_scene", "cycles_graph", "cycles_bvh", "cycles_device", "cycles_kernel", "cycles_kernel_osl",
-				"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky",
+				"cycles",
 				"OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "openvdb$VDB_LIB_SUFFIX",
 				"Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree3",
 			],
@@ -1257,9 +1256,9 @@ libraries = {
 			"FRAMEWORKS" : [ "Foundation", "Metal" ],
 		},
 		"pythonEnvAppends" : {
-			"LIBPATH" : [ "$CYCLES_ROOT/lib" ],
+			"LIBPATH" : [ "$CYCLES_ROOT/bin" ],
 			"LIBS" : [
-				"Gaffer", "GafferScene", "GafferDispatch", "GafferBindings", "GafferCycles",
+				"Gaffer", "GafferScene", "GafferDispatch", "GafferBindings", "GafferCycles", "cycles",
 				"OpenImageIO_Util$OIIO_LIB_SUFFIX",
 			],
 			"CXXFLAGS" : [ systemIncludeArgument, "$CYCLES_ROOT/include" ],

@@ -247,6 +247,12 @@ if [[ -n $GAFFERCYCLES_FEATURE_PREVIEW ]] ; then
 
 		prependToPath "$CYCLES_ROOT/bin" PATH
 
+		if [[ `uname` = "Linux" ]] ; then
+			appendToPath "$CYCLES_ROOT/bin" LD_LIBRARY_PATH
+		else
+			appendToPath "$CYCLES_ROOT/bin" DYLD_LIBRARY_PATH
+		fi
+
 	fi
 
 else
