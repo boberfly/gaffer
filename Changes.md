@@ -1,3 +1,15 @@
+1.x.x.x (relative to 1.1.6.1)
+=======
+
+Features
+--------
+
+- Cycles :
+  - Added use_camera and use_caustics for lights.
+  - Fixed distant light angle is in degrees and not radians.
+  - Replaced size on portals and quad lights with width and height. Disks are width-only.
+  - Added normalize option for lights.
+
 1.1.6.1 (relative to 1.1.6.0)
 =======
 
