@@ -3415,6 +3415,24 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 
 				m_scene->integrator->tag_update( m_scene, ccl::Integrator::UPDATE_ALL );
 				m_scene->background->tag_update( m_scene );
+
+				// We need to set the ownership of the already created objects to the newly created scene
+				for( ccl::Node *node : m_objectsCreated )
+				{
+					node->set_owner( m_scene );
+				}
+				for( ccl::Node *node : m_lightsCreated )
+				{
+					node->set_owner( m_scene );
+				}
+				for( ccl::Node *node : m_geometryCreated )
+				{
+					node->set_owner( m_scene );
+				}
+				for( ccl::Node *node : m_shadersCreated )
+				{
+					node->set_owner( m_scene );
+				}
 			}
 		}
 
