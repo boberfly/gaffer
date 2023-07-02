@@ -113,7 +113,9 @@ Fixes
 - Window : Fixed handling of `**kw` constructor arguments. These were being passed to the `QWidget` constructor where they caused errors, instead of being passed to the ContainerWidget base class.
 - PresetsPlugValueWidget : Fixed label update for context-sensitive presets.
 - PlugValueWidget : Fixed value update when auxiliary plugs depend on the context but the primary plugs do not.
-- Cycles : Fixed handling of `cycles:shader:volume_sampling_method` and `cycles:shader:volume_interpolation_method` attributes, which were being ignored previously.
+- Cycles :
+  - Fixed handling of `cycles:shader:volume_sampling_method` and `cycles:shader:volume_interpolation_method` attributes, which were being ignored previously.
+  - OpenVDBs will now render and allow shader updates in a live render.
 - OptionQuery : Fixed bug which allowed duplicate queries to be added in the UI.
 
 API

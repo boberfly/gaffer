@@ -34,6 +34,7 @@
 #
 ##########################################################################
 
+import pathlib
 import math
 import time
 import unittest
@@ -1985,7 +1986,7 @@ class RendererTest( GafferTest.TestCase ) :
 
 		renderer.object(
 			"/vdb",
-			IECoreVDB.VDBObject( pathlib.Path( __file__ ).parent / ".." / ".." / "GafferVDBTest" / "data" / "smoke.vdb" ),
+			IECoreVDB.VDBObject( pathlib.Path( __file__ ).parent / ".." / ".." / "GafferVDBTest" / "data" / "smoke.vdb" ), # todo - can't figure out how to load in a vdb...
 			renderer.attributes( IECore.CompoundObject ( {
 				"cycles:volume" : IECoreScene.ShaderNetwork(
 					shaders = {
