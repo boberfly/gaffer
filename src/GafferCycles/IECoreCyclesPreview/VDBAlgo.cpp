@@ -61,7 +61,6 @@ namespace
 ccl::Geometry *convert( const IECoreVDB::VDBObject *vdbObject, const std::string &nodeName )
 {
 	ccl::Volume *volume = new ccl::Volume();
-	volume->set_object_space( true );
 	volume->name = ccl::ustring( nodeName.c_str() );
 	return volume;
 }

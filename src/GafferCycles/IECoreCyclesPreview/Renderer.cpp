@@ -80,6 +80,7 @@
 
 #include "fmt/format.h"
 
+#include <tuple>
 #include <unordered_map>
 
 // Cycles
@@ -145,7 +146,7 @@ typedef std::pair<ccl::Node*, ccl::array<ccl::Node*>> ShaderAssignPair;
 // Defer adding the created nodes to the scene lock
 using NodesCreated = tbb::concurrent_vector<ccl::Node *>;
 // Defer creation of volumes to the scene lock
-typedef std::pair<const IECoreVDB::VDBObject*, ccl::Volume*> VolumeConvert;
+typedef std::tuple<const IECoreVDB::VDBObject*, ccl::Volume*, int> VolumeConvert;
 
 // The shared pointer never deletes, we leave that up to Cycles to do the final delete
 using NodeDeleter = bool (*)( ccl::Node * );
@@ -897,6 +898,22 @@ IECore::InternedString g_lightGroupAttributeName( "cycles:lightgroup" );
 IECore::InternedString g_volumeClippingAttributeName( "cycles:volume_clipping" );
 IECore::InternedString g_volumeStepSizeAttributeName( "cycles:volume_step_size" );
 IECore::InternedString g_volumeObjectSpaceAttributeName( "cycles:volume_object_space" );
+IECore::InternedString g_volumeVelocityScaleAttributeName( "cycles:volume_velocity_scale");
+IECore::InternedString g_volumePrecisionAttributeName( "cycles:volume_precision" );
+
+std::array<IECore::InternedString, 2> g_volumePrecisionEnumNames = { {
+	"full",
+	"half",
+} };
+int nameToVolumePrecisionEnum( const IECore::InternedString &name )
+{
+#define MAP_NAME(enumName, enum) if(name == enumName) return enum;
+	MAP_NAME(g_volumePrecisionEnumNames[0], 0);
+	MAP_NAME(g_volumePrecisionEnumNames[1], 16);
+#undef MAP_NAME
+
+	return 0;
+}
 
 const char *customAttributeName( const std::string &attributeName, bool &hasPrecedence )
 {
@@ -1192,6 +1209,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 				case IECoreVDB::VDBObjectTypeId :
 					// When there is a shader update, make sure the re-issued volume isn't a re-used instance.
 					h.append( m_shaderHash );
+					m_volume.hash( h );
 					break;
 				default :
 					// No geometry attributes for this type.
@@ -1228,6 +1246,14 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			m_shader->nodesCreated( nodes );
 		}
 
+		int getVolumePrecision() const
+		{
+			if( m_volume.precision )
+				return nameToVolumePrecisionEnum( m_volume.precision.get() );
+			else
+				return 0;
+		}
+
 	private :
 
 		void updateVisibility( const IECore::InternedString &name, int rayType, const IECore::CompoundObject *attributes )
@@ -1252,11 +1278,39 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 				clipping = optionalAttribute<float>( g_volumeClippingAttributeName, attributes );
 				stepSize = optionalAttribute<float>( g_volumeStepSizeAttributeName, attributes );
 				objectSpace = optionalAttribute<bool>( g_volumeObjectSpaceAttributeName, attributes );
+				velocityScale = optionalAttribute<float>( g_volumeVelocityScaleAttributeName, attributes );
+				precision = optionalAttribute<string>( g_volumePrecisionAttributeName, attributes );
 			}
 
 			boost::optional<float> clipping;
 			boost::optional<float> stepSize;
 			boost::optional<bool> objectSpace;
+			boost::optional<float> velocityScale;
+			boost::optional<InternedString> precision;
+
+			void hash( IECore::MurmurHash &h ) const
+			{
+				if( clipping && clipping.get() != 0.001f )
+				{
+					h.append( clipping.get() );
+				}
+				if( stepSize && stepSize.get() != 0.0f )
+				{
+					h.append( stepSize.get() );
+				}
+				if( objectSpace && objectSpace.get() != false )
+				{
+					h.append( objectSpace.get() );
+				}
+				if( velocityScale && velocityScale.get() != 1.0f )
+				{
+					h.append( velocityScale.get() );
+				}
+				if( precision && precision.get() != "full" )
+				{
+					h.append( precision.get() );
+				}
+			}
 
 			bool apply( ccl::Object *object ) const
 			{
@@ -1269,6 +1323,12 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 						volume->set_step_size( stepSize.get() );
 					if( objectSpace )
 						volume->set_object_space( objectSpace.get() );
+					if( velocityScale )
+						volume->set_velocity_scale( velocityScale.get() );
+
+					// If any of these are set, re-issue a new volume
+					if( clipping || stepSize || objectSpace || velocityScale || precision )
+						return false;
 				}
 				return true;
 			}
@@ -1663,7 +1723,7 @@ class InstanceCache : public IECore::RefCounted
 
 			if( object->typeId() == IECoreVDB::VDBObject::staticTypeId() )
 			{
-				m_volumesConvert.push_back( VolumeConvert( IECore::runTimeCast<const IECoreVDB::VDBObject>( object ), static_cast<ccl::Volume*>( geometry ) ) );
+				m_volumesConvert.push_back( VolumeConvert( IECore::runTimeCast<const IECoreVDB::VDBObject>( object ), static_cast<ccl::Volume*>( geometry ), attributes->getVolumePrecision() ) );
 			}
 
 			return SharedCGeometryPtr( geometry, nullNodeDeleter );
@@ -1685,7 +1745,7 @@ class InstanceCache : public IECore::RefCounted
 
 			if( samples.front()->typeId() == IECoreVDB::VDBObject::staticTypeId() )
 			{
-				m_volumesConvert.push_back( VolumeConvert( IECore::runTimeCast<const IECoreVDB::VDBObject>( samples.front() ), static_cast<ccl::Volume*>( geometry ) ) );
+				m_volumesConvert.push_back( VolumeConvert( IECore::runTimeCast<const IECoreVDB::VDBObject>( samples.front() ), static_cast<ccl::Volume*>( geometry ), attributes->getVolumePrecision() ) );
 			}
 
 			return SharedCGeometryPtr( geometry, nullNodeDeleter );
@@ -1711,7 +1771,7 @@ class InstanceCache : public IECore::RefCounted
 		{
 			for( VolumeConvert volume : m_volumesConvert )
 			{
-				GeometryAlgo::convertVoxelGrids( volume.first, volume.second, m_scene, frame );
+				GeometryAlgo::convertVoxelGrids( std::get<0>( volume ), std::get<1>( volume ), m_scene, frame, std::get<2>( volume ) );
 			}
 			m_volumesConvert.clear();
 		}
