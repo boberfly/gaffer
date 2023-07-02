@@ -144,6 +144,8 @@ using SharedCGeometryPtr = std::shared_ptr<ccl::Geometry>;
 typedef std::pair<ccl::Node*, ccl::array<ccl::Node*>> ShaderAssignPair;
 // Defer adding the created nodes to the scene lock
 using NodesCreated = tbb::concurrent_vector<ccl::Node *>;
+// Defer creation of volumes to the scene lock
+typedef std::pair<const IECoreVDB::VDBObject*, ccl::Volume*> VolumeConvert;
 
 // The shared pointer never deletes, we leave that up to Cycles to do the final delete
 using NodeDeleter = bool (*)( ccl::Node * );
@@ -1082,6 +1084,14 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 							}
 						}
 					}
+					else if( mesh->geometry_type == ccl::Geometry::VOLUME )
+					{
+						if( previousAttributes->m_shader != m_shader )
+						{
+							// Expensive to rebuild the volume just for an updated shader, but it disappears otherwise.
+							return false;
+						}
+					}
 				}
 			}
 
@@ -1178,6 +1188,10 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 						h.append( m_dicingRate );
 						h.append( m_maxLevel );
 					}
+					break;
+				case IECoreVDB::VDBObjectTypeId :
+					// When there is a shader update, make sure the re-issued volume isn't a re-used instance.
+					h.append( m_shaderHash );
 					break;
 				default :
 					// No geometry attributes for this type.
@@ -1475,9 +1489,10 @@ class InstanceCache : public IECore::RefCounted
 		{
 		}
 
-		void update( ccl::Scene *scene, NodesCreated &object, NodesCreated &geometry )
+		void update( ccl::Scene *scene, NodesCreated &object, NodesCreated &geometry, const float frame )
 		{
 			m_scene = scene;
+			updateVolumes( frame );
 			updateObjects( object );
 			updateGeometry( geometry );
 		}
@@ -1638,13 +1653,19 @@ class InstanceCache : public IECore::RefCounted
 
 	private :
 
-		SharedCGeometryPtr convert( const IECore::Object *object, const CyclesAttributes *attributes, const std::string &nodeName ) const
+		SharedCGeometryPtr convert( const IECore::Object *object, const CyclesAttributes *attributes, const std::string &nodeName )
 		{
-			ccl::Geometry *geometry = GeometryAlgo::convert( object, nodeName, m_scene );
+			ccl::Geometry *geometry = GeometryAlgo::convert( object, nodeName );
 			if( geometry )
 			{
 				geometry->set_owner( m_scene );
 			}
+
+			if( object->typeId() == IECoreVDB::VDBObject::staticTypeId() )
+			{
+				m_volumesConvert.push_back( VolumeConvert( IECore::runTimeCast<const IECoreVDB::VDBObject>( object ), static_cast<ccl::Volume*>( geometry ) ) );
+			}
+
 			return SharedCGeometryPtr( geometry, nullNodeDeleter );
 		}
 
@@ -1654,13 +1675,19 @@ class InstanceCache : public IECore::RefCounted
 			const int frame,
 			const CyclesAttributes *attributes,
 			const std::string &nodeName
-		) const
+		)
 		{
-			ccl::Geometry *geometry = GeometryAlgo::convert( samples, times, frame, nodeName, m_scene );
+			ccl::Geometry *geometry = GeometryAlgo::convert( samples, times, frame, nodeName );
 			if( geometry )
 			{
 				geometry->set_owner( m_scene );
 			}
+
+			if( samples.front()->typeId() == IECoreVDB::VDBObject::staticTypeId() )
+			{
+				m_volumesConvert.push_back( VolumeConvert( IECore::runTimeCast<const IECoreVDB::VDBObject>( samples.front() ), static_cast<ccl::Volume*>( geometry ) ) );
+			}
+
 			return SharedCGeometryPtr( geometry, nullNodeDeleter );
 		}
 
@@ -1678,6 +1705,15 @@ class InstanceCache : public IECore::RefCounted
 			}
 
 			return Instance( object, geometry, prototype );
+		}
+
+		void updateVolumes( const float frame )
+		{
+			for( VolumeConvert volume : m_volumesConvert )
+			{
+				GeometryAlgo::convertVoxelGrids( volume.first, volume.second, m_scene, frame );
+			}
+			m_volumesConvert.clear();
 		}
 
 		void updateObjects( NodesCreated &nodes )
@@ -1748,6 +1784,8 @@ class InstanceCache : public IECore::RefCounted
 		Geometry m_geometry;
 		using UniqueGeometry = tbb::concurrent_vector<SharedCGeometryPtr>;
 		UniqueGeometry m_uniqueGeometry;
+		using VolumesConvert = tbb::concurrent_vector<VolumeConvert>;
+		VolumesConvert m_volumesConvert;
 
 };
 
@@ -3335,7 +3373,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			m_shaderCache->nodesCreated( m_shadersCreated );
 
 			m_lightCache->update( m_scene, m_lightsCreated );
-			m_instanceCache->update( m_scene, m_objectsCreated, m_geometryCreated );
+			m_instanceCache->update( m_scene, m_objectsCreated, m_geometryCreated, m_frame );
 			m_shaderCache->update( m_scene, m_shadersCreated );
 
 			for( auto object : m_scene->objects )
