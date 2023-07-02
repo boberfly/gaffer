@@ -14,6 +14,7 @@ Improvements
 - Cycles :
   - Added `is_sphere` plug to spot and point lights. Disabling `is_sphere` is equivalent to enabling "Soft Falloff" in Blender, which reverts the light to the behaviour of Cycles 3.6 and earlier.
   - Changed sampling pattern to blue noise dithered sampling.
+  - OpenVDBs will now render and allow shader updates in a live render.
 
 Fixes
 -----
