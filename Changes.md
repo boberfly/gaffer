@@ -26,6 +26,11 @@ API
 - OptionalValuePlug : Added a new plug type that pairs an `enabled` BoolPlug with a `value` ValuePlug.
 - Shader : Added support for using OptionalValuePlug to represent optional parameters.
 
+Improvements
+------------
+
+- Cycles : Improved GPU support when Cycles is compiled with GPU devices.
+
 Fixes
 -----
 
