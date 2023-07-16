@@ -2509,8 +2509,9 @@ IECore::InternedString g_numBvhTimeStepsOptionName( "cycles:scene:num_bvh_time_s
 IECore::InternedString g_hairSubdivisionsOptionName( "cycles:scene:hair_subdivisions" );
 IECore::InternedString g_hairShapeOptionName( "cycles:scene:hair_shape" );
 IECore::InternedString g_textureLimitOptionName( "cycles:scene:texture_limit" );
-// Background shader
+// Background
 IECore::InternedString g_backgroundShaderOptionName( "cycles:background:shader" );
+IECore::InternedString g_backgroundLightgroupOptionName( "cycles:background:lightgroup" );
 //
 IECore::InternedString g_useFrameAsSeedOptionName( "cycles:integrator:useFrameAsSeed" );
 IECore::InternedString g_seedOptionName( "cycles:integrator:seed" );
@@ -2564,6 +2565,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 				m_sessionParams( ccl::SessionParams() ),
 				m_sceneParams( ccl::SceneParams() ),
 				m_bufferParams( ccl::BufferParams() ),
+				m_backgroundLightgroup( ccl::ustring( "" ) ),
 				m_deviceName( g_defaultDeviceName ),
 				m_renderType( renderType ),
 				m_frame( 1 ),
@@ -3024,6 +3026,17 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 						else
 						{
 							m_backgroundShader = nullptr;
+						}
+					}
+					else if( name == g_backgroundLightgroupOptionName )
+					{
+						if( value == nullptr )
+						{
+							m_backgroundLightgroup = ccl::ustring( "" );
+						}
+						else if ( const StringData *data = reportedCast<const StringData>( value, "option", name ) )
+						{
+							m_backgroundLightgroup = ccl::ustring( data->readable() );
 						}
 					}
 					else if( const Data *data = reportedCast<const Data>( value, "option", name ) )
@@ -3511,11 +3524,14 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			}
 
 			ccl::Shader *lightShader = nullptr;
+			ccl::ustring lightGroup = ccl::ustring("");
+
 			for( ccl::Light *light : m_scene->lights )
 			{
 				if( light->get_light_type() == ccl::LIGHT_BACKGROUND )
 				{
 					lightShader = light->get_shader();
+					lightGroup = light->get_lightgroup();
 					break;
 				}
 			}
@@ -3527,14 +3543,17 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			if( m_backgroundShader )
 			{
 				background->set_shader( m_backgroundShader->shader() );
+				background->set_lightgroup( m_backgroundLightgroup );
 			}
 			else if( lightShader )
 			{
 				background->set_shader( lightShader );
+				background->set_lightgroup( lightGroup );
 			}
 			else
 			{
 				background->set_shader( m_scene->default_background );
+				background->set_lightgroup( m_backgroundLightgroup );
 			}
 
 			if( integrator->is_modified() )
@@ -3946,8 +3965,9 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 		ccl::Background m_background;
 		ccl::Film m_film;
 
-		// Background shader
+		// Background
 		CyclesShaderPtr m_backgroundShader;
+		ccl::ustring m_backgroundLightgroup;
 
 		// Defaults
 		ccl::Camera m_cameraDefault;

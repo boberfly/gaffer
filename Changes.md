@@ -26,6 +26,11 @@ API
 - OptionalValuePlug : Added a new plug type that pairs an `enabled` BoolPlug with a `value` ValuePlug.
 - Shader : Added support for using OptionalValuePlug to represent optional parameters.
 
+Fixes
+-----
+
+- Cycles : The background light's lightgroup is now being set correctly due to 3.5.0 code changes, as well as adding a way to set a lightgroup from CyclesOptions when a CyclesBackground is being used instead.
+
 1.3.0.0 (relative to 1.2.10.0)
 =======
 
