@@ -57,6 +57,10 @@ CyclesOptions::CyclesOptions( const std::string &name )
 
 	// Device
 	options->addChild( new Gaffer::NameValuePlug( "cycles:device", new IECore::StringData( "CPU" ), false, "device" ) );
+	options->addChild( new Gaffer::NameValuePlug( "cycles:device:use_fallback", new IECore::BoolData( false ), false, "useDeviceFallback" ) );
+	options->addChild( new Gaffer::NameValuePlug( "cycles:device:peer_memory", new IECore::BoolData( false ), false, "peerMemory" ) );
+	options->addChild( new Gaffer::NameValuePlug( "cycles:device:use_hardwarert", new IECore::BoolData( false ), false, "useHardwareRT" ) );
+	options->addChild( new Gaffer::NameValuePlug( "cycles:device:kernel_optimization_level", new IECore::StringData( "FULL" ), false, "kernelOptimizationLevel" ) );
 
 	// Session and scene
 	options->addChild( new Gaffer::NameValuePlug( "cycles:shadingsystem", new IECore::StringData( "OSL" ), false, "shadingSystem" ) );
@@ -117,6 +121,7 @@ CyclesOptions::CyclesOptions( const std::string &name )
 
 	options->addChild( new Gaffer::NameValuePlug( "cycles:integrator:sampling_pattern", new IECore::StringData( "sobol" ), false, "samplingPattern" ) );
 
+	options->addChild( new Gaffer::NameValuePlug( "cycles:integrator:use_denoise", new IECore::BoolData( false ), false, "useDenoise" ) );
 	options->addChild( new Gaffer::NameValuePlug( "cycles:integrator:denoiser_type", new IECore::StringData( "openimagedenoise" ), false, "denoiserType" ) );
 	options->addChild( new Gaffer::NameValuePlug( "cycles:integrator:denoise_start_sample", new IECore::IntData( 0 ), false, "denoiseStartSample" ) );
 	options->addChild( new Gaffer::NameValuePlug( "cycles:integrator:use_denoise_pass_albedo", new IECore::BoolData( true ), false, "useDenoisePassAlbedo" ) );
@@ -143,6 +148,8 @@ CyclesOptions::CyclesOptions( const std::string &name )
 	options->addChild( new Gaffer::NameValuePlug( "cycles:background:transparent_roughness_threshold", new IECore::FloatData( 0.0f ), false, "bgTransparentRoughnessThreshold" ) );
 
 	options->addChild( new Gaffer::NameValuePlug( "cycles:background:volume_step_size", new IECore::FloatData( 0.1f ), false, "volumeStepSize" ) );
+
+	options->addChild( new Gaffer::NameValuePlug( "cycles:background:lightgroup", new IECore::StringData( "" ), false, "bgLightgroup" ) );
 
 	// Film
 	options->addChild( new Gaffer::NameValuePlug( "cycles:film:exposure", new IECore::FloatData( 1.0f ), false, "exposure" ) );

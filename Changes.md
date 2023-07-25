@@ -5,6 +5,7 @@ Features
 --------
 
 - USDShader : Added a node for loading shaders from USD's `SdrRegistry`. This includes shaders such as `UsdPreviewSurface` and `UsdUVTexture`, which are now available in the `USD/Shader` section of the node menu.
+- Cycles : Added OpenImageDenoise in the viewport support.
 
 Improvements
 ------------
@@ -26,6 +27,16 @@ API
 
 - OptionalValuePlug : Added a new plug type that pairs an `enabled` BoolPlug with a `value` ValuePlug.
 - Shader : Added support for using OptionalValuePlug to represent optional parameters.
+
+Improvements
+------------
+
+- Cycles : Improved GPU support when Cycles is compiled with GPU devices.
+
+Fixes
+-----
+
+- Cycles : The background light's lightgroup is now being set correctly due to 3.5.0 code changes, as well as adding a way to set a lightgroup from CyclesOptions when a CyclesBackground is being used instead.
 
 1.3.0.0 (relative to 1.2.10.0)
 =======
@@ -114,7 +125,9 @@ Fixes
 - Window : Fixed handling of `**kw` constructor arguments. These were being passed to the `QWidget` constructor where they caused errors, instead of being passed to the ContainerWidget base class.
 - PresetsPlugValueWidget : Fixed label update for context-sensitive presets.
 - PlugValueWidget : Fixed value update when auxiliary plugs depend on the context but the primary plugs do not.
-- Cycles : Fixed handling of `cycles:shader:volume_sampling_method` and `cycles:shader:volume_interpolation_method` attributes, which were being ignored previously.
+- Cycles :
+  - Fixed handling of `cycles:shader:volume_sampling_method` and `cycles:shader:volume_interpolation_method` attributes, which were being ignored previously.
+  - OpenVDBs will now render and allow shader updates in a live render.
 - OptionQuery : Fixed bug which allowed duplicate queries to be added in the UI.
 
 API
@@ -453,6 +466,7 @@ Fixes
 - SceneReader : Fixed reading of USD primitives containing `primvars:normals`. These are now correctly loaded as a primitive variable called N, taking precedence over the UsdGeomPointBased normals attribute.
 - SceneWriter : Fixed writing of indexed normals to USD files, so that the indexing is retained on load. Note that this means that normals are now always written as `primvars:normals` and never via the UsdGeomPointBased `normals` attribute.
 - CompoundDataPlugValueWidget : Fixed bug which prevented the addition of new plugs when an existing plug had an input connection. This affected the ContextVariables, CustomOptions and CustomAttributes nodes, among others.
+- Cycles : Refactor the problematic reset code, we now only allow scene/session parameters to be set before rendering starts (#5101). Fixes (#5234)
 
 API
 ---

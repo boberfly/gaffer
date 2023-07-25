@@ -47,6 +47,18 @@ def __sessionSummary( plug ) :
 	if plug["device"]["enabled"].getValue() :
 		info.append( "Device(s) {}".format( plug["device"]["value"].getValue() ) )
 
+	if plug["useDeviceFallback"]["enabled"].getValue() :
+		info.append( "Device Fallback {}".format( plug["useDeviceFallback"]["value"].getValue() ) )
+
+	if plug["peerMemory"]["enabled"].getValue() :
+		info.append( "Peer-Memory {}".format( plug["peerMemory"]["value"].getValue() ) )
+
+	if plug["useHardwareRT"]["enabled"].getValue() :
+		info.append( "Hardware Raytracing {}".format( plug["useHardwareRT"]["value"].getValue() ) )
+
+	if plug["kernelOptimizationLevel"]["enabled"].getValue() :
+		info.append( "Kernel Optimization Level {}".format( plug["kernelOptimizationLevel"]["value"].getValue() ) )
+
 	if plug["shadingSystem"]["enabled"].getValue() :
 		info.append( "Shading System {}".format( plug["shadingSystem"]["value"].getValue() ) )
 
@@ -263,6 +275,9 @@ def __denoisingSummary( plug ) :
 
 	info = []
 
+	if plug["useDenoise"]["enabled"].getValue() :
+		info.append( "Use Denoising {}".format( plug["useDenoise"]["value"].getValue() ) )
+
 	if plug["denoiserType"]["enabled"].getValue() :
 		info.append( "Denoise Type {}".format( plug["denoiserType"]["value"].getValue() ) )
 
@@ -301,6 +316,9 @@ def __backgroundSummary( plug ) :
 
 	if plug["bgTransparentRoughnessThreshold"]["enabled"].getValue() :
 		info.append( "Roughness Threshold {}".format( plug["bgTransparentRoughnessThreshold"]["value"].getValue() ) )
+	
+	if plug["bgLightgroup"]["enabled"].getValue() :
+		info.append( "Lightgroup {}".format( plug["bgLightgroup"]["value"].getValue() ) )
 
 	for childName in ( "Camera", "Diffuse", "Glossy", "Transmission", "Shadow", "Scatter" ) :
 		if plug["bg" + childName + "Visibility"]["enabled"].getValue() :
@@ -367,6 +385,7 @@ def __devicesPreset() :
 	hipIndex = 0
 	optixIndex = 0
 	metalIndex = 0
+	oneapiIndex = 0
 
 	for device in GafferCycles.devices :
 
@@ -385,6 +404,9 @@ def __devicesPreset() :
 		elif device["type"] == "METAL" :
 			index = metalIndex
 			metalIndex += 1
+		elif device["type"] == "ONEAPI" :
+			index = oneapiIndex
+			oneapiIndex += 1
 		Gaffer.Metadata.registerValue(
 			GafferCycles.CyclesOptions,
 			"options.device.value",
@@ -398,18 +420,26 @@ def __devicesPreset() :
 			"CPU %s:%02i" % ( device["type"], index )
 			)
 
+	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:First CUDA", "CUDA:00" )
+	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:First OptiX", "OPTIX:00" )
+	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:First HIP", "HIP:00" )
+	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:First Metal", "METAL:00" )
+	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:First OneAPI", "ONEAPI:00" )
 	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:All CUDA", "CUDA:*" )
 	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:All OptiX", "OPTIX:*" )
 	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:All HIP", "HIP:*" )
 	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:All Metal", "METAL:*" )
+	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:All OneAPI", "ONEAPI:*" )
 	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:CPU and all CUDA", "CPU CUDA:*" )
 	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:CPU and all OptiX", "CPU OPTIX:*" )
 	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:CPU and all HIP", "CPU HIP:*" )
 	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:CPU and all Metal", "CPU METAL:*" )
+	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:CPU and all OneAPI", "CPU ONEAPI:*" )
 	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:CPU and first CUDA found", "CPU CUDA:00" )
 	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:CPU and first OptiX found", "CPU OPTIX:00" )
 	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:CPU and first HIP found", "CPU HIP:00" )
 	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:CPU and first Metal found", "CPU METAL:00" )
+	Gaffer.Metadata.registerValue( GafferCycles.CyclesOptions, "options.device.value", "preset:CPU and first OneAPI found", "CPU ONEAPI:00" )
 
 Gaffer.Metadata.registerNode(
 
@@ -457,9 +487,9 @@ Gaffer.Metadata.registerNode(
 
 				CPU CUDA:00
 
-			To render on the first and second OpenCL device:
+			To render on the first and second HIP device:
 
-				OPENCL:00 OPENCL:01
+				HIP:00 HIP:01
 
 			To render on every OptiX device found:
 
@@ -472,6 +502,88 @@ Gaffer.Metadata.registerNode(
 
 			"layout:section", "Session",
 			"label", "Device(s)",
+
+		],
+
+		"options.useDeviceFallback" : [
+
+			"description",
+			"""
+			When a device like a GPU that is specified but cannot be found in the system,
+			this option will fallback to the CPU for rendering instead of erroring out.
+
+			If the OSL shadingsystem is specified on a device which doesn't support it,
+			it'll also revert to CPU instead of erroring out.
+			""",
+
+			"layout:section", "Session",
+			"label", "Device Fallback",
+
+		],
+
+		"options.peerMemory" : [
+
+			"description",
+			"""
+			Distribute memory across devices.
+
+			Make more room for large scenes to fit by distributing memory across interconnected devices
+			(e.g. via NVLink) rather than duplicating it.
+			""",
+
+			"layout:section", "Session",
+			"label", "Peer-Memory",
+
+		],
+
+		"options.useHardwareRT" : [
+
+			"description",
+			"""
+			Hardware Raytracing (experimental for Metal and HIP)
+
+			Metal RT for ray tracing uses less memory for scenes which use curves extensively, and can give better
+			performance in specific cases. However this support is experimental and some scenes may render incorrectly.
+
+			HIP RT enables AMD hardware ray tracing on RDNA2 and above, with shader fallback on older cards.
+			This feature is experimental and some scenes may render incorrectly.
+
+			OneAPI (Embree on GPU) enables the use of hardware ray tracing on Intel GPUs,
+			providing better overall performance.
+			""",
+
+			"layout:section", "Session",
+			"label", "Use Hardware Raytracing",
+
+		],
+
+		"options.kernelOptimizationLevel" : [
+
+			"description",
+			"""
+			Kernel Optimization.
+
+			Kernels can be optimized based on scene content. Optimized kernels are requested at the start of a render.
+			If optimized kernels are not available, rendering will proceed using generic kernels until the optimized set
+			is available in the cache. This can result in additional CPU usage for a brief time (tens of seconds).
+
+			Off - Disable kernel optimization. Slowest rendering, no extra background CPU usage.
+			Intersection only - Optimize only intersection kernels. Faster rendering, negligible extra background CPU usage.
+			Full - Optimize all kernels. Fastest rendering, may result in extra background CPU usage.
+			""",
+
+			"layout:section", "Session",
+			"label", "Kernel Optimisation",
+
+		],
+
+		"options.kernelOptimizationLevel.value" : [
+
+			"preset:Off", "OFF",
+			"preset:Intersection only", "INTERSECT",
+			"preset:Full", "FULL",
+
+			"plugValueWidget:type", "GafferUI.PresetsPlugValueWidget",
 
 		],
 
@@ -1309,6 +1421,20 @@ Gaffer.Metadata.registerNode(
 
 		],
 
+		"options.bgLightgroup" : [
+
+			"description",
+			"""
+			The background lightgroup name. This will only be set if a 
+			CyclesBackground is used instead of a background light,
+			otherwise it will use the lightgroup name from the light itself.
+			""",
+
+			"layout:section", "Background",
+			"label", "Lightgroup",
+
+		],
+
 		# Film
 
 		"options.exposure" : [
@@ -1449,6 +1575,18 @@ Gaffer.Metadata.registerNode(
 		],
 
 		# Denoising
+
+		"options.useDenoise" : [
+
+			"description",
+			"""
+			Enable the Denoiser.
+			""",
+
+			"layout:section", "Denoising",
+			"label", "Use Denoising",
+
+		],
 
 		"options.denoiserType" : [
 
