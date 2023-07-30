@@ -3539,7 +3539,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			{
 				for( const ccl::DeviceInfo& device : IECoreCycles::devices() )
 				{
-					if( m_deviceName ==  device.id )
+					if( m_deviceName == device.id )
 					{
 						m_sessionParams.device = device;
 						m_deviceAvailable = true;
@@ -3637,7 +3637,8 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 		{
 			// If anything changes in scene or session, we reset.
 			if( m_scene->params.modified( m_sceneParams ) ||
-				m_session->params.modified( m_sessionParams )
+				m_session->params.modified( m_sessionParams ) ||
+				m_deviceName != g_defaultDeviceName.c_str()
 			)
 			{
 				copySocketValues( *(m_scene->integrator), m_integrator );
@@ -3673,6 +3674,12 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 				{
 					node->set_owner( m_scene );
 				}
+			}
+			else
+			{
+				// The first init intentionally does not print to message handler so that we don't print
+				// twice, so we do it here if the default device will be used.
+				IECore::msg( IECore::Msg::Info, "CyclesRenderer", fmt::format( "Using device: \"{}\".", g_defaultDeviceName.c_str() ) );
 			}
 		}
 
