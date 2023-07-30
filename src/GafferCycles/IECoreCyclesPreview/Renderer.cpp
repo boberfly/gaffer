@@ -1102,14 +1102,6 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 							}
 						}
 					}
-					else if( mesh->geometry_type == ccl::Geometry::VOLUME )
-					{
-						if( previousAttributes->m_shader != m_shader )
-						{
-							// Expensive to rebuild the volume just for an updated shader, but it disappears otherwise.
-							return false;
-						}
-					}
 				}
 			}
 
@@ -1208,8 +1200,6 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 					}
 					break;
 				case IECoreVDB::VDBObjectTypeId :
-					// When there is a shader update, make sure the re-issued volume isn't a re-used instance.
-					h.append( m_shaderHash );
 					m_volume.hash( h );
 					break;
 				default :
@@ -1287,7 +1277,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			boost::optional<float> stepSize;
 			boost::optional<bool> objectSpace;
 			boost::optional<float> velocityScale;
-			boost::optional<InternedString> precision;
+			boost::optional<string> precision;
 
 			void hash( IECore::MurmurHash &h ) const
 			{
@@ -1307,7 +1297,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 				{
 					h.append( velocityScale.get() );
 				}
-				if( precision && precision.get() != "full" )
+				if( precision && precision.get() != g_volumePrecisionEnumNames[0].c_str() )
 				{
 					h.append( precision.get() );
 				}
@@ -1315,23 +1305,36 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 
 			bool apply( ccl::Object *object ) const
 			{
-				if( object->get_geometry()->geometry_type == ccl::Geometry::VOLUME )
+				bool retval = true;
+				if( object->get_geometry() && object->get_geometry()->is_volume() )
 				{
 					ccl::Volume *volume = (ccl::Volume*)object->get_geometry();
-					if( clipping )
+					if( clipping && ( volume->get_clipping() != clipping.get() ) )
+					{
 						volume->set_clipping( clipping.get() );
-					if( stepSize )
+						retval = false;
+					}
+					if( stepSize && ( volume->get_step_size() != stepSize.get() ) )
+					{
 						volume->set_step_size( stepSize.get() );
-					if( objectSpace )
+						retval = false;
+					}
+					if( objectSpace && ( volume->get_object_space() != objectSpace.get() ) )
+					{
 						volume->set_object_space( objectSpace.get() );
-					if( velocityScale )
+						retval = false;
+					}
+					if( velocityScale && ( volume->get_velocity_scale() != velocityScale.get() ) )
+					{
 						volume->set_velocity_scale( velocityScale.get() );
-
-					// If any of these are set, re-issue a new volume
-					if( clipping || stepSize || objectSpace || velocityScale || precision )
-						return false;
+						retval = false;
+					}
+					if( precision && ( GeometryAlgo::getVolumePrecision( volume ) != nameToVolumePrecisionEnum( precision.get() ) ) )
+					{
+						retval = false;
+					}
 				}
-				return true;
+				return retval;
 			}
 
 		};
