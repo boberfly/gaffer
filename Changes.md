@@ -5,7 +5,9 @@ Features
 --------
 
 - USDShader : Added a node for loading shaders from USD's `SdrRegistry`. This includes shaders such as `UsdPreviewSurface` and `UsdUVTexture`, which are now available in the `USD/Shader` section of the node menu.
-- Cycles : Added OpenImageDenoise in the viewport support.
+- Cycles :
+  - Added OpenImageDenoise in the viewport support.
+  - OpenVDBs will now render and allow shader updates in a live render.
 
 Improvements
 ------------

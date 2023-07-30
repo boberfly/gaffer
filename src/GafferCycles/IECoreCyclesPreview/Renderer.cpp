@@ -1089,15 +1089,54 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 					}
 				}
 
-				if( ccl::Mesh *mesh = (ccl::Mesh*)object->get_geometry() )
+				if( object->get_geometry() )
 				{
-					if( mesh->geometry_type == ccl::Geometry::MESH )
+					if( object->get_geometry()->is_mesh() )
 					{
+						ccl::Mesh *mesh = (ccl::Mesh*)object->get_geometry();
 						if( mesh->get_subd_params() )
 						{
 							if( ( previousAttributes->m_maxLevel != m_maxLevel ) || ( previousAttributes->m_dicingRate != m_dicingRate ) )
 							{
 								// Get a new mesh
+								return false;
+							}
+						}
+					}
+					else if( object->get_geometry()->is_volume() )
+					{
+						if( m_volume.clipping || previousAttributes->m_volume.clipping )
+						{
+							if( m_volume.clipping.get() != previousAttributes->m_volume.clipping.get() )
+							{
+								return false;
+							}
+						}
+						if( m_volume.stepSize || previousAttributes->m_volume.stepSize )
+						{
+							if( m_volume.stepSize.get() != previousAttributes->m_volume.stepSize.get() )
+							{
+								return false;
+							}
+						}
+						if( m_volume.objectSpace || previousAttributes->m_volume.objectSpace )
+						{
+							if( m_volume.objectSpace.get() != previousAttributes->m_volume.objectSpace.get() )
+							{
+								return false;
+							}
+						}
+						if( m_volume.velocityScale || previousAttributes->m_volume.velocityScale )
+						{
+							if( m_volume.velocityScale.get() != previousAttributes->m_volume.velocityScale.get() )
+							{
+								return false;
+							}
+						}
+						if( m_volume.precision || previousAttributes->m_volume.precision )
+						{
+							if( m_volume.precision.get() != previousAttributes->m_volume.precision.get() )
+							{
 								return false;
 							}
 						}
@@ -1140,8 +1179,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 				}
 			}
 
-			if( !m_volume.apply( object ) )
-				return false;
+			m_volume.apply( object );
 
 			object->set_lightgroup( ccl::ustring( m_lightGroup.c_str() ) );
 
@@ -1303,38 +1341,28 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 				}
 			}
 
-			bool apply( ccl::Object *object ) const
+			void apply( ccl::Object *object ) const
 			{
-				bool retval = true;
 				if( object->get_geometry() && object->get_geometry()->is_volume() )
 				{
 					ccl::Volume *volume = (ccl::Volume*)object->get_geometry();
-					if( clipping && ( volume->get_clipping() != clipping.get() ) )
+					if( clipping )
 					{
 						volume->set_clipping( clipping.get() );
-						retval = false;
 					}
-					if( stepSize && ( volume->get_step_size() != stepSize.get() ) )
+					if( stepSize )
 					{
 						volume->set_step_size( stepSize.get() );
-						retval = false;
 					}
-					if( objectSpace && ( volume->get_object_space() != objectSpace.get() ) )
+					if( objectSpace )
 					{
 						volume->set_object_space( objectSpace.get() );
-						retval = false;
 					}
-					if( velocityScale && ( volume->get_velocity_scale() != velocityScale.get() ) )
+					if( velocityScale )
 					{
 						volume->set_velocity_scale( velocityScale.get() );
-						retval = false;
-					}
-					if( precision && ( GeometryAlgo::getVolumePrecision( volume ) != nameToVolumePrecisionEnum( precision.get() ) ) )
-					{
-						retval = false;
 					}
 				}
-				return retval;
 			}
 
 		};

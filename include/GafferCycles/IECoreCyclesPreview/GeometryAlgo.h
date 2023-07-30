@@ -70,9 +70,6 @@ IECORECYCLES_API void convertPrimitiveVariable( const std::string &name, const I
 /// Converts voxel grids from a VDB object.
 IECORECYCLES_API void convertVoxelGrids( const IECoreVDB::VDBObject *vdbObject, ccl::Volume *geometry, ccl::Scene *scene, const float frame = 0.0f, const int precision_ = 0 );
 
-/// Gets precision from a volume.
-IECORECYCLES_API int getVolumePrecision( const ccl::Volume *volume );
-
 /// Signature of a function which can convert to `ccl:Geometry`.
 /// \todo There's really no need to pass the node name here, because it's not a unique handle that
 /// needs to be provided when creating the Geometry (like it is in Arnold). The caller can just set the name

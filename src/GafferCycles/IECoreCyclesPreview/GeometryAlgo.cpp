@@ -202,11 +202,6 @@ class IEVolumeLoader : public ccl::VDBImageLoader
 			precision = precision_;
 		}
 
-		int get_precision() const
-		{
-			return precision;
-		}
-
 		const IECoreVDB::VDBObject *m_ieVolume;
 };
 
@@ -487,21 +482,6 @@ void convertVoxelGrids( const IECoreVDB::VDBObject *vdbObject, ccl::Volume *volu
 
 		attr->data_voxel() = scene->image_manager->add_image( loader, params, false );
 	}
-}
-
-int getVolumePrecision( const ccl::Volume *volume )
-{
-	// Precision is tucked away in the VDB image loader.
-	// I'd like the get_precision() upstreamed into the default vdb_loader, just
-	// in-case a default loader is being used and segfaults from the cast below.
-	if( ccl::Attribute *attr = volume->attributes.find( ccl::ATTR_STD_VOLUME_DENSITY ) )
-	{
-		ccl::ImageHandle voxel = attr->data_voxel();
-		IEVolumeLoader *vdbLoader = (IEVolumeLoader*)voxel.vdb_loader();
-		return vdbLoader->get_precision();
-	}
-	// Return the default if no voxel is found
-	return 0;
 }
 
 } // namespace GeometryAlgo
