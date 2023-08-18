@@ -1,10 +1,30 @@
-1.3.x.x (relative to 1.3.0.0)
+1.3.x.x (relative to 1.3.1.0)
+=======
+
+Improvements
+------------
+
+- Viewer : Added visualisation of light filters for USD lights.
+
+Fixes
+-----
+
+- Viewer : Fixed crash when visualising lights with a light filter intended for a different renderer.
+
+Documentation
+-------------
+
+- Removed release notes for versions prior to 1.0.0.0.
+
+1.3.1.0 (relative to 1.3.0.0)
 =======
 
 Features
 --------
 
 - USDShader : Added a node for loading shaders from USD's `SdrRegistry`. This includes shaders such as `UsdPreviewSurface` and `UsdUVTexture`, which are now available in the `USD/Shader` section of the node menu.
+- USDLight : Added a node for defining UsdLux lights. This is available from the `USD/Light` section of the node menu.
+- SceneReader, SceneWriter : Added limited support for reading and writing Usd Volume prims.
 - Cycles :
   - Added OpenImageDenoise in the viewport support.
   - OpenVDBs will now render and allow shader updates in a live render.
@@ -12,17 +32,34 @@ Features
 Improvements
 ------------
 
+- LightEditor : Added section displaying UsdLux shadow parameters.
+- Cycles : Added support for UsdLux lights.
 - LightTool : Added support for editing animated plugs.
+- Median, Erode, Dilate : Improved performance significantly for wide filters. Measured improvements of 100x faster for Erode/Dilate, and 10x faster for Median.
 
 Fixes
 -----
 
+- SceneWriter : Fixed writing of UsdLux lights.
 - Viewer : Fixed visualisation of shaping cones for UsdLux lights, which were previously drawn at half the correct angle.
 - DisplayTransform : Fixed missing `view` presets when `display` is at the default value (#5392).
 - Arnold
   - Fixed translation of `vector` typed outputs defined as `vector <name>` in an output definition.
   - Fixed translation of `shadow:enable` and `shadow:color` parameters on UsdLux lights, which were previously ignored.
-- LightTool : Fixed bug causing non-settable plugs to be enabled, such as plugs with an expression as input or those using the default spreadsheet row for their value. This generated the error `ERROR : EventSignalCombiner : Cannot set value for plug {plug} except during computation.`
+- LightTool : Fixed bug causing non-settable plugs to be enabled, such as plugs with an expression as input or those using the default spreadsheet row for their value. This generated the error `ERROR : EventSignalCombiner : Cannot set value for plug {plug} except during computation`.
+- LightEditor : Fixed toggling values in cases where inherited light attributes were set by a script context variable without including a default.
+- GLWidget : Fixed rare crash when showing a GLWidget for the first time.
+- BranchCreator : Fixed bug which could cause inconsistent hashes to be generated.
+- Cycles :
+  - Fixed rendering of meshes with faceted normals, which were previously being rendered as smooth. This applies to meshes without an `N` primitive variable, and meshes where `N` has `Uniform` or `FaceVarying` interpolation. Note that Cycles has no native support for `FaceVarying` interpolation so that in this case all faces are rendered faceted.
+  - The background light's lightgroup is now being set correctly due to 3.5.0 code changes, as well as adding a way to set a lightgroup from CyclesOptions when a CyclesBackground is being used instead.
+  - Fixed translation of Uniform `N` primitive variables. These are now available to be queried from the standard `Ng` attribute in Cycles.
+- ImageSampler : Fixed handling of exceptional floating point values. Now returns `inf` if `inf` values are present in the image, rather than `3.4e38`.
+- Merge :
+  - Fixed the Difference operation to return correct values for exceptional floating point values. Now there is 0 difference between `inf` and `inf`, or `NaN` and `NaN`. Additionally, there is infinite difference between `NaN` and any other number, so assertImagesEqual will correctly report `NaN`s that don't belong.
+  - Fixed the Divide operation to return 0 for 0/0. This is consistent with how we previously handled fully black tiles, and avoids introducing `NaN` values which create problems in compositing.
+- Median/Erode/Dilate : Fixed possible crash bug if there were `NaN`s in the input image.
+- ValuePlug : Fixed bug which caused `ComputeNode::computeCachePolicy()` to be called unnecessarily for input plugs in some circumstances. This could affect performance, particularly when the plug belonged to a node implemented in Python.
 
 API
 ---
@@ -30,15 +67,10 @@ API
 - OptionalValuePlug : Added a new plug type that pairs an `enabled` BoolPlug with a `value` ValuePlug.
 - Shader : Added support for using OptionalValuePlug to represent optional parameters.
 
-Improvements
-------------
-
-- Cycles : Improved GPU support when Cycles is compiled with GPU devices.
-
-Fixes
+Build
 -----
 
-- Cycles : The background light's lightgroup is now being set correctly due to 3.5.0 code changes, as well as adding a way to set a lightgroup from CyclesOptions when a CyclesBackground is being used instead.
+- Cortex : Updated to version 10.5.1.0.
 
 1.3.0.0 (relative to 1.2.10.0)
 =======
@@ -255,7 +287,11 @@ Build
 - USD : Updated to version 23.05.
 - ZLib : Added version 1.2.13.
 
-1.2.10.x (relative to 1.2.10.0)
+1.2.10.x (relative to 1.2.10.1)
+========
+
+
+1.2.10.1 (relative to 1.2.10.0)
 ========
 
 Fixes
@@ -265,6 +301,8 @@ Fixes
 - Arnold
   - Fixed translation of `vector` typed outputs defined as `vector <name>` in an output definition.
   - Fixed translation of `shadow:enable` and `shadow:color` parameters on UsdLux lights, which were previously ignored.
+- BranchCreator : Fixed bug which could cause inconsistent hashes to be generated.
+- LightEditor : Fixed toggling values in cases where inherited light attributes were set by a script context variable without including a default.
 
 1.2.10.0 (relative to 1.2.9.0)
 ========

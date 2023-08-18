@@ -51,6 +51,7 @@
 #include "Gaffer/Metadata.h"
 #include "Gaffer/MetadataAlgo.h"
 #include "Gaffer/NameValuePlug.h"
+#include "Gaffer/OptionalValuePlug.h"
 #include "Gaffer/PathFilter.h"
 #include "Gaffer/ScriptNode.h"
 #include "Gaffer/TweakPlug.h"
@@ -73,8 +74,14 @@
 #include "boost/algorithm/string/predicate.hpp"
 #include "boost/bind/bind.hpp"
 
+#include "OpenEXR/OpenEXRConfig.h"
+#if OPENEXR_VERSION_MAJOR < 3
+#include "OpenEXR/ImathMatrixAlgo.h"
+#include "OpenEXR/ImathSphere.h"
+#else
 #include "Imath/ImathMatrixAlgo.h"
 #include "Imath/ImathSphere.h"
+#endif
 
 #include "fmt/format.h"
 
@@ -141,6 +148,11 @@ Plug *activeValuePlug( Plug *sourcePlug )
 	{
 		tweakPlug->enabledPlug()->setValue( true );
 		return tweakPlug->valuePlug();
+	}
+	if( auto optionalValuePlug = runTimeCast<OptionalValuePlug>( sourcePlug ) )
+	{
+		optionalValuePlug->enabledPlug()->setValue( true );
+		return optionalValuePlug->valuePlug();
 	}
 	return sourcePlug;
 }
@@ -600,6 +612,7 @@ class SpotLightHandle : public LightToolHandle
 			m_view( view ),
 			m_zRotation( zRotation ),
 			m_handleType( handleType ),
+			m_angleMultiplier( 1.f ),
 			m_visualiserScale( 1.f ),
 			m_frustumScale( 1.f ),
 			m_lensRadius( 0 ),
@@ -692,6 +705,16 @@ class SpotLightHandle : public LightToolHandle
 						}
 					}
 
+					auto angleType = Metadata::value<StringData>( shaderAttribute, "coneAngleType" );
+					if( angleType && angleType->readable() == "half" )
+					{
+						m_angleMultiplier = 2.f;
+					}
+					else
+					{
+						m_angleMultiplier = 1.f;
+					}
+
 					break;
 				}
 			}
@@ -707,7 +730,10 @@ class SpotLightHandle : public LightToolHandle
 			Inspector::ResultPtr penumbraAngleInspection = m_penumbraAngleInspector ? m_penumbraAngleInspector->inspect() : nullptr;
 
 			ConstFloatDataPtr originalConeAngleData = runTimeCast<const IECore::FloatData>( coneAngleInspection->value() );
-			assert( originalConeAngleData );
+			if( !originalConeAngleData )
+			{
+				return;
+			}
 
 			ConstFloatDataPtr originalPenumbraAngleData;
 			if( penumbraAngleInspection )
@@ -1350,7 +1376,10 @@ class SpotLightHandle : public LightToolHandle
 			}
 
 			const FloatData *coneAngleData = runTimeCast<const FloatData>( coneInspection->value() );
-			assert( coneAngleData );
+			if( !coneAngleData )
+			{
+				return {nullptr, 0, nullptr, std::nullopt};
+			}
 
 			const FloatData *penumbraAngleData = nullptr;
 
@@ -1381,12 +1410,12 @@ class SpotLightHandle : public LightToolHandle
 					penumbraAngle = penumbraAngleData->readable() * 0.5f;
 				}
 			}
-			return {coneAngleData->readable() * 0.5f, penumbraAngle};
+			return {coneAngleData->readable() * 0.5f * m_angleMultiplier, penumbraAngle};
 		}
 
 		float conePlugAngle(const float a ) const
 		{
-			return a * 2.f;
+			return a * 2.f / m_angleMultiplier;
 		}
 
 		float penumbraPlugAngle(const float a ) const
@@ -1484,6 +1513,8 @@ class SpotLightHandle : public LightToolHandle
 
 		HandleType m_handleType;
 		std::optional<InternedString> m_penumbraType;
+
+		float m_angleMultiplier;
 
 		float m_visualiserScale;
 		float m_frustumScale;

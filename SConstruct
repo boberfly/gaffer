@@ -45,10 +45,11 @@ import platform
 import shutil
 import subprocess
 import distutils.dir_util
+import codecs
 
 EnsureSConsVersion( 3, 0, 2 ) # Substfile is a default builder as of 3.0.2
 
-if locale.getpreferredencoding() != "UTF-8" :
+if codecs.lookup( locale.getpreferredencoding() ).name != "utf-8" :
 	# The `Substfile` builder uses `open()` without specifying an encoding, and
 	# so gets Python's default encoding. Unless this is `UTF-8`, any `.py` files
 	# containing unicode characters will be corrupted during installation.
@@ -61,7 +62,7 @@ if locale.getpreferredencoding() != "UTF-8" :
 
 gafferMilestoneVersion = 1 # for announcing major milestones - may contain all of the below
 gafferMajorVersion = 3 # backwards-incompatible changes
-gafferMinorVersion = 0 # new backwards-compatible features
+gafferMinorVersion = 1 # new backwards-compatible features
 gafferPatchVersion = 0 # bug fixes
 gafferVersionSuffix = "" # used for alpha/beta releases : "a1", "b2", etc.
 
@@ -1325,7 +1326,7 @@ libraries = {
 		"pythonEnvAppends" : {
 			"LIBPATH" : [ "$CYCLES_ROOT/lib" ],
 			"LIBS" : [
-				"Gaffer", "GafferScene", "GafferDispatch", "GafferBindings", "GafferCycles",
+				"Gaffer", "GafferScene", "GafferDispatch", "GafferBindings", "GafferCycles", "IECoreScene",
 				"cycles_session", "cycles_scene", "cycles_graph", "cycles_bvh", "cycles_device", "cycles_kernel", "cycles_kernel_osl",
 				"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew", "extern_hipew",
 				"OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "openvdb$VDB_LIB_SUFFIX",
