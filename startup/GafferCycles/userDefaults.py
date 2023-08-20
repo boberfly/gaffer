@@ -42,3 +42,11 @@ Gaffer.Metadata.registerValue( "cycles:surface:environment_texture:tex_mapping__
 Gaffer.Metadata.registerValue( "cycles:surface:environment_texture:tex_mapping__y_mapping", "userDefault", "z" )
 Gaffer.Metadata.registerValue( "cycles:surface:environment_texture:tex_mapping__z_mapping", "userDefault", "y" )
 
+Gaffer.Metadata.registerValue( "cycles:surface:sky_texture:tex_mapping__scale.x", "userDefault", -1.0 )
+Gaffer.Metadata.registerValue( "cycles:surface:sky_texture:tex_mapping__y_mapping", "userDefault", "z" )
+Gaffer.Metadata.registerValue( "cycles:surface:sky_texture:tex_mapping__z_mapping", "userDefault", "y" )
+
+# Matches Blender's defaults for grid attribute names
+
+Gaffer.Metadata.registerValue( "cycles:volume:principled_volume:density_attribute", "userDefault", "density" )
+Gaffer.Metadata.registerValue( "cycles:volume:principled_volume:temperature_attribute", "userDefault", "temperature" )
