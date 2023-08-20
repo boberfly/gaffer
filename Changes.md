@@ -4,12 +4,22 @@
 Improvements
 ------------
 
-- Viewer : Added visualisation of light filters for USD lights.
+- Viewer :
+  - Added visualisation of light filters for USD lights.
+  - Added support for USD lights and shaders in the floating inspector panel.
+- ShaderTweaks/ShaderQuery : Added presets for USD light and surface shaders.
 
 Fixes
 -----
 
 - Viewer : Fixed crash when visualising lights with a light filter intended for a different renderer.
+- Arnold : Fixed screen window export for Lentil cameras.
+- Application : Fixed the `-threads` argument to clamp the number of threads to the number of available hardware cores (#5403).
+
+API
+---
+
+- ThreadMonitor : Added new class for tracking the threads used to perform processes.
 
 Documentation
 -------------
@@ -290,6 +300,11 @@ Build
 1.2.10.x (relative to 1.2.10.1)
 ========
 
+Fixes
+-----
+
+- Arnold : Fixed screen window export for Lentil cameras.
+- Application : Fixed the `-threads` argument to clamp the number of threads to the number of available hardware cores (#5403).
 
 1.2.10.1 (relative to 1.2.10.0)
 ========
