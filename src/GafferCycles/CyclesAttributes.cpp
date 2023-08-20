@@ -76,7 +76,8 @@ CyclesAttributes::CyclesAttributes( const std::string &name )
 	attributes->addChild( new Gaffer::NameValuePlug( "cycles:volume_step_size", new IECore::FloatData( 0.0f ), false, "volumeStepSize" ) );
 	attributes->addChild( new Gaffer::NameValuePlug( "cycles:volume_object_space", new IECore::BoolData( false ), false, "volumeObjectSpace" ) );
 	attributes->addChild( new Gaffer::NameValuePlug( "cycles:volume_velocity_scale", new IECore::FloatData( 1.0f ), false, "volumeVelocityScale" ) );
-	attributes->addChild( new Gaffer::NameValuePlug( "cycles:volume_precision", new IECore::StringData( "full" ), false, "volumePrecision" ) );
+	attributes->addChild( new Gaffer::NameValuePlug( "cycles:volume_precision", new IECore::StringData( "variable" ), false, "volumePrecision" ) );
+	attributes->addChild( new Gaffer::NameValuePlug( "cycles:volume_use_boundbox_mesh", new IECore::BoolData( false ), false, "volumeUseBoundboxMesh" ) );
 
 	// Per-object parameters
 	attributes->addChild( new Gaffer::NameValuePlug( "cycles:dupli_generated", new IECore::V3fData( Imath::V3f( 0.0f ) ), false, "dupliGenerated" ) );

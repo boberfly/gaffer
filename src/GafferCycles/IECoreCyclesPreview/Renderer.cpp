@@ -910,16 +910,19 @@ IECore::InternedString g_volumeStepSizeAttributeName( "cycles:volume_step_size" 
 IECore::InternedString g_volumeObjectSpaceAttributeName( "cycles:volume_object_space" );
 IECore::InternedString g_volumeVelocityScaleAttributeName( "cycles:volume_velocity_scale");
 IECore::InternedString g_volumePrecisionAttributeName( "cycles:volume_precision" );
+IECore::InternedString g_volumeUseBoundboxMeshAttributeName( "cycles:volume_use_boundbox_mesh" );
 
-std::array<IECore::InternedString, 2> g_volumePrecisionEnumNames = { {
-	"full",
+std::array<IECore::InternedString, 3> g_volumePrecisionEnumNames = { {
+	"variable",
 	"half",
+    "full",
 } };
 int nameToVolumePrecisionEnum( const IECore::InternedString &name )
 {
 #define MAP_NAME(enumName, enum) if(name == enumName) return enum;
 	MAP_NAME(g_volumePrecisionEnumNames[0], 0);
 	MAP_NAME(g_volumePrecisionEnumNames[1], 16);
+	MAP_NAME(g_volumePrecisionEnumNames[2], 32);
 #undef MAP_NAME
 
 	return 0;
@@ -1154,6 +1157,13 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 								return false;
 							}
 						}
+						if( m_volume.useBoundboxMesh || previousAttributes->m_volume.useBoundboxMesh )
+						{
+							if( m_volume.useBoundboxMesh.get() != previousAttributes->m_volume.useBoundboxMesh.get() )
+							{
+								return false;
+							}
+						}
 					}
 				}
 			}
@@ -1323,6 +1333,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 				objectSpace = optionalAttribute<bool>( g_volumeObjectSpaceAttributeName, attributes );
 				velocityScale = optionalAttribute<float>( g_volumeVelocityScaleAttributeName, attributes );
 				precision = optionalAttribute<string>( g_volumePrecisionAttributeName, attributes );
+				useBoundboxMesh = optionalAttribute<bool>( g_volumeUseBoundboxMeshAttributeName, attributes );
 			}
 
 			boost::optional<float> clipping;
@@ -1330,6 +1341,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			boost::optional<bool> objectSpace;
 			boost::optional<float> velocityScale;
 			boost::optional<string> precision;
+			boost::optional<bool> useBoundboxMesh;
 
 			void hash( IECore::MurmurHash &h ) const
 			{
@@ -1353,6 +1365,10 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 				{
 					h.append( precision.get() );
 				}
+				if( useBoundboxMesh && useBoundboxMesh.get() != false )
+				{
+					h.append( useBoundboxMesh.get() );
+				}
 			}
 
 			void apply( ccl::Object *object ) const
@@ -1375,6 +1391,10 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 					if( velocityScale )
 					{
 						volume->set_velocity_scale( velocityScale.get() );
+					}
+					if( useBoundboxMesh )
+					{
+						volume->set_use_boundbox_mesh( useBoundboxMesh.get() );
 					}
 				}
 			}

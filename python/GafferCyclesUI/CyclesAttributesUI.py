@@ -69,7 +69,7 @@ def __subdivisionSummary( plug ) :
 def __volumeSummary( plug ) :
 
 	info = []
-	for childName in ( "volumeClipping", "volumeStepSize", "volumeObjectSpace", "volumeVelocityScale", "volumePrecision" ) :
+	for childName in ( "volumeClipping", "volumeStepSize", "volumeObjectSpace", "volumeVelocityScale", "volumePrecision", "volumeUseBoundboxMesh" ) :
 		if plug[childName]["enabled"].getValue() :
 			info.append( IECore.CamelCase.toSpaced( childName ) + ( " On" if plug[childName]["value"].getValue() else " Off" ) )
 
@@ -388,10 +388,24 @@ Gaffer.Metadata.registerNode(
 
 		"attributes.volumePrecision.value" : [
 
-			"preset:Full", "full",
+			"preset:Variable", "variable",
 			"preset:Half", "half",
+			"preset:Full", "full",
 
 			"plugValueWidget:type", "GafferUI.PresetsPlugValueWidget",
+
+		],
+
+		"attributes.volumeUseBoundboxMesh" : [
+
+			"description",
+			"""
+			Creates a boundingbox mesh around the volume instead of a tight
+			mesh around the volume's shape. Renders slower but time to first
+			pixel should be much shorter.
+			""",
+
+			"layout:section", "Volume",
 
 		],
 
