@@ -96,6 +96,12 @@ options.Add(
 )
 
 options.Add(
+	"MSVC_VERSION",
+	"The version of MSVC to target (Windows-only).",
+	"14.2",
+)
+
+options.Add(
 	"CXXFLAGS",
 	"The extra flags to pass to the C++ compiler during compilation.",
 	# We want `-Wextra` because some of its warnings are useful, and further useful
@@ -376,8 +382,6 @@ options.Add( "GAFFER_VERSION_SUFFIX", "Version suffix", str( gafferVersionSuffix
 ###########################################################################################
 
 env = Environment(
-
-	MSVC_VERSION = "14.2",
 
 	options = options,
 
