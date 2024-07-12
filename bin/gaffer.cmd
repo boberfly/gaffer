@@ -5,6 +5,11 @@ setlocal EnableDelayedExpansion
 set GAFFER_ROOT=%~dp0%..
 set "GAFFER_ROOT=%GAFFER_ROOT:\=/%"
 
+if "%GAFFER_PYTHON%" EQU "" (
+	set GAFFER_PYTHON="%GAFFER_ROOT%"\bin\python.exe
+	set PYTHONHOME=%GAFFER_ROOT%
+)
+
 set "HOME=%USERPROFILE:\=/%"
 
 set GAFFER_JEMALLOC=0
@@ -43,8 +48,6 @@ call :prependToPath "%USERPROFILE%\gaffer\shaders;%GAFFER_ROOT%\shaders" OSL_SHA
 
 set GAFFEROSL_CODE_DIRECTORY=%USERPROFILE%\gaffer\oslCode
 call :prependToPath %GAFFEROSL_CODE_DIRECTORY% PATH
-
-set PYTHONHOME=%GAFFER_ROOT%
 
 call :prependToPath "%GAFFER_ROOT%\python" PYTHONPATH
 
@@ -159,9 +162,9 @@ for /f "tokens=1* delims=;" %%A in ("%EXTENSION_PATH%") do (
 )
 
 if "%GAFFER_DEBUG%" NEQ "" (
-	%GAFFER_DEBUGGER% "%GAFFER_ROOT%"\bin\python.exe "%GAFFER_ROOT%"/bin/__gaffer.py %*
+	%GAFFER_DEBUGGER% "%GAFFER_PYTHON%" "%GAFFER_ROOT%"/bin/__gaffer.py %*
 ) else (
-	"%GAFFER_ROOT%"\bin\python.exe "%GAFFER_ROOT%"/bin/__gaffer.py %*
+	"%GAFFER_PYTHON%" "%GAFFER_ROOT%"/bin/__gaffer.py %*
 )
 
 ENDLOCAL

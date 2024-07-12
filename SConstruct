@@ -360,6 +360,12 @@ options.Add(
 )
 
 options.Add(
+	"PYTHON",
+	"Where to find the python binary. Defaults to the built-in one.",
+	"",
+)
+
+options.Add(
 	"INSTALL_POST_COMMAND",
 	"A command which is run following a successful install process. "
 	"This could be used to customise installation further for a "
@@ -771,6 +777,19 @@ else:
 	commandEnv["ENV"]["LD_LIBRARY_PATH"] = commandEnv.subst( ":".join( [ "$BUILD_DIR/lib" ] + split( commandEnv["LOCATE_DEPENDENCY_LIBPATH"] ) ) )
 
 commandEnv["ENV"]["PYTHONPATH"] = commandEnv.subst( os.path.pathsep.join( [ "$BUILD_DIR/python" ] + split( commandEnv["LOCATE_DEPENDENCY_PYTHONPATH"] ) ) )
+
+# In some build scenarios a custom python binary might be used
+if env["PYTHON"]:
+	commandEnv["ENV"]["GAFFER_PYTHON"] = env["PYTHON"]
+	commandEnv["ENV"]["PYTHONHOME"] = os.path.dirname( env["PYTHON"] )
+else:
+	commandEnv["ENV"]["GAFFER_PYTHON"] = "$BUILD_DIR/bin/python"
+
+if "IECORE_DLL_DIRECTORIES" in os.environ :
+	# When building for Windows as of python 3.8, os.add_dll_directories must know of
+	# all DLLs that need to be loaded. Having this set in the environment allows DLLs
+	# to be found which may not reside in the default build directory eg. Imath, OpenImageIO
+	commandEnv["ENV"]["IECORE_DLL_DIRECTORIES"] = os.environ["IECORE_DLL_DIRECTORIES"]
 
 # SIP on MacOS prevents DYLD_LIBRARY_PATH being passed down so we make sure
 # we also pass through to gaffer the other base vars it uses to populate paths
