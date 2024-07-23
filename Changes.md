@@ -12,6 +12,7 @@ Improvements
 - Premultiply, Unpremultiply :
   - Added `ignoreMissingAlpha` plug.
   - Optimised the pass-through of the alpha channel.
+- GafferCycles : Refactored the python module so that the data needed for binding is all located in IECoreCycles and not dependent on linking with Cycles itself for that data.
 
 Fixes
 -----

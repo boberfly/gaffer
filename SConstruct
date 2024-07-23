@@ -1342,12 +1342,8 @@ libraries = {
 			"FRAMEWORKS" : [ "Foundation", "Metal", "IOKit" ],
 		},
 		"pythonEnvAppends" : {
-			"LIBPATH" : [ "$CYCLES_ROOT/lib" ],
 			"LIBS" : [
 				"Gaffer", "GafferScene", "GafferDispatch", "GafferBindings", "GafferCycles", "IECoreScene",
-			] + ( cyclesLibraries if includeCyclesLibrariesInPythonModule else [] ) + [
-				"OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "openvdb$VDB_LIB_SUFFIX",
-				"oslquery$OSL_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4", "Iex", "openpgl",
 			],
 			"CXXFLAGS" : [ systemIncludeArgument, "$CYCLES_ROOT/include" ],
 			"CPPDEFINES" : cyclesDefines,
