@@ -1014,6 +1014,13 @@ cyclesDefines = [
 	( "WITH_CUDA" ),
 	( "WITH_CUDA_DYNLOAD" ),
 	( "WITH_OPTIX" ),
+	# OpenImageDenoise
+	( "WITH_OPENIMAGEDENOISE" ),
+	# HIP
+	( "WITH_HIP" ),
+	( "WITH_HIP_DYNLOAD" ),
+	# USD
+	( "WITH_USD" ),
 ]
 
 libraries = {
@@ -1222,7 +1229,7 @@ libraries = {
 			"LIBPATH" : [ "$ARNOLD_ROOT/bin" ] if env["PLATFORM"] != "win32" else [ "$ARNOLD_ROOT/bin", "$ARNOLD_ROOT/lib" ],
 			"LIBS" : [ "IECoreScene$CORTEX_LIB_SUFFIX", "IECoreGL$CORTEX_LIB_SUFFIX", "OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX", "Gaffer", "GafferScene", "GafferOSL", "GafferSceneUI", "ai" ],
 			"CXXFLAGS" : [ "-DAI_ENABLE_DEPRECATION_WARNINGS" ],
-			"CPPPATH" : [ "$ARNOLD_ROOT/include" ],
+			"CPPPATH" : [ "$ARNOLD_ROOT/include", "$OSLHOME/include" ],
 		},
 		"pythonEnvAppends" : {
 			"LIBS" : [ "GafferArnoldUI", "GafferSceneUI", "IECoreScene$CORTEX_LIB_SUFFIX" ],
@@ -1254,11 +1261,11 @@ libraries = {
 
 	"GafferOSL" : {
 		"envAppends" : {
-			"CPPPATH" : [ "$OSLHOME/include/OSL" ],
+			"CPPPATH" : [ "$OSLHOME/include" ],
 			"LIBS" : [ "Gaffer", "GafferScene", "GafferImage", "OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "Iex$IMATH_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreScene$CORTEX_LIB_SUFFIX" ],
 		},
 		"pythonEnvAppends" : {
-			"CPPPATH" : [ "$OSLHOME/include/OSL" ],
+			"CPPPATH" : [ "$OSLHOME/include" ],
 			"LIBS" : [ "GafferBindings", "GafferScene", "GafferImage", "GafferOSL", "Iex$IMATH_LIB_SUFFIX", "IECoreScene$CORTEX_LIB_SUFFIX" ],
 		},
 		"oslHeaders" : glob.glob( "shaders/*/*.h" ),
@@ -1324,20 +1331,24 @@ libraries = {
 
 	"GafferCycles" : {
 		"envAppends" : {
+			"CPPPATH" : [ "$OSLHOME/include" ],
 			"LIBPATH" : [ "$CYCLES_ROOT/lib" ],
 			"LIBS" : [
 				"IECoreScene$CORTEX_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX",
 				"Gaffer", "GafferScene", "GafferDispatch", "GafferOSL",
 				"cycles_session", "cycles_scene", "cycles_graph", "cycles_bvh", "cycles_device", "cycles_kernel", "cycles_kernel_osl",
-				"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew",
+				"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew", "extern_hipew",
 				"OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX",
-				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4", "Iex", "openpgl",
+				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4", "Iex$IMATH_LIB_SUFFIX", "openpgl",
+				"OpenImageDenoise", "OpenImageDenoise_core", "zstd_static",
 			],
 			"CXXFLAGS" : [ systemIncludeArgument, "$CYCLES_ROOT/include" ],
 			"CPPDEFINES" : cyclesDefines,
 			"FRAMEWORKS" : [ "Foundation", "Metal", "IOKit" ],
 		},
 		"pythonEnvAppends" : {
+			"CPPPATH" : [ "$OSLHOME/include" ],
+			"LIBPATH" : [ "$CYCLES_ROOT/lib" ],
 			"LIBS" : [
 				"Gaffer", "GafferScene", "GafferDispatch", "GafferBindings", "GafferCycles", "IECoreScene",
 			],
@@ -1483,12 +1494,12 @@ if env["PLATFORM"] == "win32" :
 	for library in ( "Gaffer", "GafferCycles", ) :
 
 		libraries[library].setdefault( "envAppends", {} )
-		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "Advapi32" ] )
+		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "Advapi32", "Version" ] )
 
 	for library in ( "GafferCycles", ) :
 
 		libraries[library].setdefault( "pythonEnvAppends", {} )
-		libraries[library]["pythonEnvAppends"].setdefault( "LIBS", [] ).extend( [ "Advapi32" ] )
+		libraries[library]["pythonEnvAppends"].setdefault( "LIBS", [] ).extend( [ "Advapi32", "Version" ] )
 
 else :
 
