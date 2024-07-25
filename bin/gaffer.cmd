@@ -42,7 +42,11 @@ call :appendToPath "%GAFFER_ROOT%\startup" GAFFER_STARTUP_PATHS
 
 call :prependToPath "%GAFFER_ROOT%\graphics" GAFFERUI_IMAGE_PATHS
 
-set OSLHOME=%GAFFER_ROOT%
+if "%OSL_ROOT%" EQU "" (
+	set OSLHOME=%GAFFER_ROOT%
+) else (
+	set OSLHOME=%OSL_ROOT%
+)
 
 call :prependToPath "%USERPROFILE%\gaffer\shaders;%GAFFER_ROOT%\shaders" OSL_SHADER_PATHS
 
