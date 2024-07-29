@@ -1340,15 +1340,13 @@ libraries = {
 				"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew", "extern_hipew",
 				"OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX",
 				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4", "Iex$IMATH_LIB_SUFFIX", "openpgl",
-				"OpenImageDenoise", "OpenImageDenoise_core", "zstd_static",
+				"CyclesOpenImageDenoise", "CyclesOpenImageDenoise_core",
 			],
 			"CXXFLAGS" : [ systemIncludeArgument, "$CYCLES_ROOT/include" ],
 			"CPPDEFINES" : cyclesDefines,
 			"FRAMEWORKS" : [ "Foundation", "Metal", "IOKit" ],
 		},
 		"pythonEnvAppends" : {
-			"CPPPATH" : [ "$OSLHOME/include" ],
-			"LIBPATH" : [ "$CYCLES_ROOT/lib" ],
 			"LIBS" : [
 				"Gaffer", "GafferScene", "GafferDispatch", "GafferBindings", "GafferCycles", "IECoreScene",
 			],
@@ -1494,16 +1492,16 @@ if env["PLATFORM"] == "win32" :
 	for library in ( "Gaffer", "GafferCycles", ) :
 
 		libraries[library].setdefault( "envAppends", {} )
-		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "Advapi32", "Version" ] )
+		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "Advapi32" ] )
 
 	for library in ( "GafferCycles", ) :
 
-		libraries[library].setdefault( "pythonEnvAppends", {} )
-		libraries[library]["pythonEnvAppends"].setdefault( "LIBS", [] ).extend( [ "Advapi32", "Version" ] )
+		libraries[library].setdefault( "envAppends", {} )
+		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "zstd_static", "Version" ] )
 
 else :
 
-	libraries["GafferCycles"]["envAppends"]["LIBS"].extend( [ "dl" ] )
+	libraries["GafferCycles"]["envAppends"]["LIBS"].extend( [ "zstd", "dl" ] )
 
 # Optionally add vTune requirements
 
