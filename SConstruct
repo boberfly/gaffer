@@ -794,7 +794,7 @@ if "IECORE_DLL_DIRECTORIES" in os.environ :
 # SIP on MacOS prevents DYLD_LIBRARY_PATH being passed down so we make sure
 # we also pass through to gaffer the other base vars it uses to populate paths
 # for third-party support.
-for v in ( 'ARNOLD_ROOT', 'DELIGHT_ROOT' ) :
+for v in ( 'ARNOLD_ROOT', 'DELIGHT_ROOT', 'CYCLES_ROOT' ) :
 	commandEnv["ENV"][ v ] = commandEnv[ v ]
 
 def runCommand( command ) :
