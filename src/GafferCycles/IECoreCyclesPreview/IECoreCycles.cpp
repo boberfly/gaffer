@@ -411,8 +411,16 @@ IECore::CompoundData *lightData()
 			}
 			else if( type == "spot_light" )
 			{
+				in["is_sphere"] = _in["is_sphere"]->copy();
 				in["spot_angle"] = _in["spot_angle"]->copy();
 				in["spot_smooth"] = _in["spot_smooth"]->copy();
+				l["in"] = std::move( sockets );
+				l["enum"] = new IECore::IntData( it->second );
+				lights[type] = std::move( light );
+			}
+			else if( type == "point_light" )
+			{
+				in["is_sphere"] = _in["is_sphere"]->copy();
 				l["in"] = std::move( sockets );
 				l["enum"] = new IECore::IntData( it->second );
 				lights[type] = std::move( light );

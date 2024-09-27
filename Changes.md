@@ -5,10 +5,12 @@ Features
 --------
 
 - Arnold : Added Arnold Operators support.
+
 Improvements
 ------------
 
 - Arnold : Added support for Int64Data and UInt64Data custom attributes, allowing USD's `instanceId` to be used as a custom attribute in the Instancer node. Warnings are emitted if values are out of range for Arnold's 32 bit ints.
+- Cycles : Added `is_sphere` plug to spot and point lights. Disabling `is_sphere` is equivalent to enabling "Soft Falloff" in Blender, which reverts the light to the behaviour of Cycles 3.6 and earlier.
 
 Fixes
 -----
