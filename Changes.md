@@ -48,6 +48,12 @@ Fixes
   - Fixed error when `resize()` was used on an output plug.
 - CreateViews : Fixed loading of files saved from Gaffer 1.5+.
 - PythonCommand : Fixed loading of files saved from Gaffer 1.5+.
+- Cycles : Fixed issue where scaling unnormalized quad and disk lights would not affect their brightness.
+
+Breaking Changes
+----------------
+
+- Cycles : Removed custom handling of unnormalized lights. We now rely on Cycles' inbuilt behaviour which results in a brightness difference for unnormalized point, spot and disk lights.
 
 1.4.13.0 (relative to 1.4.12.0)
 ========
