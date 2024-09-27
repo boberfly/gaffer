@@ -10,7 +10,10 @@ Improvements
 ------------
 
 - Arnold : Added support for Int64Data and UInt64Data custom attributes, allowing USD's `instanceId` to be used as a custom attribute in the Instancer node. Warnings are emitted if values are out of range for Arnold's 32 bit ints.
-- Cycles : Added `is_sphere` plug to spot and point lights. Disabling `is_sphere` is equivalent to enabling "Soft Falloff" in Blender, which reverts the light to the behaviour of Cycles 3.6 and earlier.
+- NumericWidget : Added the ability to use <kbd>Ctrl</kbd> + scroll wheel to adjust values in the same manner as <kbd>Up</kbd> and <kbd>Down</kbd> (#6009).
+- Cycles :
+  - Added `is_sphere` plug to spot and point lights. Disabling `is_sphere` is equivalent to enabling "Soft Falloff" in Blender, which reverts the light to the behaviour of Cycles 3.6 and earlier.
+  - Changed sampling pattern to blue noise dithered sampling.
 
 Fixes
 -----
