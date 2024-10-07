@@ -41,7 +41,6 @@
 #include "IECore/VectorTypedData.h"
 
 #include "Riley.h"
-#include "RtParamList.h"
 
 #include <vector>
 
@@ -57,16 +56,16 @@ namespace GeometryAlgo
 /// Converts the specified IECore::Object into an equivalent
 /// geometry master in Riley. Returns k_InvalidId if no converter
 /// is available.
-riley::GeometryMasterId convert( const IECore::Object *object, riley::Riley *riley );
+riley::GeometryPrototypeId convert( const IECore::Object *object, riley::Riley *riley );
 
 /// As above, but converting a moving object. If no motion converter
 /// is available, the first sample is converted instead.
-riley::GeometryMasterId convert( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, riley::Riley *riley );
+riley::GeometryPrototypeId convert( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, riley::Riley *riley );
 
 /// Signature of a function which can convert an IECore::Object
 /// into a geometry master.
-using Converter = riley::GeometryMasterId (*)( const IECore::Object *, riley::Riley * );
-using MotionConverter = riley::GeometryMasterId (*)( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, riley::Riley *riley );
+using Converter = riley::GeometryPrototypeId (*)( const IECore::Object *, riley::Riley * );
+using MotionConverter = riley::GeometryPrototypeId (*)( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, riley::Riley *riley );
 
 /// Registers a converter for a specific type.
 /// Use the ConverterDescription utility class in preference to
@@ -82,8 +81,8 @@ class ConverterDescription
 	public :
 
 		/// Type-specific conversion functions.
-		using Converter = riley::GeometryMasterId (*)( const T *, riley::Riley * );
-		using MotionConverter = riley::GeometryMasterId (*)( const std::vector<const T *> &samples, const std::vector<float> &sampleTimes, riley::Riley * );
+		using Converter = riley::GeometryPrototypeId (*)( const T *, riley::Riley * );
+		using MotionConverter = riley::GeometryPrototypeId (*)( const std::vector<const T *> &samples, const std::vector<float> &sampleTimes, riley::Riley * );
 
 		ConverterDescription( Converter converter, MotionConverter motionConverter = nullptr )
 		{

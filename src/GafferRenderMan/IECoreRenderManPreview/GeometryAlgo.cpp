@@ -132,42 +132,44 @@ struct PrimitiveVariableConverter
 
 	// Simple data
 
-	void operator()( const BoolData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
+	void operator()( const BoolData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
 	{
 		int b = data->readable();
 		paramList.SetIntegerDetail( name, &b, detail( primitiveVariable.interpolation ) );
 	}
 
-	void operator()( const IntData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
+	void operator()( const IntData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
 	{
 		paramList.SetIntegerDetail( name, &data->readable(), detail( primitiveVariable.interpolation ) );
 	}
 
-	void operator()( const FloatData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
+	void operator()( const FloatData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
 	{
 		paramList.SetFloatDetail( name, &data->readable(), detail( primitiveVariable.interpolation ) );
 	}
 
-	void operator()( const StringData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
+	void operator()( const StringData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
 	{
 		RtUString s( data->readable().c_str() );
 		paramList.SetStringDetail( name, &s, detail( primitiveVariable.interpolation ) );
 	}
 
-	void operator()( const Color3fData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
+	void operator()( const Color3fData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
 	{
 		paramList.SetColorDetail( name, reinterpret_cast<const RtColorRGB *>( data->readable().getValue() ), detail( primitiveVariable.interpolation ) );
 	}
 
-	void operator()( const V3fData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
+	void operator()( const V3fData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
 	{
 		paramList.SetParam(
 			{
 				name,
 				dataType( data->getInterpretation() ),
-				/* length = */ 1,
 				detail( primitiveVariable.interpolation ),
-				/* array = */ false
+				/* length = */ 1,
+				/* array = */ false,
+				/* motion = */ false,
+				/* deduplicated = */ false
 			},
 			data->readable().getValue(),
 			0
@@ -176,71 +178,73 @@ struct PrimitiveVariableConverter
 
 	// Vector data
 
-	void operator()( const FloatVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
+	void operator()( const FloatVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
 	{
 		emit(
 			data,
 			{
 				name,
 				RtDataType::k_float,
+				detail( primitiveVariable.interpolation ),
 				/* length = */ 1,
-				detail( primitiveVariable.interpolation ),
 				/* array = */ false,
+				/* motion = */ false,
+				/* deduplicated = */ false
 			},
 			primitiveVariable,
 			paramList
 		);
 	}
 
-	void operator()( const V2fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
-	{
-		emit(
-			data,
-			{
-				name,
-				RtDataType::k_float,
-				/* length = */ 2,
-				detail( primitiveVariable.interpolation ),
-				/* array = */ true,
-			},
-			primitiveVariable,
-			paramList
-		);
-	}
+	// void operator()( const V2fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	// {
+	// 	emit(
+	// 		data,
+	// 		{
+	// 			name,
+	// 			RtDataType::k_float,
+	// 			/* length = */ 2,
+	// 			detail( primitiveVariable.interpolation ),
+	// 			/* array = */ true,
+	// 		},
+	// 		primitiveVariable,
+	// 		paramList
+	// 	);
+	// }
 
-	void operator()( const V3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
-	{
-		emit(
-			data,
-			{
-				name,
-				dataType( data->getInterpretation() ),
-				/* length = */ 1,
-				detail( primitiveVariable.interpolation ),
-				/* array = */ false,
-			},
-			primitiveVariable,
-			paramList
-		);
-	}
+	// void operator()( const V3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	// {
+	// 	emit(
+	// 		data,
+	// 		{
+	// 			name,
+	// 			dataType( data->getInterpretation() ),
+	// 			/* length = */ 1,
+	// 			detail( primitiveVariable.interpolation ),
+	// 			/* array = */ false,
+	// 		},
+	// 		primitiveVariable,
+	// 		paramList
+	// 	);
+	// }
 
-	void operator()( const Color3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
-	{
-		emit(
-			data,
-			{
-				name,
-				RtDataType::k_color,
-				/* length = */ 1,
-				detail( primitiveVariable.interpolation ),
-				/* array = */ false,
-			},
-			primitiveVariable,
-			paramList
-		);
-	}
+	// void operator()( const Color3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	// {
+	// 	emit(
+	// 		data,
+	// 		{
+	// 			name,
+	// 			RtDataType::k_color,
+	// 			/* length = */ 1,
+	// 			detail( primitiveVariable.interpolation ),
+	// 			/* array = */ false,
+	// 		},
+	// 		primitiveVariable,
+	// 		paramList
+	// 	);
+	// }
 
-	void operator()( const Data *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
+	void operator()( const Data *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
 	{
 		IECore::msg(
 			IECore::Msg::Warning,
@@ -252,7 +256,7 @@ struct PrimitiveVariableConverter
 	private :
 
 		template<typename T>
-		void emit( const T *data, const RtParamList::ParamInfo &paramInfo, const PrimitiveVariable &primitiveVariable, RtParamList &paramList ) const
+		void emit( const T *data, const RtPrimVarList::ParamInfo &paramInfo, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
 		{
 			if( primitiveVariable.indices )
 			{
@@ -293,24 +297,24 @@ namespace IECoreRenderMan
 namespace GeometryAlgo
 {
 
-riley::GeometryMasterId convert( const IECore::Object *object, riley::Riley *riley )
+riley::GeometryPrototypeId convert( const IECore::Object *object, riley::Riley *riley )
 {
 	Registry &r = registry();
 	auto it = r.find( object->typeId() );
 	if( it == r.end() )
 	{
-		return GeometryMasterId::k_InvalidId;
+		return GeometryPrototypeId::k_InvalidId;
 	}
 	return it->second.converter( object, riley );
 }
 
-riley::GeometryMasterId convert( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, riley::Riley *riley )
+riley::GeometryPrototypeId convert( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, riley::Riley *riley )
 {
 	Registry &r = registry();
 	auto it = r.find( samples.front()->typeId() );
 	if( it == r.end() )
 	{
-		return GeometryMasterId::k_InvalidId;
+		return GeometryPrototypeId::k_InvalidId;
 	}
 	if( it->second.motionConverter )
 	{
@@ -343,7 +347,7 @@ void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVaria
 namespace
 {
 
-riley::GeometryMasterId convertStaticSphere( const IECoreScene::SpherePrimitive *sphere, riley::Riley *riley )
+riley::GeometryPrototypeId convertStaticSphere( const IECoreScene::SpherePrimitive *sphere, riley::Riley *riley )
 {
 	RtParamList primVars(
 		sphere->variableSize( PrimitiveVariable::Uniform ),
@@ -383,7 +387,7 @@ GeometryAlgo::ConverterDescription<SpherePrimitive> g_sphereConverterDescription
 namespace
 {
 
-riley::GeometryMasterId convertStaticMesh( const IECoreScene::MeshPrimitive *mesh, riley::Riley *riley )
+riley::GeometryPrototypeId convertStaticMesh( const IECoreScene::MeshPrimitive *mesh, riley::Riley *riley )
 {
 	RtParamList primVars(
 		mesh->variableSize( PrimitiveVariable::Uniform ),
@@ -456,7 +460,7 @@ GeometryAlgo::ConverterDescription<MeshPrimitive> g_meshConverterDescription( co
 namespace
 {
 
-riley::GeometryMasterId convertStaticPoints( const IECoreScene::PointsPrimitive *points, riley::Riley *riley )
+riley::GeometryPrototypeId convertStaticPoints( const IECoreScene::PointsPrimitive *points, riley::Riley *riley )
 {
 	RtParamList primVars(
 		points->variableSize( PrimitiveVariable::Uniform ),
@@ -486,7 +490,7 @@ GeometryAlgo::ConverterDescription<PointsPrimitive> g_pointsConverterDescription
 namespace
 {
 
-riley::GeometryMasterId convertStaticCurves( const IECoreScene::CurvesPrimitive *curves, riley::Riley *riley )
+riley::GeometryPrototypeId convertStaticCurves( const IECoreScene::CurvesPrimitive *curves, riley::Riley *riley )
 {
 	RtParamList primVars(
 		curves->variableSize( PrimitiveVariable::Uniform ),

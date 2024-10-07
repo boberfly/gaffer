@@ -38,7 +38,6 @@
 #include "IECore/CompoundData.h"
 
 #include "Riley.h"
-#include "RtParamList.h"
 
 namespace IECoreRenderMan
 {
