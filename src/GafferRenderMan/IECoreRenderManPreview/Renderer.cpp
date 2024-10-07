@@ -142,7 +142,7 @@ struct AnimatedTransform : riley::Transform
 
 };
 
-static riley::ScopedCoordinateSystem g_emptyCoordinateSystems = { 0, nullptr };
+static riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
 
 // The various Renderer components all need access to the same
 // Riley object, and also need to know the render type because it

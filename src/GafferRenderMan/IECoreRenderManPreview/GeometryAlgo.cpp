@@ -260,7 +260,7 @@ struct PrimitiveVariableConverter
 		{
 			if( primitiveVariable.indices )
 			{
-				typedef RtParamList::Buffer<typename T::ValueType::value_type> Buffer;
+				typedef RtPrimVarList::Buffer<typename T::ValueType::value_type> Buffer;
 				Buffer buffer( paramList, paramInfo, /* time = */ 0 );
 				buffer.Bind();
 
@@ -303,7 +303,7 @@ riley::GeometryPrototypeId convert( const IECore::Object *object, riley::Riley *
 	auto it = r.find( object->typeId() );
 	if( it == r.end() )
 	{
-		return GeometryPrototypeId::k_InvalidId;
+		return GeometryPrototypeId::InvalidId();
 	}
 	return it->second.converter( object, riley );
 }
@@ -314,7 +314,7 @@ riley::GeometryPrototypeId convert( const std::vector<const IECore::Object *> &s
 	auto it = r.find( samples.front()->typeId() );
 	if( it == r.end() )
 	{
-		return GeometryPrototypeId::k_InvalidId;
+		return GeometryPrototypeId::InvalidId();
 	}
 	if( it->second.motionConverter )
 	{
@@ -331,7 +331,7 @@ void registerConverter( IECore::TypeId fromType, Converter converter, MotionConv
 	registry()[fromType] = { converter, motionConverter };
 }
 
-void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVariable &primitiveVariable, RtParamList &paramList )
+void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList )
 {
 	dispatch( primitiveVariable.data.get(), PrimitiveVariableConverter(), name, primitiveVariable, paramList );
 }
@@ -349,7 +349,7 @@ namespace
 
 riley::GeometryPrototypeId convertStaticSphere( const IECoreScene::SpherePrimitive *sphere, riley::Riley *riley )
 {
-	RtParamList primVars(
+	RtPrimVarList primVars(
 		sphere->variableSize( PrimitiveVariable::Uniform ),
 		sphere->variableSize( PrimitiveVariable::Vertex ),
 		sphere->variableSize( PrimitiveVariable::Varying ),
@@ -371,8 +371,8 @@ riley::GeometryPrototypeId convertStaticSphere( const IECoreScene::SpherePrimiti
 	primVars.SetFloatDetail( Rix::k_Ri_zmax, &zMax, RtDetailType::k_constant );
 	primVars.SetFloatDetail( Rix::k_Ri_thetamax, &thetaMax, RtDetailType::k_constant );
 
-	return riley->CreateGeometryMaster(
-		Rix::k_Ri_Sphere, DisplacementId::k_InvalidId, primVars
+	return riley->CreateGeometryPrototype(
+		UserId(), Rix::k_Ri_Sphere, DisplacementId::InvalidId(), primVars
 	);
 }
 
@@ -389,7 +389,7 @@ namespace
 
 riley::GeometryPrototypeId convertStaticMesh( const IECoreScene::MeshPrimitive *mesh, riley::Riley *riley )
 {
-	RtParamList primVars(
+	RtPrimVarList primVars(
 		mesh->variableSize( PrimitiveVariable::Uniform ),
 		mesh->variableSize( PrimitiveVariable::Vertex ),
 		mesh->variableSize( PrimitiveVariable::Varying ),
@@ -444,8 +444,8 @@ riley::GeometryPrototypeId convertStaticMesh( const IECoreScene::MeshPrimitive *
 		primVars.SetIntegerArray( Rix::k_Ri_subdivtagintargs, tagIntArgs.data(), tagIntArgs.size() );
 	}
 
-	return riley->CreateGeometryMaster(
-		geometryType, DisplacementId::k_InvalidId, primVars
+	return riley->CreateGeometryPrototype(
+		UserId(), geometryType, DisplacementId::InvalidId(), primVars
 	);
 }
 
@@ -462,7 +462,7 @@ namespace
 
 riley::GeometryPrototypeId convertStaticPoints( const IECoreScene::PointsPrimitive *points, riley::Riley *riley )
 {
-	RtParamList primVars(
+	RtPrimVarList primVars(
 		points->variableSize( PrimitiveVariable::Uniform ),
 		points->variableSize( PrimitiveVariable::Vertex ),
 		points->variableSize( PrimitiveVariable::Varying ),
@@ -474,8 +474,8 @@ riley::GeometryPrototypeId convertStaticPoints( const IECoreScene::PointsPrimiti
 		GeometryAlgo::convertPrimitiveVariable( RtUString( primitiveVariable.first.c_str() ), primitiveVariable.second, primVars );
 	}
 
-	return riley->CreateGeometryMaster(
-		Rix::k_Ri_Points, DisplacementId::k_InvalidId, primVars
+	return riley->CreateGeometryPrototype(
+		UserId(), Rix::k_Ri_Points, DisplacementId::InvalidId(), primVars
 	);
 }
 
@@ -492,7 +492,7 @@ namespace
 
 riley::GeometryPrototypeId convertStaticCurves( const IECoreScene::CurvesPrimitive *curves, riley::Riley *riley )
 {
-	RtParamList primVars(
+	RtPrimVarList primVars(
 		curves->variableSize( PrimitiveVariable::Uniform ),
 		curves->variableSize( PrimitiveVariable::Vertex ),
 		curves->variableSize( PrimitiveVariable::Varying ),
@@ -536,8 +536,8 @@ riley::GeometryPrototypeId convertStaticCurves( const IECoreScene::CurvesPrimiti
 	primVars.SetString( Rix::k_Ri_wrap, curves->periodic() ? Rix::k_periodic : Rix::k_nonperiodic );
 	primVars.SetIntegerDetail( Rix::k_Ri_nvertices, curves->verticesPerCurve()->readable().data(), RtDetailType::k_uniform );
 
-	return riley->CreateGeometryMaster(
-		Rix::k_Ri_Curves, DisplacementId::k_InvalidId, primVars
+	return riley->CreateGeometryPrototype(
+		UserId(), Rix::k_Ri_Curves, DisplacementId::InvalidId(), primVars
 	);
 }
 
