@@ -52,6 +52,7 @@
 #include "boost/make_unique.hpp"
 #include "boost/property_tree/xml_parser.hpp"
 
+#include "tbb/concurrent_hash_map.h"
 #include "tbb/spin_mutex.h"
 
 #include "Riley.h"
@@ -158,7 +159,8 @@ struct Session : public IECore::RefCounted
 
 	Session( IECoreScenePreview::Renderer::RenderType renderType )
 		:	riley(
-				((RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager ))->CreateRiley( nullptr )
+				/// \todo What is the `rileyVariant` argument for? XPU?
+				((RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager ))->CreateRiley( RtUString(), RtParamList() )
 			),
 			renderType( renderType )
 	{
@@ -217,7 +219,7 @@ class RenderManCamera :  public IECoreScenePreview::Renderer::ObjectInterface
 			m_projectionParameters.SetFloat( Rix::k_fov, 35.0f );
 
 			m_projection = {
-				riley::ShadingNode::k_Projection, RtUString( "PxrCamera" ),
+				riley::ShadingNode::Type::k_Projection, RtUString( "PxrCamera" ),
 				RtUString( "projection" ), m_projectionParameters
 			};
 
@@ -272,6 +274,11 @@ class RenderManCamera :  public IECoreScenePreview::Renderer::ObjectInterface
 
 		void link( const IECore::InternedString &type, const IECoreScenePreview::Renderer::ConstObjectSetPtr &objects ) override
 		{
+		}
+
+		void assignID( uint32_t id ) override
+		{
+			// TODO
 		}
 
 	private :
@@ -331,8 +338,8 @@ class RenderManGlobals : public boost::noncopyable
 	public :
 
 		RenderManGlobals( const ConstSessionPtr &session )
-			:	m_session( session ), m_options( ParamListAlgo::makeParamList() ),
-				m_cameraId( riley::CameraId::k_InvalidId ),
+			:	m_session( session ), m_options(),
+				m_cameraId( riley::CameraId::InvalidId() ),
 				m_expectedWorldBeginThreadId( std::this_thread::get_id() ), m_worldBegun( false ), m_begun( false )
 		{
 			IECoreScene::ConstCameraPtr defaultCamera = new IECoreScene::Camera();
@@ -363,9 +370,10 @@ class RenderManGlobals : public boost::noncopyable
 			pause();
 			if( m_begun )
 			{
+				// TODO : THIS METHOD DOESN'T EXIST ANY MORE. SHOULD WE CALL SOMETHING ELSE INSTEAD?
 				// No idea why, but we have to call this before destroying
 				// the Riley object (in ~RenderManRenderer).
-				m_session->riley->End();
+				//m_session->riley->End();
 			}
 		}
 
@@ -542,24 +550,25 @@ class RenderManGlobals : public boost::noncopyable
 
 			// Make integrator
 
-			auto integratorParams = ParamListAlgo::makeParamList();
-			ParamListAlgo::convertParameters( m_integrator->parameters(), *integratorParams );
+			RtParamList integratorParams;
+			ParamListAlgo::convertParameters( m_integrator->parameters(), integratorParams );
 
 			riley::ShadingNode integratorNode = {
-				riley::ShadingNode::k_Integrator,
+				riley::ShadingNode::Type::k_Integrator,
 				RtUString( m_integrator->getName().c_str() ),
 				RtUString( "integrator" ),
-				integratorParams.get()
+				integratorParams
 			};
 
-			auto integrator = m_session->riley->CreateIntegrator( integratorNode );
+			auto integrator = m_session->riley->CreateIntegrator( riley::UserId(), integratorNode );
 			// No use for integrator IDs currently - seems to be there's just one in Riley for now
 			(void)integrator;
 
 			createRenderTargets( m_cameraId );
 
+			// TODO : THIS METHOD DOESN'T EXIST ANY MORE. SO HOW DO WE SAY WHAT CAMERA TO USE??
 			// WorldBegin! Ho ho ho!
-			m_session->riley->SetActiveCamera( m_cameraId );
+			//m_session->riley->SetActiveCamera( m_cameraId );
 
 			m_worldBegun = true;
 		}
@@ -570,9 +579,10 @@ class RenderManGlobals : public boost::noncopyable
 
 			if( !m_begun )
 			{
+				// TODO : THIS METHOD DOESN't EXIST ANY MORE. IS THERE AN EQUIVALENT?
 				// No idea what `Begin()` does, except that we're
 				// required to call it before `Render()`.
-				m_session->riley->Begin( nullptr );
+				//m_session->riley->Begin( nullptr );
 				m_begun = true;
 			}
 
@@ -581,12 +591,14 @@ class RenderManGlobals : public boost::noncopyable
 			switch( m_session->renderType )
 			{
 				case IECoreScenePreview::Renderer::Batch :
-					m_session->riley->Render();
+					// TODO : HOW DO WE START A RENDER NOW???
+					//m_session->riley->Render();
 					break;
 				case IECoreScenePreview::Renderer::Interactive :
 					m_interactiveRenderThread = std::thread(
 						[this] {
-							m_session->riley->Render();
+							// TODO : HOW DO WE START A RENDER NOW???
+							//m_session->riley->Render();
 						}
 					);
 					break;
@@ -622,11 +634,12 @@ class RenderManGlobals : public boost::noncopyable
 				camera = a->second.get();
 			}
 
-			m_options->Update( camera->options() );
+			m_options.Update( camera->options() );
 
-			if( m_cameraId == riley::CameraId::k_InvalidId )
+			if( m_cameraId == riley::CameraId::InvalidId() )
 			{
 				m_cameraId = m_session->riley->CreateCamera(
+					riley::UserId(),
 					RtUString( "ieCoreRenderMan:camera" ),
 					camera->projection(),
 					camera->cameraToWorldTransform(),
@@ -646,7 +659,8 @@ class RenderManGlobals : public boost::noncopyable
 			}
 		}
 
-		const vector<riley::DisplayChannelId> &displayChannels( const IECoreScene::Output *output )
+		/// TODO : I _THINK_ RENDEROUTPUT IS THE NEW NAME FOR THIS. NEED TO CHECK. AND RENAME EVERYTHING IF CORRECT.
+		const vector<riley::RenderOutputId> &displayChannels( const IECoreScene::Output *output )
 		{
 			/// \todo Support filter and filter width
 			auto inserted = m_displayChannels.insert( { output->getData(), {} } );
@@ -655,7 +669,7 @@ class RenderManGlobals : public boost::noncopyable
 				return inserted.first->second;
 			}
 
-			vector<riley::DisplayChannelId> &result = inserted.first->second;
+			vector<riley::RenderOutputId> &result = inserted.first->second;
 			RtParamList params;
 
 			if( output->getData() == "rgba" )
@@ -726,7 +740,7 @@ class RenderManGlobals : public boost::noncopyable
 
 		std::unordered_map<InternedString, ConstOutputPtr> m_outputs;
 
-		using DisplayChannelVector = vector<riley::DisplayChannelId>;
+		using DisplayChannelVector = vector<riley::RenderOutputId>;
 		using DisplayChannelsMap = unordered_map<string, DisplayChannelVector>;
 		DisplayChannelsMap m_displayChannels;
 
