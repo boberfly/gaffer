@@ -43,7 +43,6 @@ import GafferScene
 import GafferSceneTest
 import GafferRenderMan
 
-@unittest.skipIf( "TRAVIS" in os.environ, "No license available on Travis" )
 class InteractiveRenderManRenderTest( GafferSceneTest.InteractiveRenderTest ) :
 
 	@unittest.skip( "Feature not supported yet" )

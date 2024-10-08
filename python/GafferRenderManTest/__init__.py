@@ -34,13 +34,13 @@
 #
 ##########################################################################
 
-from IECoreRenderManPreviewTest import *
+from .IECoreRenderManPreviewTest import *
 
-from RenderManShaderTest import RenderManShaderTest
-from RenderManLightTest import RenderManLightTest
-from InteractiveRenderManRenderTest import InteractiveRenderManRenderTest
-from TagPlugTest import TagPlugTest
-from ModuleTest import ModuleTest
+from .RenderManShaderTest import RenderManShaderTest
+from .RenderManLightTest import RenderManLightTest
+from .InteractiveRenderManRenderTest import InteractiveRenderManRenderTest
+from .TagPlugTest import TagPlugTest
+from .ModuleTest import ModuleTest
 
 if __name__ == "__main__":
 	import unittest

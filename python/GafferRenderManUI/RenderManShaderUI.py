@@ -118,7 +118,7 @@ def __plugin( argsFile ) :
 def __loadShader( shaderName, nodeType ) :
 
 	nodeName = os.path.split( shaderName )[-1]
-	nodeName = nodeName.translate( string.maketrans( ".-", "__" ) )
+	nodeName = nodeName.replace( ".", "" )
 
 	node = nodeType( nodeName )
 	node.loadShader( shaderName )
