@@ -1378,11 +1378,11 @@ libraries = {
 	"GafferRenderMan" : {
 		"envAppends" : {
 			"CPPPATH" : [ "$RENDERMAN_ROOT/include" ],
-			"LIBS" : [ "Iex$OPENEXR_LIB_SUFFIX", "Gaffer", "GafferDispatch", "GafferScene", "IECoreScene", "prman" ],
+			"LIBS" : [ "Iex$OPENEXR_LIB_SUFFIX", "Gaffer", "GafferDispatch", "GafferScene", "IECoreScene", "prman", "pxrcore" ],
 			"LIBPATH" : [ "$RENDERMAN_ROOT/lib" ],
 		},
 		"pythonEnvAppends" : {
-			"LIBS" : [ "GafferDispatch", "GafferRenderMan", "GafferScene" ],
+			"LIBS" : [ "GafferBindings", "GafferDispatch", "GafferRenderMan", "GafferScene" ],
 			"LIBPATH" : [ "$RENDERMAN_ROOT/lib" ],
 		},
 		"requiredOptions" : [ "RENDERMAN_ROOT" ],

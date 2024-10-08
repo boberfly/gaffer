@@ -564,7 +564,7 @@ class RenderManGlobals : public boost::noncopyable
 			// No use for integrator IDs currently - seems to be there's just one in Riley for now
 			(void)integrator;
 
-			createRenderTargets( m_cameraId );
+			createDisplays( m_cameraId );
 
 			// TODO : THIS METHOD DOESN'T EXIST ANY MORE. SO HOW DO WE SAY WHAT CAMERA TO USE??
 			// WorldBegin! Ho ho ho!
@@ -660,10 +660,17 @@ class RenderManGlobals : public boost::noncopyable
 		}
 
 		/// TODO : I _THINK_ RENDEROUTPUT IS THE NEW NAME FOR THIS. NEED TO CHECK. AND RENAME EVERYTHING IF CORRECT.
-		const vector<riley::RenderOutputId> &displayChannels( const IECoreScene::Output *output )
+		///
+		/// - RENDEROUTPUT : DEFINES A SINGLE OUTPUT, IN TERMS OF DATA, FILTERING ETC.
+		/// - RENDERTARGET : GROUPS RENDER OUTPUTS
+		/// - DISPLAY : TAKES RENDER TARGETS AND A DRIVER
+		/// - VIEW : BINGS DISPLAY AND RENDER TARGET TO A CAMERA AND INTEGRATOR
+		///
+		/// TODO : YOU NEED TO MAKE A VIEW!!!!
+		const vector<riley::RenderOutputId> &renderOutputs( const IECoreScene::Output *output )
 		{
 			/// \todo Support filter and filter width
-			auto inserted = m_displayChannels.insert( { output->getData(), {} } );
+			auto inserted = m_renderOutputs.insert( { output->getData(), {} } );
 			if( !inserted.second )
 			{
 				return inserted.first->second;
@@ -674,22 +681,28 @@ class RenderManGlobals : public boost::noncopyable
 
 			if( output->getData() == "rgba" )
 			{
-				params.SetString( Rix::k_name, RtUString( "Ci" ) );
-				params.SetInteger( Rix::k_type, (int)RtDataType::k_color );
-				result.push_back( m_session->riley->CreateDisplayChannel( params ) );
+				// params.SetString( Rix::k_name, RtUString( "Ci" ) );
+				// params.SetInteger( Rix::k_type, (int)RtDataType::k_color );
+				// result.push_back( m_session->riley->CreateDisplayChannel( params ) );
 
-				params.SetString( Rix::k_name, RtUString( "a" ) );
-				params.SetInteger( Rix::k_type, (int)RtDataType::k_float );
-				result.push_back(
-					m_session->riley->CreateDisplayChannel( params )
-				);
+				result.push_back( m_session->riley->CreateRenderOutput(
+					riley::UserId(), RtUString( "MYNAME" ), riley::RenderOutputType::k_Color,
+					RtUString( "Ci" ), /* accumulationRule = */ RtUString( "filter" ),
+					Rix::k_blackmanharris, { 3.0f, 3.0f }, /* relativePixelVariance = */ 0.0f, params
+				) );
+
+				// params.SetString( Rix::k_name, RtUString( "a" ) );
+				// params.SetInteger( Rix::k_type, (int)RtDataType::k_float );
+				// result.push_back(
+				// 	m_session->riley->CreateDisplayChannel( params )
+				// );
 			}
-			else if( output->getData() == "rgb" )
-			{
-				params.SetString( Rix::k_name, RtUString( "Ci" ) );
-				params.SetInteger( Rix::k_type, (int)RixDataType::k_color );
-				result.push_back( m_session->riley->CreateDisplayChannel( params ) );
-			}
+			// else if( output->getData() == "rgb" )
+			// {
+			// 	params.SetString( Rix::k_name, RtUString( "Ci" ) );
+			// 	params.SetInteger( Rix::k_type, (int)RixDataType::k_color );
+			// 	result.push_back( m_session->riley->CreateDisplayChannel( params ) );
+			// }
 			else
 			{
 				/// \todo Parse `color/vector/float/int name` into a display channel.
@@ -702,12 +715,16 @@ class RenderManGlobals : public boost::noncopyable
 			return result;
 		}
 
-		void createRenderTargets( riley::CameraId camera )
+		void createDisplays( riley::CameraId camera ) // TODO : WHERE DO WE SPECIFY THE CAMERA?
 		{
-			vector<riley::RenderTargetId> renderTargetIds;
 			for( const auto &output : m_outputs )
 			{
-				auto params = ParamListAlgo::makeParamList();
+				const vector<riley::RenderOutputId> &outputs = renderOutputs( output.second.get() );
+				riley::RenderTargetId renderTarget = m_session->riley->CreateRenderTarget(
+					riley::UserId(), { outputs.size(), outputs.data() }, { 640, 480, 0 }, RtUString( "weighted" ), /* pixelVariance = */ 0.0f, RtParamList()
+				);
+
+
 
 				string type = output.second->getType();
 				if( type == "exr" )
@@ -715,24 +732,28 @@ class RenderManGlobals : public boost::noncopyable
 					type = "openexr";
 				}
 
-				params->SetString( Rix::k_Ri_name, RtUString( output.second->getName().c_str() ) );
-				params->SetString( Rix::k_Ri_type, RtUString( type.c_str() ) );
+				// params.SetString( Rix::k_Ri_name, RtUString( output.second->getName().c_str() ) );
+				// params.SetString( Rix::k_Ri_type, RtUString( type.c_str() ) );
 
-				ParamListAlgo::convertParameters( output.second->parameters(), *params );
+				RtParamList driverParams;
+				//ParamListAlgo::convertParameters( output.second->parameters(), *params );
 
-				const DisplayChannelVector &channels = displayChannels( output.second.get() );
-				renderTargetIds.push_back(
-					m_session->riley->CreateRenderTarget(
-						camera, channels.size(),
-						// Cast to work around what I assume to be a const-correctness
-						// mistake in the Riley API.
-						const_cast<riley::DisplayChannelId *>( channels.data() ),
-						*params
-					)
+				riley::DisplayId display = m_session->riley->CreateDisplay(
+					riley::UserId(), renderTarget, RtUString( "DISPLAYNAME" ), RtUString( type.c_str() ), { outputs.size(), outputs.data() }, driverParams
 				);
+
+				// renderTargetIds.push_back(
+				// 	m_session->riley->CreateRenderTarget(
+				// 		camera, channels.size(),
+				// 		// Cast to work around what I assume to be a const-correctness
+				// 		// mistake in the Riley API.
+				// 		const_cast<riley::DisplayChannelId *>( channels.data() ),
+				// 		*params
+				// 	)
+				// );
 			}
 
-			m_session->riley->SetRenderTargetIds( renderTargetIds.size(), renderTargetIds.data() );
+			//m_session->riley->SetRenderTargetIds( renderTargetIds.size(), renderTargetIds.data() );
 		}
 
 		ConstSessionPtr m_session;
@@ -742,7 +763,7 @@ class RenderManGlobals : public boost::noncopyable
 
 		using DisplayChannelVector = vector<riley::RenderOutputId>;
 		using DisplayChannelsMap = unordered_map<string, DisplayChannelVector>;
-		DisplayChannelsMap m_displayChannels;
+		DisplayChannelsMap m_renderOutputs;
 
 		IECoreScene::ConstShaderPtr m_integrator;
 
@@ -770,7 +791,7 @@ class RenderManGlobals : public boost::noncopyable
 namespace
 {
 
-using ParameterTypeMap = std::unordered_map<InternedString, RixDataType>;
+using ParameterTypeMap = std::unordered_map<InternedString, pxrcore::DataType>;
 using ParameterTypeMapPtr = shared_ptr<ParameterTypeMap>;
 using ParameterTypeCache = IECore::LRUCache<string, ParameterTypeMapPtr>;
 
@@ -784,35 +805,35 @@ void loadParameterTypes( const boost::property_tree::ptree &tree, ParameterTypeM
 			const string type = child.second.get<string>( "<xmlattr>.type" );
 			if( type == "float" )
 			{
-				typeMap[name] = RixDataType::k_float;
+				typeMap[name] = pxrcore::DataType::k_float;
 			}
 			else if( type == "int" )
 			{
-				typeMap[name] = RixDataType::k_integer;
+				typeMap[name] = pxrcore::DataType::k_integer;
 			}
 			else if( type == "point" )
 			{
-				typeMap[name] = RixDataType::k_point;
+				typeMap[name] = pxrcore::DataType::k_point;
 			}
 			else if( type == "vector" )
 			{
-				typeMap[name] = RixDataType::k_vector;
+				typeMap[name] = pxrcore::DataType::k_vector;
 			}
 			else if( type == "normal" )
 			{
-				typeMap[name] = RixDataType::k_normal;
+				typeMap[name] = pxrcore::DataType::k_normal;
 			}
 			else if( type == "color" )
 			{
-				typeMap[name] = RixDataType::k_color;
+				typeMap[name] = pxrcore::DataType::k_color;
 			}
 			else if( type == "string" )
 			{
-				typeMap[name] = RixDataType::k_string;
+				typeMap[name] = pxrcore::DataType::k_string;
 			}
 			else if( type == "struct" )
 			{
-				typeMap[name] = RixDataType::k_struct;
+				typeMap[name] = pxrcore::DataType::k_struct;
 			}
 			else
 			{
@@ -858,7 +879,7 @@ ParameterTypeCache g_parameterTypeCache(
 
 );
 
-const RixDataType *parameterType( const Shader *shader, IECore::InternedString parameterName )
+const pxrcore::DataType *parameterType( const Shader *shader, IECore::InternedString parameterName )
 {
 	ParameterTypeMapPtr p = g_parameterTypeCache.get( shader->getName() );
 	auto it = p->find( parameterName );
@@ -873,29 +894,33 @@ using HandleSet = std::unordered_set<InternedString>;
 
 void convertConnection( const IECoreScene::ShaderNetwork::Connection &connection, const IECoreScene::Shader *shader, RtParamList &paramList )
 {
-	const RixDataType *type = parameterType( shader, connection.destination.name );
-	if( !type )
-	{
-		return;
-	}
+	// TODO : HOW DO CONNECTIONS WORK NOW?
+	// MAYBE WE NEED TO CALL SETFLOATREFERENCE ETC?
 
-	std::string reference = connection.source.shader;
-	if( !connection.source.name.string().empty() )
-	{
-		reference += ":" + connection.source.name.string();
-	}
 
-	const RtUString referenceU( reference.c_str() );
+	// const pxrcore::DataType *type = parameterType( shader, connection.destination.name );
+	// if( !type )
+	// {
+	// 	return;
+	// }
 
-	RtParamList::ParamInfo const info = {
-		RtUString( connection.destination.name.c_str() ),
-		*type, 1,
-		RixDetailType::k_reference,
-		false,
-		false
-	};
+	// std::string reference = connection.source.shader;
+	// if( !connection.source.name.string().empty() )
+	// {
+	// 	reference += ":" + connection.source.name.string();
+	// }
 
-	paramList.SetParam( info, &referenceU, 0 );
+	// const RtUString referenceU( reference.c_str() );
+
+	// RtParamList::ParamInfo const info = {
+	// 	RtUString( connection.destination.name.c_str() ),
+	// 	*type, 1,
+	// 	RixDetailType::k_reference,
+	// 	false,
+	// 	false
+	// };
+
+	// paramList.SetParam( info, &referenceU, 0 );
 }
 
 void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, const IECoreScene::ShaderNetwork *shaderNetwork, vector<riley::ShadingNode> &shadingNodes, HandleSet &visited )
@@ -907,18 +932,18 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 
 	const IECoreScene::Shader *shader = shaderNetwork->getShader( outputParameter.shader );
 	riley::ShadingNode node = {
-		riley::ShadingNode::k_Pattern,
+		riley::ShadingNode::Type::k_Pattern,
 		RtUString( shader->getName().c_str() ),
 		RtUString( outputParameter.shader.c_str() )
 	};
 
 	if( shader->getType() == "light" || shader->getType() == "renderman:light" )
 	{
-		node.type = riley::ShadingNode::k_Light;
+		node.type = riley::ShadingNode::Type::k_Light;
 	}
 	else if( shader->getType() == "surface" || shader->getType() == "renderman:bxdf" )
 	{
-		node.type = riley::ShadingNode::k_Bxdf;
+		node.type = riley::ShadingNode::Type::k_Bxdf;
 	}
 
 	ParamListAlgo::convertParameters( shader->parameters(), node.params );
@@ -940,7 +965,7 @@ riley::MaterialId convertShaderNetwork( const ShaderNetwork *network, riley::Ril
 	HandleSet visited;
 	convertShaderNetworkWalk( network->getOutput(), network, shadingNodes, visited );
 
-	return riley->CreateMaterial( shadingNodes.data(), shadingNodes.size() );
+	return riley->CreateMaterial( riley::UserId(), { (uint32_t)shadingNodes.size(), shadingNodes.data() }, RtParamList() );
 }
 
 riley::LightShaderId convertLightShaderNetwork( const ShaderNetwork *network, riley::Riley *riley )
@@ -952,8 +977,8 @@ riley::LightShaderId convertLightShaderNetwork( const ShaderNetwork *network, ri
 	convertShaderNetworkWalk( network->getOutput(), network, shadingNodes, visited );
 
 	return riley->CreateLightShader(
-		shadingNodes.data(), shadingNodes.size(),
-		/* filterNodes = */ nullptr, /* numFilterNodes = */ 0
+		riley::UserId(), { (uint32_t)shadingNodes.size(), shadingNodes.data() },
+		/* lightFilter = */ { 0, nullptr }
 	);
 }
 
@@ -961,17 +986,17 @@ riley::MaterialId defaultMaterial( riley::Riley *riley )
 {
 	vector<riley::ShadingNode> shaders;
 
-	shaders.push_back( { riley::ShadingNode::k_Pattern, RtUString( "PxrFacingRatio" ), RtUString( "facingRatio" ), nullptr } );
+	shaders.push_back( { riley::ShadingNode::Type::k_Pattern, RtUString( "PxrFacingRatio" ), RtUString( "facingRatio" ), RtParamList() } );
 
-	auto toFloat3ParamList = ParamListAlgo::makeParamList();
-	toFloat3ParamList->ReferenceFloat( RtUString( "input" ), RtUString( "facingRatio:resultF" ) );
-	shaders.push_back( { riley::ShadingNode::k_Pattern, RtUString( "PxrToFloat3" ), RtUString( "toFloat3" ), toFloat3ParamList.get() } );
+	RtParamList toFloat3ParamList;
+	toFloat3ParamList.SetFloatReference( RtUString( "input" ), RtUString( "facingRatio:resultF" ) );
+	shaders.push_back( { riley::ShadingNode::Type::k_Pattern, RtUString( "PxrToFloat3" ), RtUString( "toFloat3" ), toFloat3ParamList } );
 
-	auto constantParamList = ParamListAlgo::makeParamList();
-	constantParamList->ReferenceColor( RtUString( "emitColor" ), RtUString( "toFloat3:resultRGB" ) );
-	shaders.push_back( { riley::ShadingNode::k_Bxdf, RtUString( "PxrConstant" ), RtUString( "constant" ), constantParamList.get() } );
+	RtParamList constantParamList;
+	constantParamList.SetColorReference( RtUString( "emitColor" ), RtUString( "toFloat3:resultRGB" ) );
+	shaders.push_back( { riley::ShadingNode::Type::k_Bxdf, RtUString( "PxrConstant" ), RtUString( "constant" ), constantParamList } );
 
-	return riley->CreateMaterial( shaders.data(), shaders.size() );
+	return riley->CreateMaterial( riley::UserId(), { (uint32_t)shaders.size(), shaders.data() }, RtParamList() );
 }
 
 // A reference counted material.
@@ -1085,6 +1110,7 @@ class RenderManAttributes : public IECoreScenePreview::Renderer::AttributesInter
 
 	public :
 
+		// TODO : IS THIS STILL TRUE?
 		// We deliberately do not pass a `Riley *` here. Trying to make parallel
 		// calls of any sort before `RenderManGlobals::ensureWorld()` will trigger
 		// RenderMan crashes, and RenderManAttributes instances are constructed
@@ -1092,7 +1118,7 @@ class RenderManAttributes : public IECoreScenePreview::Renderer::AttributesInter
 		// allows us to generate materials lazily on demand, when RenderManObjects
 		// ask for them.
 		RenderManAttributes( const IECore::CompoundObject *attributes, ShaderCachePtr shaderCache )
-			:	m_paramList( ParamListAlgo::makeParamList() ), m_shaderCache( shaderCache )
+			:	m_shaderCache( shaderCache )
 		{
 			m_surfaceShader = parameter<ShaderNetwork>( attributes->members(), g_surfaceShaderAttributeName );
 			m_lightShader = parameter<ShaderNetwork>( attributes->members(), g_lightShaderAttributeName );
@@ -1103,14 +1129,14 @@ class RenderManAttributes : public IECoreScenePreview::Renderer::AttributesInter
 				{
 					if( auto data = runTimeCast<const Data>( attribute.second.get() ) )
 					{
-						ParamListAlgo::convertParameter( RtUString( attribute.first.c_str() + g_renderManPrefix.size() ), data, *m_paramList );
+						ParamListAlgo::convertParameter( RtUString( attribute.first.c_str() + g_renderManPrefix.size() ), data, m_paramList );
 					}
 				}
 				else if( boost::starts_with( attribute.first.c_str(), "user:" ) )
 				{
 					if( auto data = runTimeCast<const Data>( attribute.second.get() ) )
 					{
-						ParamListAlgo::convertParameter( RtUString( attribute.first.c_str() ), data, *m_paramList );
+						ParamListAlgo::convertParameter( RtUString( attribute.first.c_str() ), data, m_paramList );
 					}
 				}
 			}
@@ -1137,7 +1163,7 @@ class RenderManAttributes : public IECoreScenePreview::Renderer::AttributesInter
 
 	private :
 
-		RtParamListPtr m_paramList;
+		RtParamList m_paramList;
 		IECoreScene::ConstShaderNetworkPtr m_surfaceShader;
 		IECoreScene::ConstShaderNetworkPtr m_lightShader;
 		ShaderCachePtr m_shaderCache;
@@ -1160,15 +1186,16 @@ class RenderManObject : public IECoreScenePreview::Renderer::ObjectInterface
 
 	public :
 
-		RenderManObject( riley::GeometryMasterId geometryMaster, const RenderManAttributes *attributes, const ConstSessionPtr &session )
-			:	m_session( session ), m_geometryInstance( riley::GeometryInstanceId::k_InvalidId )
+		RenderManObject( riley::GeometryPrototypeId geometryPrototype, const RenderManAttributes *attributes, const ConstSessionPtr &session )
+			:	m_session( session ), m_geometryInstance( riley::GeometryInstanceId::InvalidId() )
 		{
-			if( geometryMaster != riley::GeometryMasterId::k_InvalidId )
+			if( geometryPrototype != riley::GeometryPrototypeId::InvalidId() )
 			{
 				m_material = attributes->material();
 				m_geometryInstance = m_session->riley->CreateGeometryInstance(
-					/* group = */ riley::GeometryMasterId::k_InvalidId,
-					geometryMaster,
+					riley::UserId(),
+					/* group = */ riley::GeometryPrototypeId::InvalidId(),
+					geometryPrototype,
 					m_material->id(),
 					g_emptyCoordinateSystems,
 					StaticTransform(),
@@ -1181,9 +1208,9 @@ class RenderManObject : public IECoreScenePreview::Renderer::ObjectInterface
 		{
 			if( m_session->renderType == IECoreScenePreview::Renderer::Interactive )
 			{
-				if( m_geometryInstance != riley::GeometryInstanceId::k_InvalidId )
+				if( m_geometryInstance != riley::GeometryInstanceId::InvalidId() )
 				{
-					m_session->riley->DeleteGeometryInstance( riley::GeometryMasterId::k_InvalidId, m_geometryInstance );
+					m_session->riley->DeleteGeometryInstance( riley::GeometryPrototypeId::InvalidId(), m_geometryInstance );
 				}
 			}
 		}
@@ -1192,7 +1219,7 @@ class RenderManObject : public IECoreScenePreview::Renderer::ObjectInterface
 		{
 			StaticTransform staticTransform( transform );
 			const riley::GeometryInstanceResult result = m_session->riley->ModifyGeometryInstance(
-				/* group = */ riley::GeometryMasterId::k_InvalidId,
+				/* group = */ riley::GeometryPrototypeId::InvalidId(),
 				m_geometryInstance,
 				/* material = */ nullptr,
 				/* coordsys = */ nullptr,
@@ -1210,7 +1237,7 @@ class RenderManObject : public IECoreScenePreview::Renderer::ObjectInterface
 		{
 			AnimatedTransform animatedTransform( samples, times );
 			const riley::GeometryInstanceResult result = m_session->riley->ModifyGeometryInstance(
-				/* group = */ riley::GeometryMasterId::k_InvalidId,
+				/* group = */ riley::GeometryPrototypeId::InvalidId(),
 				m_geometryInstance,
 				/* material = */ nullptr,
 				/* coordsys = */ nullptr,
@@ -1230,7 +1257,7 @@ class RenderManObject : public IECoreScenePreview::Renderer::ObjectInterface
 			m_material = renderManAttributes->material();
 
 			const riley::GeometryInstanceResult result = m_session->riley->ModifyGeometryInstance(
-				/* group = */ riley::GeometryMasterId::k_InvalidId,
+				/* group = */ riley::GeometryPrototypeId::InvalidId(),
 				m_geometryInstance,
 				&m_material->id(),
 				/* coordsys = */ nullptr,
@@ -1246,6 +1273,10 @@ class RenderManObject : public IECoreScenePreview::Renderer::ObjectInterface
 		}
 
 		void link( const IECore::InternedString &type, const IECoreScenePreview::Renderer::ConstObjectSetPtr &objects ) override
+		{
+		}
+
+		void assignID( uint32_t id ) override
 		{
 		}
 
@@ -1276,15 +1307,16 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 
 	public :
 
-		RenderManLight( riley::GeometryMasterId geometryMaster, const ConstRenderManAttributesPtr &attributes, const ConstSessionPtr &session )
-			:	m_session( session ), m_lightShader( riley::LightShaderId::k_InvalidId ), m_lightInstance( riley::LightInstanceId::k_InvalidId )
+		RenderManLight( riley::GeometryPrototypeId geometryPrototype, const ConstRenderManAttributesPtr &attributes, const ConstSessionPtr &session )
+			:	m_session( session ), m_lightShader( riley::LightShaderId::InvalidId() ), m_lightInstance( riley::LightInstanceId::InvalidId() )
 		{
 			assignAttributes( attributes );
 
 			m_lightInstance = m_session->riley->CreateLightInstance(
-				/* group = */ riley::GeometryMasterId::k_InvalidId,
-				geometryMaster,
-				riley::MaterialId::k_InvalidId, /// \todo Use `attributes->material()`?
+				riley::UserId(),
+				/* group = */ riley::GeometryPrototypeId::InvalidId(),
+				geometryPrototype,
+				riley::MaterialId::InvalidId(), /// \todo Use `attributes->material()`?
 				m_lightShader,
 				g_emptyCoordinateSystems,
 				StaticTransform(),
@@ -1296,8 +1328,8 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 		{
 			if( m_session->renderType == IECoreScenePreview::Renderer::Interactive )
 			{
-				m_session->riley->DeleteLightInstance( riley::GeometryMasterId::k_InvalidId, m_lightInstance );
-				if( m_lightShader != riley::LightShaderId::k_InvalidId )
+				m_session->riley->DeleteLightInstance( riley::GeometryPrototypeId::InvalidId(), m_lightInstance );
+				if( m_lightShader != riley::LightShaderId::InvalidId() )
 				{
 					m_session->riley->DeleteLightShader( m_lightShader );
 				}
@@ -1310,7 +1342,7 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 			StaticTransform staticTransform( flippedTransform );
 
 			const riley::LightInstanceResult result = m_session->riley->ModifyLightInstance(
-				/* group = */ riley::GeometryMasterId::k_InvalidId,
+				/* group = */ riley::GeometryPrototypeId::InvalidId(),
 				m_lightInstance,
 				/* material = */ nullptr,
 				/* light shader = */ nullptr,
@@ -1335,7 +1367,7 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 			AnimatedTransform animatedTransform( flippedSamples, times );
 
 			const riley::LightInstanceResult result = m_session->riley->ModifyLightInstance(
-				/* group = */ riley::GeometryMasterId::k_InvalidId,
+				/* group = */ riley::GeometryPrototypeId::InvalidId(),
 				m_lightInstance,
 				/* material = */ nullptr,
 				/* light shader = */ nullptr,
@@ -1355,7 +1387,7 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 			assignAttributes( static_cast<const RenderManAttributes *>( attributes ) );
 
 			const riley::LightInstanceResult result = m_session->riley->ModifyLightInstance(
-				/* group = */ riley::GeometryMasterId::k_InvalidId,
+				/* group = */ riley::GeometryPrototypeId::InvalidId(),
 				m_lightInstance,
 				/* material = */ nullptr,
 				/* light shader = */ &m_lightShader,
@@ -1375,13 +1407,17 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 		{
 		}
 
+		void assignID( uint32_t id ) override
+		{
+		}
+
 	private :
 
 		// Assigns `m_attributes` and updates other members associated with it.
 		// Note : This does _not_ modify m_lightInstance.
 		void assignAttributes( const ConstRenderManAttributesPtr &attributes )
 		{
-			if( m_lightShader != riley::LightShaderId::k_InvalidId )
+			if( m_lightShader != riley::LightShaderId::InvalidId() )
 			{
 				m_session->riley->DeleteLightShader( m_lightShader );
 			}
@@ -1419,7 +1455,8 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 	public :
 
-		RenderManRenderer( RenderType renderType, const std::string &fileName )
+		/// TODO : USE MESSAGEHANDLER
+		RenderManRenderer( RenderType renderType, const std::string &fileName, const MessageHandlerPtr &messageHandler )
 		{
 			if( renderType == SceneDescription )
 			{
@@ -1469,13 +1506,13 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 		ObjectInterfacePtr light( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
 		{
 			m_globals->ensureWorld();
-			riley::GeometryMasterId geometryMaster = riley::GeometryMasterId::k_InvalidId;
+			riley::GeometryPrototypeId geometryPrototype = riley::GeometryPrototypeId::InvalidId();
 			if( object )
 			{
 				/// \todo Cache geometry masters
-				geometryMaster = GeometryAlgo::convert( object, m_session->riley );
+				geometryPrototype = GeometryAlgo::convert( object, m_session->riley );
 			}
-			return new RenderManLight( geometryMaster, static_cast<const RenderManAttributes *>( attributes ), m_session );
+			return new RenderManLight( geometryPrototype, static_cast<const RenderManAttributes *>( attributes ), m_session );
 		}
 
 		ObjectInterfacePtr lightFilter( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
@@ -1487,8 +1524,8 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 		{
 			m_globals->ensureWorld();
 			/// \todo Cache geometry masters
-			riley::GeometryMasterId geometryMaster = GeometryAlgo::convert( object, m_session->riley );
-			return new RenderManObject( geometryMaster, static_cast<const RenderManAttributes *>( attributes ), m_session );
+			riley::GeometryPrototypeId geometryPrototype = GeometryAlgo::convert( object, m_session->riley );
+			return new RenderManObject( geometryPrototype, static_cast<const RenderManAttributes *>( attributes ), m_session );
 		}
 
 		ObjectInterfacePtr object( const std::string &name, const std::vector<const IECore::Object *> &samples, const std::vector<float> &times, const AttributesInterface *attributes ) override

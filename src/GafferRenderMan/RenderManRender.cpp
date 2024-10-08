@@ -41,8 +41,9 @@ using namespace GafferRenderMan;
 
 IE_CORE_DEFINERUNTIMETYPED( RenderManRender );
 
+/// TODO : REMOVE COMPLETELY
 RenderManRender::RenderManRender( const std::string &name )
-	:	Render( "RenderMan", name )
+	:	Render( name )
 {
 }
 

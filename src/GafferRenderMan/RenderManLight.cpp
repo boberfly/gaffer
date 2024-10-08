@@ -120,8 +120,9 @@ void RenderManLight::hashLight( const Gaffer::Context *context, IECore::MurmurHa
 	throw IECore::NotImplementedException( "RenderManLight::hashLight" );
 }
 
-IECoreScene::ShaderNetworkPtr RenderManLight::computeLight( const Gaffer::Context *context ) const
+IECoreScene::ConstShaderNetworkPtr RenderManLight::computeLight( const Gaffer::Context *context ) const
 {
+	/// TODO : WE DON'T WANT TO OVERRIDE COMPUTEATTRIBUTES - WE'RE MISSING OUT ON VISUALISERS ETC.
 	// Should never be called because we reimplemented computeAttributes() instead.
 	throw IECore::NotImplementedException( "RenderManLight::computeLight" );
 }

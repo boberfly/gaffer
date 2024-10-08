@@ -36,6 +36,6 @@
 
 __import__( "GafferScene" )
 
-from _GafferRenderMan import *
+from ._GafferRenderMan import *
 
 __import__( "IECore" ).loadConfig( "GAFFER_STARTUP_PATHS", subdirectory = "GafferRenderMan" )
