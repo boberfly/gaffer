@@ -92,8 +92,10 @@ struct ParameterConverter
 		{
 			case GeometricData::Vector :
 				paramList.SetVector( name, reinterpret_cast<const RtVector3 &>( data->readable() ) );
+				break;
 			case GeometricData::Normal :
 				paramList.SetNormal( name, reinterpret_cast<const RtVector3 &>( data->readable() ) );
+				break;
 			default :
 				paramList.SetPoint( name, reinterpret_cast<const RtVector3 &>( data->readable() ) );
 		}

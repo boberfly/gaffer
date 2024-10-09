@@ -721,7 +721,7 @@ class RenderManGlobals : public boost::noncopyable
 			{
 				const vector<riley::RenderOutputId> &outputs = renderOutputs( output.second.get() );
 				riley::RenderTargetId renderTarget = m_session->riley->CreateRenderTarget(
-					riley::UserId(), { outputs.size(), outputs.data() }, { 640, 480, 0 }, RtUString( "weighted" ), /* pixelVariance = */ 0.0f, RtParamList()
+					riley::UserId(), { (uint32_t)outputs.size(), outputs.data() }, { 640, 480, 0 }, RtUString( "weighted" ), /* pixelVariance = */ 0.0f, RtParamList()
 				);
 
 
@@ -739,7 +739,7 @@ class RenderManGlobals : public boost::noncopyable
 				//ParamListAlgo::convertParameters( output.second->parameters(), *params );
 
 				riley::DisplayId display = m_session->riley->CreateDisplay(
-					riley::UserId(), renderTarget, RtUString( "DISPLAYNAME" ), RtUString( type.c_str() ), { outputs.size(), outputs.data() }, driverParams
+					riley::UserId(), renderTarget, RtUString( "DISPLAYNAME" ), RtUString( type.c_str() ), { (uint32_t)outputs.size(), outputs.data() }, driverParams
 				);
 
 				// renderTargetIds.push_back(
@@ -894,33 +894,31 @@ using HandleSet = std::unordered_set<InternedString>;
 
 void convertConnection( const IECoreScene::ShaderNetwork::Connection &connection, const IECoreScene::Shader *shader, RtParamList &paramList )
 {
-	// TODO : HOW DO CONNECTIONS WORK NOW?
-	// MAYBE WE NEED TO CALL SETFLOATREFERENCE ETC?
+	const pxrcore::DataType *type = parameterType( shader, connection.destination.name );
+	if( !type )
+	{
+		return;
+	}
 
+	std::string reference = connection.source.shader;
+	if( !connection.source.name.string().empty() )
+	{
+		reference += ":" + connection.source.name.string();
+	}
 
-	// const pxrcore::DataType *type = parameterType( shader, connection.destination.name );
-	// if( !type )
-	// {
-	// 	return;
-	// }
+	const RtUString referenceU( reference.c_str() );
 
-	// std::string reference = connection.source.shader;
-	// if( !connection.source.name.string().empty() )
-	// {
-	// 	reference += ":" + connection.source.name.string();
-	// }
+	RtParamList::ParamInfo const info = {
+		RtUString( connection.destination.name.c_str() ),
+		*type,
+		pxrcore::DetailType::k_reference,
+		1,
+		false,
+		false,
+		false
+	};
 
-	// const RtUString referenceU( reference.c_str() );
-
-	// RtParamList::ParamInfo const info = {
-	// 	RtUString( connection.destination.name.c_str() ),
-	// 	*type, 1,
-	// 	RixDetailType::k_reference,
-	// 	false,
-	// 	false
-	// };
-
-	// paramList.SetParam( info, &referenceU, 0 );
+	paramList.SetParam( info, &referenceU );
 }
 
 void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, const IECoreScene::ShaderNetwork *shaderNetwork, vector<riley::ShadingNode> &shadingNodes, HandleSet &visited )
@@ -934,7 +932,8 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 	riley::ShadingNode node = {
 		riley::ShadingNode::Type::k_Pattern,
 		RtUString( shader->getName().c_str() ),
-		RtUString( outputParameter.shader.c_str() )
+		RtUString( outputParameter.shader.c_str() ),
+		RtParamList()
 	};
 
 	if( shader->getType() == "light" || shader->getType() == "renderman:light" )
