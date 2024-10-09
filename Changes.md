@@ -230,6 +230,11 @@ API
 1.5.4.1 (relative to 1.5.4.0)
 =======
 
+Improvements
+------------
+
+- USDLight : Append the (Renderman) suffix to any USD Lux plugs with `ri:light:` prefix.
+
 Fixes
 -----
 
