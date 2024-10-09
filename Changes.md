@@ -930,6 +930,7 @@ Fixes
 
 - SceneReader : Fixed crash reading facevarying normals skinned with UsdSkel.
 - ShaderView : Fixed crash caused by a SceneCreator returning `None`.
+- USDShader : Fixed default preset values on IntPlugs that are intended to be enum indexes instead of string values.
 
 Build
 -----
