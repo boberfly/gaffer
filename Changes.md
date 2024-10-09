@@ -209,6 +209,11 @@ Build
 1.5.0.1 (relative to 1.5.0.0)
 =======
 
+Improvements
+------------
+
+- USDLight : Append the (Renderman) suffix to any USD Lux plugs with `ri:light:` prefix.
+
 Fixes
 -----
 
