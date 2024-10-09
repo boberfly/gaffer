@@ -329,9 +329,11 @@ if [[ -n $RMANTREE ]] ; then
 		appendToPath "$RMANTREE/lib" DYLD_LIBRARY_PATH
 	fi
 
+	## TODO : CHECK IF WE NEED ALL THIS
 	appendToPath "$RMANTREE/bin" PYTHONPATH
 	appendToPath "$RMANTREE/lib/plugins" RMAN_RIXPLUGINPATH
 	appendToPath "$GAFFER_ROOT/renderMan/displayDrivers" RMAN_DISPLAYS_PATH
+	appendToPath "$RMANTREE/lib/usd_plugins/usdRiPxr/Resources" PXR_PLUGINPATH_NAME
 
 fi
 
