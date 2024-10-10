@@ -32,6 +32,8 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
+#include "boost/algorithm/string.hpp"
+
 #include "GafferCycles/IECoreCyclesPreview/IECoreCycles.h"
 
 // Cycles

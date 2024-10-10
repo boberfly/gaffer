@@ -46,6 +46,7 @@
 #include "GafferArnold/ArnoldImager.h"
 #include "GafferArnold/ArnoldLight.h"
 #include "GafferArnold/ArnoldMeshLight.h"
+#include "GafferArnold/ArnoldOperator.h"
 #include "GafferArnold/ArnoldOptions.h"
 #include "GafferArnold/ArnoldShader.h"
 #include "GafferArnold/ArnoldVDB.h"
@@ -132,6 +133,15 @@ BOOST_PYTHON_MODULE( _GafferArnold )
 			.value( "Replace", ArnoldImager::Mode::Replace )
 			.value( "InsertFirst", ArnoldImager::Mode::InsertFirst )
 			.value( "InsertLast", ArnoldImager::Mode::InsertLast )
+		;
+	}
+
+	{
+		scope s = GafferBindings::DependencyNodeClass<ArnoldOperator>();
+		enum_<ArnoldOperator::Mode>( "Mode" )
+			.value( "Replace", ArnoldOperator::Mode::Replace )
+			.value( "InsertFirst", ArnoldOperator::Mode::InsertFirst )
+			.value( "InsertLast", ArnoldOperator::Mode::InsertLast )
 		;
 	}
 }
