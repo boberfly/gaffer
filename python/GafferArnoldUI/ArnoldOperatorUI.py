@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2012, John Haddon. All rights reserved.
+#  Copyright (c) 2024, Cinesite VFX Ltd. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -34,30 +34,59 @@
 #
 ##########################################################################
 
-from .ArnoldShaderTest import ArnoldShaderTest
-from .ArnoldRenderTest import ArnoldRenderTest
-from .ArnoldOptionsTest import ArnoldOptionsTest
-from .ArnoldAttributesTest import ArnoldAttributesTest
-from .ArnoldVDBTest import ArnoldVDBTest
-from .ArnoldLightTest import ArnoldLightTest
-from .ArnoldMeshLightTest import ArnoldMeshLightTest
-from .InteractiveArnoldRenderTest import InteractiveArnoldRenderTest
-from .ArnoldDisplacementTest import ArnoldDisplacementTest
-from .LightToCameraTest import LightToCameraTest
-from .ArnoldAOVShaderTest import ArnoldAOVShaderTest
-from .ArnoldAtmosphereTest import ArnoldAtmosphereTest
-from .ArnoldBackgroundTest import ArnoldBackgroundTest
-from .ArnoldTextureBakeTest import ArnoldTextureBakeTest
-from .ModuleTest import ModuleTest
-from .ArnoldShaderBallTest import ArnoldShaderBallTest
-from .ArnoldCameraShadersTest import ArnoldCameraShadersTest
-from .ArnoldLightFilterTest import ArnoldLightFilterTest
-from .ArnoldColorManagerTest import ArnoldColorManagerTest
-from .ArnoldImagerTest import ArnoldImagerTest
-from .ArnoldOperatorTest import ArnoldOperatorTest
-from .USDLightTest import USDLightTest
-from .RenderPassAdaptorTest import RenderPassAdaptorTest
+import Gaffer
+import GafferArnold
 
-if __name__ == "__main__":
-	import unittest
-	unittest.main()
+Gaffer.Metadata.registerNode(
+
+	GafferArnold.ArnoldOperator,
+
+	"description",
+	"""
+	Assigns an operator. This is stored as an `ai:operator` option in Gaffer's
+	globals.
+	""",
+
+	plugs = {
+
+		"operator" : [
+
+			"description",
+			"""
+			The operator to be assigned. The output of an ArnoldShader node
+			holding an operator should be connected here. Multiple operators may be
+			assigned at once by chaining them together via their `input`
+			parameters, and then assigning the final operator via the ArnoldOperator
+			node.
+			""",
+
+			"noduleLayout:section", "left",
+			"nodule:type", "GafferUI::StandardNodule",
+
+		],
+
+		"mode" : [
+
+			"description",
+			"""
+			The mode used to combine the `operator` input with any operators that
+			already exist in the globals.
+
+			- Replace : Removes all pre-existing operators, and replaces them with
+			the new ones.
+			- InsertFirst : Inserts the new operators so that they will be run before
+			any pre-existing operators.
+			- InsertLast : Inserts the new operators so that they will be run after
+			any pre-existing operators.
+			""",
+
+			"preset:Replace", GafferArnold.ArnoldOperator.Mode.Replace,
+			"preset:InsertFirst", GafferArnold.ArnoldOperator.Mode.InsertFirst,
+			"preset:InsertLast", GafferArnold.ArnoldOperator.Mode.InsertLast,
+			"plugValueWidget:type", "GafferUI.PresetsPlugValueWidget",
+
+		],
+
+	}
+
+)
