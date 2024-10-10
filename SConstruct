@@ -601,7 +601,7 @@ else:
 				"/wd4702",  # suppress warning "unreachable code". Need for OpenVDB.
 				"/wd4180",  # suppress warning "qualifier applied to function type has no meaning; ignored". Needed for OpenVDB
 				"/wd4146",  # suppress warning "unary minus operator applied to unsigned type, result still unsigned" (from Cryptomatte::MurmurHash3_x86_32())
-				"/D_CRT_NONSTDC_NO_WARNINGS",  # suppress warnings about deprecated POSIX names. The names are deprecated, not the functions, so this is safe.
+				# "/D_CRT_NONSTDC_NO_WARNINGS",  # suppress warnings about deprecated POSIX names. The names are deprecated, not the functions, so this is safe.
 				"/wd4996",  # suppress warning "std::result_of and std::result_of_t are deprecated in C++17. They are superseded by std::invoke_result and std::invoke_result_t."
 			],
 		)
