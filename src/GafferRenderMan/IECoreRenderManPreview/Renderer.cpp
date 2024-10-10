@@ -326,6 +326,77 @@ IE_CORE_DECLAREPTR( RenderManCamera );
 namespace
 {
 
+class RenderManOutput : public IECore::RefCounted
+{
+
+	public :
+
+		RenderManOutput( const ConstSessionPtr &session, IECore::InternedString name, const IECoreScene::Output *output )
+			:	m_session( session )
+		{
+			// std::optional<riley::RenderOutputType> type;
+			// if( output->getData() == "rgba" )
+			// {
+
+			// }
+			/// TODO : GET DATA TYPE AND SOURCE
+			/// MIGHT NEED MULTIPLE OUTPUTS TO INCLUDE ALPHA?
+
+			m_session->riley->CreateRenderOutput(
+				riley::UserId(), RtUString( name.c_str() ), riley::RenderOutputType::k_Color,
+				RtUString( "Ci" ), /* accumulationRule = */ RtUString( "filter" ),
+				Rix::k_blackmanharris, { 3.0f, 3.0f }, /* relativePixelVariance = */ 1.0f, RtParamList()
+			);
+
+			/// \todo Support importance sampling
+
+			m_session->riley->CreateRenderTarget(
+				riley::UserId(), { 1, &m_renderOutput }, { 640, 480, 0 },
+				/* filterMode = */ RtUString( "weighted" ), /* pixelVariance = */ 1.0f,
+				RtParamList()
+			);
+
+			string driver = output->getType();
+			if( driver == "exr" )
+			{
+				driver = "openexr";
+			}
+
+			RtParamList driverParams;
+			ParamListAlgo::convertParameters( output->parameters(), driverParams );
+
+			m_session->riley->CreateDisplay(
+				riley::UserId(), m_renderTarget, RtUString( name.c_str() ), RtUString( driver.c_str() ),
+				{ 0, nullptr }, driverParams
+
+			);
+		}
+
+		~RenderManOutput()
+		{
+			/// TODO : DELETE STUFF
+		}
+
+	private :
+
+		ConstSessionPtr m_session;
+		riley::RenderOutputId m_renderOutput;
+		riley::RenderTargetId m_renderTarget;
+		riley::DisplayId m_display;
+
+};
+
+IE_CORE_DECLAREPTR( RenderManOutput );
+
+} // namespace
+
+//////////////////////////////////////////////////////////////////////////
+// RenderManGlobals
+//////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+
 const string g_renderManPrefix( "renderman:" );
 const IECore::InternedString g_cameraOption( "camera" );
 const IECore::InternedString g_sampleMotionOption( "sampleMotion" );
@@ -340,7 +411,7 @@ class RenderManGlobals : public boost::noncopyable
 		RenderManGlobals( const ConstSessionPtr &session )
 			:	m_session( session ), m_options(),
 				m_cameraId( riley::CameraId::InvalidId() ),
-				m_expectedWorldBeginThreadId( std::this_thread::get_id() ), m_worldBegun( false ), m_begun( false )
+				m_expectedWorldBeginThreadId( std::this_thread::get_id() ), m_worldBegun( false )
 		{
 			IECoreScene::ConstCameraPtr defaultCamera = new IECoreScene::Camera();
 			m_defaultCamera = new RenderManCamera( defaultCamera.get() );
@@ -368,13 +439,6 @@ class RenderManGlobals : public boost::noncopyable
 		~RenderManGlobals()
 		{
 			pause();
-			if( m_begun )
-			{
-				// TODO : THIS METHOD DOESN'T EXIST ANY MORE. SHOULD WE CALL SOMETHING ELSE INSTEAD?
-				// No idea why, but we have to call this before destroying
-				// the Riley object (in ~RenderManRenderer).
-				//m_session->riley->End();
-			}
 		}
 
 		void option( const IECore::InternedString &name, const IECore::Object *value )
@@ -397,6 +461,7 @@ class RenderManGlobals : public boost::noncopyable
 			{
 				if( worldBegun() )
 				{
+					// TODO : ISN'T THIS COVERED ABOVE?
 					msg( IECore::Msg::Warning, "RenderManRender::option", "Unable to edit integrator (RenderMan limitation)" );
 				}
 				else if( auto *network = reportedCast<const ShaderNetwork>( value, "option", name ) )
@@ -481,7 +546,7 @@ class RenderManGlobals : public boost::noncopyable
 
 			if( output )
 			{
-				m_outputs[name] = output->copy();
+				m_outputs[name] = new RenderManOutput( m_session, name, output );
 			}
 			else
 			{
@@ -560,11 +625,16 @@ class RenderManGlobals : public boost::noncopyable
 				integratorParams
 			};
 
-			auto integrator = m_session->riley->CreateIntegrator( riley::UserId(), integratorNode );
-			// No use for integrator IDs currently - seems to be there's just one in Riley for now
-			(void)integrator;
+			riley::IntegratorId integrator = m_session->riley->CreateIntegrator( riley::UserId(), integratorNode );
+			m_renderView = m_session->riley->CreateRenderView(
+				riley::UserId(), renderTarget, m_cameraId, integrator, { 0, nullptr }, { 0, nullptr }, RtParamList()
+			);
 
-			createDisplays( m_cameraId );
+
+			// Update render view
+			/// TODO : CAN SOME OF THIS MOVE TO `RENDER()` NOW?
+
+			//createDisplays( m_cameraId );
 
 			// TODO : THIS METHOD DOESN'T EXIST ANY MORE. SO HOW DO WE SAY WHAT CAMERA TO USE??
 			// WorldBegin! Ho ho ho!
@@ -576,16 +646,6 @@ class RenderManGlobals : public boost::noncopyable
 		void render()
 		{
 			ensureWorld();
-
-			if( !m_begun )
-			{
-				// TODO : THIS METHOD DOESN't EXIST ANY MORE. IS THERE AN EQUIVALENT?
-				// No idea what `Begin()` does, except that we're
-				// required to call it before `Render()`.
-				//m_session->riley->Begin( nullptr );
-				m_begun = true;
-			}
-
 			updateCamera();
 
 			switch( m_session->renderType )
@@ -667,103 +727,99 @@ class RenderManGlobals : public boost::noncopyable
 		/// - VIEW : BINGS DISPLAY AND RENDER TARGET TO A CAMERA AND INTEGRATOR
 		///
 		/// TODO : YOU NEED TO MAKE A VIEW!!!!
-		const vector<riley::RenderOutputId> &renderOutputs( const IECoreScene::Output *output )
-		{
-			/// \todo Support filter and filter width
-			auto inserted = m_renderOutputs.insert( { output->getData(), {} } );
-			if( !inserted.second )
-			{
-				return inserted.first->second;
-			}
+		// const vector<riley::RenderOutputId> &renderOutputs( const IECoreScene::Output *output )
+		// {
+		// 	/// \todo Support filter and filter width
+		// 	auto inserted = m_renderOutputs.insert( { output->getData(), {} } );
+		// 	if( !inserted.second )
+		// 	{
+		// 		return inserted.first->second;
+		// 	}
 
-			vector<riley::RenderOutputId> &result = inserted.first->second;
-			RtParamList params;
+		// 	vector<riley::RenderOutputId> &result = inserted.first->second;
+		// 	RtParamList params;
 
-			if( output->getData() == "rgba" )
-			{
-				// params.SetString( Rix::k_name, RtUString( "Ci" ) );
-				// params.SetInteger( Rix::k_type, (int)RtDataType::k_color );
-				// result.push_back( m_session->riley->CreateDisplayChannel( params ) );
+		// 	if( output->getData() == "rgba" )
+		// 	{
+		// 		// params.SetString( Rix::k_name, RtUString( "Ci" ) );
+		// 		// params.SetInteger( Rix::k_type, (int)RtDataType::k_color );
+		// 		// result.push_back( m_session->riley->CreateDisplayChannel( params ) );
 
-				result.push_back( m_session->riley->CreateRenderOutput(
-					riley::UserId(), RtUString( "MYNAME" ), riley::RenderOutputType::k_Color,
-					RtUString( "Ci" ), /* accumulationRule = */ RtUString( "filter" ),
-					Rix::k_blackmanharris, { 3.0f, 3.0f }, /* relativePixelVariance = */ 0.0f, params
-				) );
+		// 		result.push_back( m_session->riley->CreateRenderOutput(
+		// 			riley::UserId(), RtUString( "MYNAME" ), riley::RenderOutputType::k_Color,
+		// 			RtUString( "Ci" ), /* accumulationRule = */ RtUString( "filter" ),
+		// 			Rix::k_blackmanharris, { 3.0f, 3.0f }, /* relativePixelVariance = */ 0.0f, params
+		// 		) );
 
-				// params.SetString( Rix::k_name, RtUString( "a" ) );
-				// params.SetInteger( Rix::k_type, (int)RtDataType::k_float );
-				// result.push_back(
-				// 	m_session->riley->CreateDisplayChannel( params )
-				// );
-			}
-			// else if( output->getData() == "rgb" )
-			// {
-			// 	params.SetString( Rix::k_name, RtUString( "Ci" ) );
-			// 	params.SetInteger( Rix::k_type, (int)RixDataType::k_color );
-			// 	result.push_back( m_session->riley->CreateDisplayChannel( params ) );
-			// }
-			else
-			{
-				/// \todo Parse `color/vector/float/int name` into a display channel.
-				IECore::msg(
-					IECore::Msg::Warning, "IECoreRenderMan::Renderer",
-					boost::str( boost::format( "Unsupported output data \"%s\"" ) % output->getData() )
-				);
-			}
+		// 		// params.SetString( Rix::k_name, RtUString( "a" ) );
+		// 		// params.SetInteger( Rix::k_type, (int)RtDataType::k_float );
+		// 		// result.push_back(
+		// 		// 	m_session->riley->CreateDisplayChannel( params )
+		// 		// );
+		// 	}
+		// 	// else if( output->getData() == "rgb" )
+		// 	// {
+		// 	// 	params.SetString( Rix::k_name, RtUString( "Ci" ) );
+		// 	// 	params.SetInteger( Rix::k_type, (int)RixDataType::k_color );
+		// 	// 	result.push_back( m_session->riley->CreateDisplayChannel( params ) );
+		// 	// }
+		// 	else
+		// 	{
+		// 		/// \todo Parse `color/vector/float/int name` into a display channel.
+		// 		IECore::msg(
+		// 			IECore::Msg::Warning, "IECoreRenderMan::Renderer",
+		// 			boost::str( boost::format( "Unsupported output data \"%s\"" ) % output->getData() )
+		// 		);
+		// 	}
 
-			return result;
-		}
+		// 	return result;
+		// }
 
-		void createDisplays( riley::CameraId camera ) // TODO : WHERE DO WE SPECIFY THE CAMERA?
-		{
-			for( const auto &output : m_outputs )
-			{
-				const vector<riley::RenderOutputId> &outputs = renderOutputs( output.second.get() );
-				riley::RenderTargetId renderTarget = m_session->riley->CreateRenderTarget(
-					riley::UserId(), { (uint32_t)outputs.size(), outputs.data() }, { 640, 480, 0 }, RtUString( "weighted" ), /* pixelVariance = */ 0.0f, RtParamList()
-				);
+		// void createDisplays( riley::CameraId camera ) // TODO : WHERE DO WE SPECIFY THE CAMERA?
+		// {
+		// 	for( const auto &output : m_outputs )
+		// 	{
+		// 		const vector<riley::RenderOutputId> &outputs = renderOutputs( output.second.get() );
+		// 		riley::RenderTargetId renderTarget = m_session->riley->CreateRenderTarget(
+		// 			riley::UserId(), { (uint32_t)outputs.size(), outputs.data() }, { 640, 480, 0 }, RtUString( "weighted" ), /* pixelVariance = */ 0.0f, RtParamList()
+		// 		);
 
 
 
-				string type = output.second->getType();
-				if( type == "exr" )
-				{
-					type = "openexr";
-				}
+		// 		string type = output.second->getType();
+		// 		if( type == "exr" )
+		// 		{
+		// 			type = "openexr";
+		// 		}
 
-				// params.SetString( Rix::k_Ri_name, RtUString( output.second->getName().c_str() ) );
-				// params.SetString( Rix::k_Ri_type, RtUString( type.c_str() ) );
+		// 		// params.SetString( Rix::k_Ri_name, RtUString( output.second->getName().c_str() ) );
+		// 		// params.SetString( Rix::k_Ri_type, RtUString( type.c_str() ) );
 
-				RtParamList driverParams;
-				//ParamListAlgo::convertParameters( output.second->parameters(), *params );
+		// 		RtParamList driverParams;
+		// 		//ParamListAlgo::convertParameters( output.second->parameters(), *params );
 
-				riley::DisplayId display = m_session->riley->CreateDisplay(
-					riley::UserId(), renderTarget, RtUString( "DISPLAYNAME" ), RtUString( type.c_str() ), { (uint32_t)outputs.size(), outputs.data() }, driverParams
-				);
+		// 		riley::DisplayId display = m_session->riley->CreateDisplay(
+		// 			riley::UserId(), renderTarget, RtUString( "DISPLAYNAME" ), RtUString( type.c_str() ), { (uint32_t)outputs.size(), outputs.data() }, driverParams
+		// 		);
 
-				// renderTargetIds.push_back(
-				// 	m_session->riley->CreateRenderTarget(
-				// 		camera, channels.size(),
-				// 		// Cast to work around what I assume to be a const-correctness
-				// 		// mistake in the Riley API.
-				// 		const_cast<riley::DisplayChannelId *>( channels.data() ),
-				// 		*params
-				// 	)
-				// );
-			}
+		// 		// renderTargetIds.push_back(
+		// 		// 	m_session->riley->CreateRenderTarget(
+		// 		// 		camera, channels.size(),
+		// 		// 		// Cast to work around what I assume to be a const-correctness
+		// 		// 		// mistake in the Riley API.
+		// 		// 		const_cast<riley::DisplayChannelId *>( channels.data() ),
+		// 		// 		*params
+		// 		// 	)
+		// 		// );
+		// 	}
 
-			//m_session->riley->SetRenderTargetIds( renderTargetIds.size(), renderTargetIds.data() );
-		}
+		// 	//m_session->riley->SetRenderTargetIds( renderTargetIds.size(), renderTargetIds.data() );
+		// }
 
 		ConstSessionPtr m_session;
 		RtParamList m_options;
 
-		std::unordered_map<InternedString, ConstOutputPtr> m_outputs;
-
-		using DisplayChannelVector = vector<riley::RenderOutputId>;
-		using DisplayChannelsMap = unordered_map<string, DisplayChannelVector>;
-		DisplayChannelsMap m_renderOutputs;
+		std::unordered_map<InternedString, RenderManOutputPtr> m_outputs;
 
 		IECoreScene::ConstShaderPtr m_integrator;
 
@@ -773,11 +829,12 @@ class RenderManGlobals : public boost::noncopyable
 		RenderManCameraPtr m_defaultCamera;
 		riley::CameraId m_cameraId;
 
+		riley::RenderViewId m_renderView;
+
 		tbb::spin_mutex m_worldBeginMutex;
 		std::thread::id m_expectedWorldBeginThreadId;
 		bool m_worldBegun;
 
-		bool m_begun;
 		std::thread m_interactiveRenderThread;
 
 };
