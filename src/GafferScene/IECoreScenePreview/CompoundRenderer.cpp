@@ -40,6 +40,8 @@
 
 #include "boost/algorithm/string/predicate.hpp"
 
+#include <array>
+
 using namespace std;
 using namespace IECoreScenePreview;
 

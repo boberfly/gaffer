@@ -96,6 +96,12 @@ options.Add(
 )
 
 options.Add(
+	"MSVC_VERSION",
+	"The version of MSVC to target (Windows-only).",
+	"14.2",
+)
+
+options.Add(
 	"CXXFLAGS",
 	"The extra flags to pass to the C++ compiler during compilation.",
 	# We want `-Wextra` because some of its warnings are useful, and further useful
@@ -354,6 +360,12 @@ options.Add(
 )
 
 options.Add(
+	"PYTHON",
+	"Where to find the python binary. Defaults to the built-in one.",
+	"",
+)
+
+options.Add(
 	"INSTALL_POST_COMMAND",
 	"A command which is run following a successful install process. "
 	"This could be used to customise installation further for a "
@@ -590,6 +602,7 @@ else:
 				"/wd4180",  # suppress warning "qualifier applied to function type has no meaning; ignored". Needed for OpenVDB
 				"/wd4146",  # suppress warning "unary minus operator applied to unsigned type, result still unsigned" (from Cryptomatte::MurmurHash3_x86_32())
 				"/D_CRT_NONSTDC_NO_WARNINGS",  # suppress warnings about deprecated POSIX names. The names are deprecated, not the functions, so this is safe.
+				"/wd4996",  # suppress warning "std::result_of and std::result_of_t are deprecated in C++17. They are superseded by std::invoke_result and std::invoke_result_t."
 			],
 		)
 
@@ -768,10 +781,23 @@ else:
 
 commandEnv["ENV"]["PYTHONPATH"] = commandEnv.subst( os.path.pathsep.join( [ "$BUILD_DIR/python" ] + split( commandEnv["LOCATE_DEPENDENCY_PYTHONPATH"] ) ) )
 
+# In some build scenarios a custom python binary might be used
+if env["PYTHON"]:
+	commandEnv["ENV"]["GAFFER_PYTHON"] = env["PYTHON"]
+	commandEnv["ENV"]["PYTHONHOME"] = os.path.dirname( env["PYTHON"] )
+else:
+	commandEnv["ENV"]["GAFFER_PYTHON"] = "$BUILD_DIR/bin/python"
+
+if "IECORE_DLL_DIRECTORIES" in os.environ :
+	# When building for Windows as of python 3.8, os.add_dll_directories must know of
+	# all DLLs that need to be loaded. Having this set in the environment allows DLLs
+	# to be found which may not reside in the default build directory eg. Imath, OpenImageIO
+	commandEnv["ENV"]["IECORE_DLL_DIRECTORIES"] = os.environ["IECORE_DLL_DIRECTORIES"]
+
 # SIP on MacOS prevents DYLD_LIBRARY_PATH being passed down so we make sure
 # we also pass through to gaffer the other base vars it uses to populate paths
 # for third-party support.
-for v in ( 'ARNOLD_ROOT', 'DELIGHT_ROOT' ) :
+for v in ( 'ARNOLD_ROOT', 'DELIGHT_ROOT', 'CYCLES_ROOT' ) :
 	commandEnv["ENV"][ v ] = commandEnv[ v ]
 
 def runCommand( command ) :
@@ -959,11 +985,18 @@ cyclesDefines = [
 	( "WITH_CUDA" ),
 	( "WITH_CUDA_DYNLOAD" ),
 	( "WITH_OPTIX" ),
+	# OpenImageDenoise
+	( "WITH_OPENIMAGEDENOISE" ),
+	# HIP
+	( "WITH_HIP" ),
+	( "WITH_HIP_DYNLOAD" ),
+	# USD
+	( "WITH_USD" ),
 ]
 
 cyclesLibraries = [
 	"cycles_session", "cycles_scene", "cycles_graph", "cycles_bvh", "cycles_device", "cycles_kernel", "cycles_kernel_osl",
-	"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew"
+	"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew", "extern_hipew"
 ]
 
 # It's very weird to link the Cycles static libraries twice, to both
@@ -1181,7 +1214,7 @@ libraries = {
 			"LIBPATH" : [ "$ARNOLD_ROOT/bin" ] if env["PLATFORM"] != "win32" else [ "$ARNOLD_ROOT/bin", "$ARNOLD_ROOT/lib" ],
 			"LIBS" : [ "IECoreScene$CORTEX_LIB_SUFFIX", "IECoreGL$CORTEX_LIB_SUFFIX", "OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX", "Gaffer", "GafferScene", "GafferOSL", "GafferSceneUI", "ai" ],
 			"CXXFLAGS" : [ "-DAI_ENABLE_DEPRECATION_WARNINGS" ],
-			"CPPPATH" : [ "$ARNOLD_ROOT/include" ],
+			"CPPPATH" : [ "$ARNOLD_ROOT/include", "$OSLHOME/include" ],
 		},
 		"pythonEnvAppends" : {
 			"LIBS" : [ "GafferArnoldUI", "GafferSceneUI", "IECoreScene$CORTEX_LIB_SUFFIX" ],
@@ -1213,11 +1246,11 @@ libraries = {
 
 	"GafferOSL" : {
 		"envAppends" : {
-			"CPPPATH" : [ "$OSLHOME/include/OSL" ],
+			"CPPPATH" : [ "$OSLHOME/include" ],
 			"LIBS" : [ "Gaffer", "GafferScene", "GafferImage", "OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "Iex$IMATH_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreScene$CORTEX_LIB_SUFFIX" ],
 		},
 		"pythonEnvAppends" : {
-			"CPPPATH" : [ "$OSLHOME/include/OSL" ],
+			"CPPPATH" : [ "$OSLHOME/include" ],
 			"LIBS" : [ "GafferBindings", "GafferScene", "GafferImage", "GafferOSL", "Iex$IMATH_LIB_SUFFIX", "IECoreScene$CORTEX_LIB_SUFFIX" ],
 		},
 		"oslHeaders" : glob.glob( "shaders/*/*.h" ),
@@ -1283,25 +1316,23 @@ libraries = {
 
 	"GafferCycles" : {
 		"envAppends" : {
+			"CPPPATH" : [ "$OSLHOME/include" ],
 			"LIBPATH" : [ "$CYCLES_ROOT/lib" ],
 			"LIBS" : [
 				"IECoreScene$CORTEX_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX",
 				"Gaffer", "GafferScene", "GafferDispatch", "GafferOSL"
 			] + cyclesLibraries + [
 				"OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX",
-				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4", "Iex", "openpgl", "zstd",
+				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4", "Iex$IMATH_LIB_SUFFIX", "openpgl",
+				"CyclesOpenImageDenoise", "CyclesOpenImageDenoise_core",
 			],
 			"CXXFLAGS" : [ systemIncludeArgument, "$CYCLES_ROOT/include" ],
 			"CPPDEFINES" : cyclesDefines,
 			"FRAMEWORKS" : [ "Foundation", "Metal", "IOKit" ],
 		},
 		"pythonEnvAppends" : {
-			"LIBPATH" : [ "$CYCLES_ROOT/lib" ],
 			"LIBS" : [
 				"Gaffer", "GafferScene", "GafferDispatch", "GafferBindings", "GafferCycles", "IECoreScene",
-			] + ( cyclesLibraries if includeCyclesLibrariesInPythonModule else [] ) + [
-				"OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "openvdb$VDB_LIB_SUFFIX",
-				"oslquery$OSL_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4", "Iex", "openpgl", "zstd",
 			],
 			"CXXFLAGS" : [ systemIncludeArgument, "$CYCLES_ROOT/include" ],
 			"CPPDEFINES" : cyclesDefines,
@@ -1449,12 +1480,12 @@ if env["PLATFORM"] == "win32" :
 
 	for library in ( "GafferCycles", ) :
 
-		libraries[library].setdefault( "pythonEnvAppends", {} )
-		libraries[library]["pythonEnvAppends"].setdefault( "LIBS", [] ).extend( [ "Advapi32" ] )
+		libraries[library].setdefault( "envAppends", {} )
+		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "zstd_static", "Version" ] )
 
 else :
 
-	libraries["GafferCycles"]["envAppends"]["LIBS"].extend( [ "dl" ] )
+	libraries["GafferCycles"]["envAppends"]["LIBS"].extend( [ "zstd", "dl" ] )
 
 # Optionally add vTune requirements
 
