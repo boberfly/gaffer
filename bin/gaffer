@@ -333,7 +333,8 @@ if [[ -n $RMANTREE ]] ; then
 	appendToPath "$RMANTREE/bin" PATH
 	appendToPath "$RMANTREE/bin" PYTHONPATH
 	appendToPath "$RMANTREE/lib/plugins" RMAN_RIXPLUGINPATH
-	appendToPath "$GAFFER_ROOT/renderMan/displayDrivers" RMAN_DISPLAYS_PATH
+	# TODO : MAYBE JUST USE RIXPLUGINPATH FOR THIS TOO?
+	appendToPath "$GAFFER_ROOT/renderManPlugins" RMAN_DISPLAYS_PATH
 	appendToPath "$RMANTREE/lib/usd_plugins/usdRiPxr/Resources" PXR_PLUGINPATH_NAME
 
 fi

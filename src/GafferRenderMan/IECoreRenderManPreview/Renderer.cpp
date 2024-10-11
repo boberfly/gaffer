@@ -164,6 +164,7 @@ struct Session : public IECore::RefCounted
 			),
 			renderType( renderType )
 	{
+		riley->SetOptions( RtParamList() );
 	}
 
 	~Session()
@@ -342,7 +343,9 @@ class RenderManOutput : public IECore::RefCounted
 			/// TODO : GET DATA TYPE AND SOURCE
 			/// MIGHT NEED MULTIPLE OUTPUTS TO INCLUDE ALPHA?
 
-			m_session->riley->CreateRenderOutput(
+			std::cerr << 1 << std::endl;
+
+			m_renderOutput = m_session->riley->CreateRenderOutput(
 				riley::UserId(), RtUString( name.c_str() ), riley::RenderOutputType::k_Color,
 				RtUString( "Ci" ), /* accumulationRule = */ RtUString( "filter" ),
 				Rix::k_blackmanharris, { 3.0f, 3.0f }, /* relativePixelVariance = */ 1.0f, RtParamList()
@@ -350,11 +353,18 @@ class RenderManOutput : public IECore::RefCounted
 
 			/// \todo Support importance sampling
 
+			std::cerr << 2 << std::endl;
+
+			// TODO : DON'T THINK THIS GUY CAN OWN THE RENDER TARGET, BECAUSE THE
+			// RENDER VIEW ONLY TAKES ONE TARGET.
+
 			m_session->riley->CreateRenderTarget(
 				riley::UserId(), { 1, &m_renderOutput }, { 640, 480, 0 },
 				/* filterMode = */ RtUString( "weighted" ), /* pixelVariance = */ 1.0f,
 				RtParamList()
 			);
+
+			std::cerr << 3 << std::endl;
 
 			string driver = output->getType();
 			if( driver == "exr" )
@@ -365,17 +375,24 @@ class RenderManOutput : public IECore::RefCounted
 			RtParamList driverParams;
 			ParamListAlgo::convertParameters( output->parameters(), driverParams );
 
+			std::cerr << 4 << std::endl;
+
 			m_session->riley->CreateDisplay(
 				riley::UserId(), m_renderTarget, RtUString( name.c_str() ), RtUString( driver.c_str() ),
 				{ 0, nullptr }, driverParams
 
 			);
+
+			std::cerr << 5 << std::endl;
+
 		}
 
 		~RenderManOutput()
 		{
 			/// TODO : DELETE STUFF
 		}
+
+		riley::RenderTargetId renderTarget() const { return m_renderTarget; }
 
 	private :
 
@@ -611,7 +628,7 @@ class RenderManGlobals : public boost::noncopyable
 			}
 
 			updateCamera();
-			m_session->riley->SetOptions( m_options );
+			m_session->riley->SetOptions( m_options ); // TODO : MAYBE THIS SHOULD COME FIRST?
 
 			// Make integrator
 
@@ -626,13 +643,26 @@ class RenderManGlobals : public boost::noncopyable
 			};
 
 			riley::IntegratorId integrator = m_session->riley->CreateIntegrator( riley::UserId(), integratorNode );
-			m_renderView = m_session->riley->CreateRenderView(
-				riley::UserId(), renderTarget, m_cameraId, integrator, { 0, nullptr }, { 0, nullptr }, RtParamList()
-			);
+			// m_renderView = m_session->riley->CreateRenderView(
+			// 	riley::UserId(), renderTarget, m_cameraId, integrator, { 0, nullptr }, { 0, nullptr }, RtParamList()
+			// );
 
 
 			// Update render view
 			/// TODO : CAN SOME OF THIS MOVE TO `RENDER()` NOW?
+
+			if( m_outputs.size() == 1 )
+			{
+				std::cerr << "CREATING RENDER VIEW " << m_outputs.begin()->second->renderTarget().AsUInt32() << " " << m_cameraId.AsUInt32() << " " << integrator.AsUInt32() << std::endl;
+				m_renderView = m_session->riley->CreateRenderView(
+					riley::UserId(), m_outputs.begin()->second->renderTarget(), m_cameraId,
+					integrator, { 0, nullptr }, { 0, nullptr }, RtParamList()
+				);
+			}
+			else
+			{
+				std::cerr << "UNSUPPORTED OUTPUTS" << std::endl;
+			}
 
 			//createDisplays( m_cameraId );
 
@@ -650,15 +680,20 @@ class RenderManGlobals : public boost::noncopyable
 
 			switch( m_session->renderType )
 			{
-				case IECoreScenePreview::Renderer::Batch :
+				case IECoreScenePreview::Renderer::Batch : {
 					// TODO : HOW DO WE START A RENDER NOW???
-					//m_session->riley->Render();
+					RtParamList renderOptions;
+					renderOptions.SetString( RtUString( "renderMode" ), RtUString( "batch" ) );
+					m_session->riley->Render( { 1, &m_renderView }, renderOptions );
 					break;
+				}
 				case IECoreScenePreview::Renderer::Interactive :
 					m_interactiveRenderThread = std::thread(
 						[this] {
-							// TODO : HOW DO WE START A RENDER NOW???
-							//m_session->riley->Render();
+							std::cerr << "RENDER VIEW " << m_renderView.AsUInt32() << std::endl;
+							RtParamList renderOptions;
+							renderOptions.SetString( RtUString( "renderMode" ), RtUString( "interactive" ) );
+							m_session->riley->Render( { 1, &m_renderView }, renderOptions );
 						}
 					);
 					break;
@@ -698,6 +733,7 @@ class RenderManGlobals : public boost::noncopyable
 
 			if( m_cameraId == riley::CameraId::InvalidId() )
 			{
+				std::cerr << "CREATING CAMERA " << (int)camera->projection().type << " " << camera->projection().name.CStr() << std::endl;
 				m_cameraId = m_session->riley->CreateCamera(
 					riley::UserId(),
 					RtUString( "ieCoreRenderMan:camera" ),
@@ -705,6 +741,7 @@ class RenderManGlobals : public boost::noncopyable
 					camera->cameraToWorldTransform(),
 					camera->parameters()
 				);
+				std::cerr << "CREATEDCAMERA " << m_cameraId.AsUInt32() << std::endl;
 			}
 			else
 			{

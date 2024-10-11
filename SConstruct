@@ -1406,7 +1406,7 @@ libraries = {
 		"envReplacements" : {
 			"SHLIBPREFIX" : "",
 		},
-		"installName" : "renderManPlugins/ieDisplay",
+		"installName" : "renderManPlugins/d_ieDisplay",
 		"requiredOptions" : [ "RENDERMAN_ROOT" ],
 	},
 

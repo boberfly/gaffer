@@ -196,53 +196,59 @@ struct PrimitiveVariableConverter
 		);
 	}
 
-	// void operator()( const V2fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
-	// {
-	// 	emit(
-	// 		data,
-	// 		{
-	// 			name,
-	// 			RtDataType::k_float,
-	// 			/* length = */ 2,
-	// 			detail( primitiveVariable.interpolation ),
-	// 			/* array = */ true,
-	// 		},
-	// 		primitiveVariable,
-	// 		paramList
-	// 	);
-	// }
+	void operator()( const V2fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	{
+		emit(
+			data,
+			{
+				name,
+				RtDataType::k_float,
+				detail( primitiveVariable.interpolation ),
+				/* length = */ 2,
+				/* array = */ true,
+				/* motion = */ false,
+				/* deduplicated = */ false
+			},
+			primitiveVariable,
+			paramList
+		);
+	}
 
-	// void operator()( const V3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
-	// {
-	// 	emit(
-	// 		data,
-	// 		{
-	// 			name,
-	// 			dataType( data->getInterpretation() ),
-	// 			/* length = */ 1,
-	// 			detail( primitiveVariable.interpolation ),
-	// 			/* array = */ false,
-	// 		},
-	// 		primitiveVariable,
-	// 		paramList
-	// 	);
-	// }
+	void operator()( const V3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	{
+		emit(
+			data,
+			{
+				name,
+				dataType( data->getInterpretation() ),
+				detail( primitiveVariable.interpolation ),
+				/* length = */ 1,
+				/* array = */ false,
+				/* motion = */ false,
+				/* deduplicated = */ false
+			},
+			primitiveVariable,
+			paramList
+		);
+	}
 
-	// void operator()( const Color3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
-	// {
-	// 	emit(
-	// 		data,
-	// 		{
-	// 			name,
-	// 			RtDataType::k_color,
-	// 			/* length = */ 1,
-	// 			detail( primitiveVariable.interpolation ),
-	// 			/* array = */ false,
-	// 		},
-	// 		primitiveVariable,
-	// 		paramList
-	// 	);
-	// }
+	void operator()( const Color3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	{
+		emit(
+			data,
+			{
+				name,
+				RtDataType::k_color,
+				detail( primitiveVariable.interpolation ),
+				/* length = */ 1,
+				/* array = */ false,
+				/* motion = */ false,
+				/* deduplicated = */ false
+			},
+			primitiveVariable,
+			paramList
+		);
+	}
 
 	void operator()( const Data *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
 	{
