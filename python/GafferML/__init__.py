@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2011-2016, John Haddon. All rights reserved.
+#  Copyright (c) 2012, John Haddon. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -34,21 +34,9 @@
 #
 ##########################################################################
 
-import os
-import sys
+__import__( "Gaffer" )
+__import__( "GafferImage" )
 
-variant = os.environ.get( "GAFFER_VARIANT", None )
-for a in sys.argv :
-	if a.startswith( "GAFFER_VARIANT=" ) :
-		variant = a[15:]
+from ._GafferML import *
 
-BUILD_DIR = os.path.expanduser( "~/dev/build/gaffer" + variant )
-BUILD_CACHEDIR = os.path.expanduser( "~/dev/buildCache" + variant )
-
-ENV_VARS_TO_IMPORT = "PATH"
-DELIGHT_ROOT = os.environ["DELIGHT"]
-ARNOLD_ROOT = os.environ["ARNOLD_ROOT"]
-VTUNE_ROOT = "/disk1/apps/intel/system_studio_2018/vtune_amplifier_2018.1.0.535340"
-GAFFERCORTEX=1
-
-ONNX_ROOT = "/home/john/dev/onnxruntime-inference-examples/c_cxx/onnxruntime-linux-x64-1.19.2"
+__import__( "IECore" ).loadConfig( "GAFFER_STARTUP_PATHS", subdirectory = "GafferML" )

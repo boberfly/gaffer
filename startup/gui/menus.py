@@ -555,6 +555,16 @@ nodeMenu.append( "/Dispatch/Wedge", GafferDispatch.Wedge )
 nodeMenu.append( "/Dispatch/Frame Mask", GafferDispatch.FrameMask, searchText = "FrameMask" )
 nodeMenu.append( "/Dispatch/Local Dispatcher", GafferDispatch.LocalDispatcher, searchText = "LocalDispatcher" )
 
+# ML nodes
+
+import GafferML
+import GafferMLUI
+
+nodeMenu.append( "/ML/Image To Tensor", GafferML.ImageToTensor, searchText = "ImageToTensor" )
+nodeMenu.append( "/ML/Tensor To Image", GafferML.TensorToImage, searchText = "TensorToImage" )
+nodeMenu.append( "/ML/Tensor Reader", GafferML.TensorReader, searchText = "TensorReader" )
+nodeMenu.append( "/ML/Inference", GafferML.Inference, searchText = "Inference" )
+
 # Utility nodes
 
 nodeMenu.append( "/Utility/Expression", Gaffer.Expression )

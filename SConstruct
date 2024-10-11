@@ -313,6 +313,12 @@ options.Add(
 	)
 )
 
+options.Add(
+	"ONNX_ROOT",
+	"The directory in which the ONNX runtime is installed. Used to build GafferML",
+	os.path.join( "$BUILD_DIR", "cycles" ),
+)
+
 # general variables
 
 options.Add(
@@ -1158,6 +1164,28 @@ libraries = {
 			"CPPPATH" : [ "$PYBIND11/include" ],
 			"LIBS" : [ "GafferBindings", "GafferUI", "GafferImage", "GafferImageUI" ],
 		},
+	},
+
+	"GafferML" : {
+		"envAppends" : {
+			"CPPPATH" : [ "$ONNX_ROOT/include" ],
+			"LIBPATH" : [ "$ONNX_ROOT/lib" ],
+			"LIBS" : [ "Gaffer", "GafferImage", "onnxruntime", "protobuf" ],
+		},
+		"pythonEnvAppends" : {
+			"CPPPATH" : [ "$ONNX_ROOT/include" ],
+			"LIBPATH" : [ "$ONNX_ROOT/lib" ],
+			"LIBS" : [ "GafferBindings", "GafferImage", "GafferML", "onnxruntime" ],
+		},
+		"requiredOptions" : [ "ONNX_ROOT" ],
+	},
+
+	"GafferMLTest" : {
+		"requiredOptions" : [ "ONNX_ROOT" ],
+	},
+
+	"GafferMLUI" : {
+		"requiredOptions" : [ "ONNX_ROOT" ],
 	},
 
 	"IECoreArnold" : {

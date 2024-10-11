@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2011-2016, John Haddon. All rights reserved.
+#  Copyright (c) 2024, Cinesite VFX Ltd. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -34,21 +34,38 @@
 #
 ##########################################################################
 
-import os
-import sys
+import unittest
 
-variant = os.environ.get( "GAFFER_VARIANT", None )
-for a in sys.argv :
-	if a.startswith( "GAFFER_VARIANT=" ) :
-		variant = a[15:]
+import IECore
 
-BUILD_DIR = os.path.expanduser( "~/dev/build/gaffer" + variant )
-BUILD_CACHEDIR = os.path.expanduser( "~/dev/buildCache" + variant )
+import Gaffer
+import GafferTest
+import GafferImage
+import GafferML
 
-ENV_VARS_TO_IMPORT = "PATH"
-DELIGHT_ROOT = os.environ["DELIGHT"]
-ARNOLD_ROOT = os.environ["ARNOLD_ROOT"]
-VTUNE_ROOT = "/disk1/apps/intel/system_studio_2018/vtune_amplifier_2018.1.0.535340"
-GAFFERCORTEX=1
+class ImageToTensorTest( GafferTest.TestCase ) :
 
-ONNX_ROOT = "/home/john/dev/onnxruntime-inference-examples/c_cxx/onnxruntime-linux-x64-1.19.2"
+	def testMissingChannels( self ) :
+
+		checker = GafferImage.Checkerboard()
+		tensor = GafferML.ImageToTensor()
+		tensor["image"].setInput( checker["out"] )
+		tensor["channels"].setValue( IECore.StringVectorData( [ "Y" ] ) )
+
+		with self.assertRaisesRegex( Gaffer.ProcessException, 'Channel "Y" does not exist' ) :
+			tensor["tensor"].getValue()
+
+	def testShufflingChannelsChangesHash( self ) :
+
+		checker = GafferImage.Checkerboard()
+		tensor = GafferML.ImageToTensor()
+		tensor["image"].setInput( checker["out"] )
+
+		self.assertEqual( tensor["channels"].getValue(), IECore.StringVectorData( [ "R", "G", "B" ] ) )
+		h1 = tensor["tensor"].hash()
+
+		tensor["channels"].setValue( IECore.StringVectorData( [ "B", "G", "R" ] ) )
+		self.assertNotEqual( tensor["tensor"].hash(), h1 )
+
+if __name__ == "__main__":
+	unittest.main()
