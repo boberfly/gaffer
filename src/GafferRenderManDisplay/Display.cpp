@@ -327,61 +327,53 @@ PtDspyError DspyImageData( PtDspyImageHandle image, int xMin, int xMaxPlusOne, i
 		return PkDspyErrorUnsupported;
 	}
 
-	// if( entrySize != (int)(channels*sizeof(float)) )
-	// {
-	// 	msg( Msg::Error, "Dspy::imageData", fmt::format( "Expected entry size {} but got {}", channels * sizeof( float ), entrySize ) );
-	// }
+	const float *buffer;
+	vector<float> bufferStorage;
 
-	if( true ) // TODO : BRING BACK CHECK
+	// TODO : integer ID support
+
+	if( entrySize == (int)(channels*sizeof(float)) )
 	{
-		try
-		{
-			if( dd->channelNames().size() == 1 && dd->channelNames()[0] == "id" )
-			{
-				// ID output for doing interactive selection (see `GafferSceneUI::OutputBuffer`).
-				// We want to have declared this output with an integer `scalarformat` to match the
-				// integer `cortexId` attribute created by `ObjectInterface::assignID()`, but we
-				// can't because 3Delight thinks it's quantizing a float into an integer and throws
-				// away everything outside `0-1` (see DelightOutput). So, we instead get floats
-				// from 3Delight and convert to integers here.
-				vector<uint32_t> intData( bufferSize );
-				for( int i = 0; i < bufferSize; ++i )
-				{
-					intData[i] = ((const float *)data)[i];
-				}
-				// Then, in a second hack that applies to all renderers/drivers,
-				// we have to pretend that the integers are floats to get them
-				// across the `IECoreImage::DisplayDriver` boundary, which only
-				// supports floats.
-				dd->imageData( box, (const float *)intData.data(), bufferSize );
-			}
-			else
-			{
-				dd->imageData( box, (const float *)data, bufferSize );
-			}
-		}
-		catch( std::exception &e )
-		{
-			if( strcmp( e.what(), "stop" ) == 0 )
-			{
-				/// \todo I would prefer DisplayDriver::imageData to have a return
-				/// value which could be used to request stop/continue behaviour.
-				/// prman doesn't seem to support PkDspyErrorStop, which should
-				/// also be resolved at some point.
-				return PkDspyErrorUndefined;
-			}
-			else
-			{
-				msg( Msg::Error, "Dspy::imageData", e.what() );
-				return PkDspyErrorUndefined;
-			}
-		}
+		// This is the case we like - we can just send the data as-is.
+		buffer = (const float *)data;
 	}
 	else
 	{
-		msg( Msg::Error, "Dspy::imageData", fmt::format( "Expected entry size {} but got {}", channels * sizeof( float ), entrySize ) );
-		return PkDspyErrorBadParams;
+		// PRMan seems to pad pixels sometimes for unknown reasons, and we need
+		// to unpad them before sending. This is a pity.
+		/// \todo Figure out why this is happening, and see if we can avoid it.
+		bufferStorage.reserve( bufferSize );
+		auto source = (const float *)data;
+		const size_t stride = entrySize / sizeof( float );
+		for( int i = 0; i < blockSize; ++i )
+		{
+			for( int c = 0; c < channels; ++c )
+			{
+				bufferStorage.push_back( source[c] );
+			}
+			source += stride;
+		}
+		buffer = bufferStorage.data();
 	}
+
+	try
+	{
+		dd->imageData( box, buffer, bufferSize );
+	}
+	catch( std::exception &e )
+	{
+		if( strcmp( e.what(), "stop" ) == 0 )
+		{
+			/// \todo Is this even used?
+			return PkDspyErrorUndefined;
+		}
+		else
+		{
+			msg( Msg::Error, "Dspy::imageData", e.what() );
+			return PkDspyErrorUndefined;
+		}
+	}
+
 	return PkDspyErrorNone;
 }
 
@@ -414,19 +406,5 @@ PtDspyError DspyImageClose( PtDspyImageHandle image )
 
 	return PkDspyErrorNone;
 }
-
-// // Registration
-// // ============
-
-// const PtDspyDriverFunctionTable g_functionTable = {
-// 	k_PtDriverCurrentVersion,
-// 	&imageOpen,
-// 	&imageData,
-// 	&imageClose,
-// 	&imageQuery,
-// 	nullptr
-// };
-
-// const PtDspyError g_registration = DspyRegisterDriverTable( "ieDisplay", &g_functionTable );
 
 } // extern "C"
