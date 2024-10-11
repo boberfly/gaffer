@@ -38,6 +38,8 @@ import os
 import unittest
 import imath
 
+import OpenImageIO
+
 import IECore
 import IECoreImage
 import IECoreScene
@@ -72,14 +74,23 @@ class RendererTest( GafferTest.TestCase ) :
 		)
 
 		r.output(
-			"test",
+			"testRGB",
 			IECoreScene.Output(
-				( self.temporaryDirectory() / "beauty.exr" ).as_posix(),
+				( self.temporaryDirectory() / "rgb.exr" ).as_posix(),
+				"exr",
+				"rgb",
+				{
+				}
+			)
+		)
+
+		r.output(
+			"testRGBA",
+			IECoreScene.Output(
+				( self.temporaryDirectory() / "rgba.exr" ).as_posix(),
 				"exr",
 				"rgba",
 				{
-					"filter" : "gaussian",
-					"filterwidth" : imath.V2f( 3.5 ),
 				}
 			)
 		)
@@ -87,7 +98,15 @@ class RendererTest( GafferTest.TestCase ) :
 		r.render()
 		del r
 
-		self.assertTrue( ( self.temporaryDirectory() / "beauty.exr" ).is_file() )
+		self.assertTrue( ( self.temporaryDirectory() / "rgb.exr" ).is_file() )
+		imageSpec = OpenImageIO.ImageInput.open( str( self.temporaryDirectory() / "rgb.exr" ) ).spec()
+		self.assertEqual( imageSpec.nchannels, 3 )
+		self.assertEqual( imageSpec.channelnames, ( "R", "G", "B" ) )
+
+		self.assertTrue( ( self.temporaryDirectory() / "rgba.exr" ).is_file() )
+		imageSpec = OpenImageIO.ImageInput.open( str( self.temporaryDirectory() / "rgba.exr" ) ).spec()
+		self.assertEqual( imageSpec.nchannels, 4 )
+		self.assertEqual( imageSpec.channelnames, ( "R", "G", "B", "A" ) )
 
 	def testObject( self ) :
 
