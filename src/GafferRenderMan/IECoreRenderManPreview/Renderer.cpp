@@ -158,22 +158,72 @@ struct Session : public IECore::RefCounted
 {
 
 	Session( IECoreScenePreview::Renderer::RenderType renderType )
-		:	riley(
-				/// \todo What is the `rileyVariant` argument for? XPU?
-				((RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager ))->CreateRiley( RtUString(), RtParamList() )
-			),
-			renderType( renderType )
+		:	riley( nullptr ), renderType( renderType )
 	{
-		riley->SetOptions( RtParamList() );
+		/// \todo What is the `rileyVariant` argument for? XPU?
+		auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
+
+		// `argv[0]==""`  prevents RenderMan doing its own signal handling.
+		vector<const char *> args = { "prman" }; // TODO : REVERT TO "". BUT YOU'RE GETTING SOME USEFUL OUTPUT WITHOUT.
+		PRManSystemBegin( args.size(), args.data() );
+		// TODO : THERE CAN ONLY BE ONE OF THESE. SO WE'RE GOING TO NEED TO PREVENT
+		// THE CREATION OF TWO RENDERERS AT ONCE.
+		PRManRenderBegin( args.size(), args.data() );
+
+		riley = rileyManager->CreateRiley( RtUString(), RtParamList() );
+
+		// TODO: NOT SURE WE WANT THIS HERE, BUT NOTE THAT RILEY CRASHES IF IF IS NOT CALLED
+		// BEFORE DESTRUCTION.
+
+		RtParamList options;
+		int resolution[2] = { 640, 480 };
+
+	    options.SetIntegerArray(
+			Rix::k_Ri_FormatResolution,
+			resolution, 2
+		);
+		options.SetFloat(
+        	Rix::k_Ri_FormatPixelAspectRatio,
+        	1.0f
+		);
+
+		riley->SetOptions( options );
+
+		// RtParamList cp;
+		// cp.SetFloat( Rix::k_fov, 35.0f );
+
+		// riley::ShadingNode projectionShader = {
+		// 	riley::ShadingNode::Type::k_Projection, RtUString( "PxrCamera" ),
+		// 	RtUString( "projection" ), cp
+		// };
+
+		// auto c = riley->CreateCamera(
+		// 	riley::UserId(), RtUString( "myLovelyCamera" ),
+		// 	projectionShader, StaticTransform(), RtParamList()
+		// );
+
+		// std::cerr << "INVALID CAMERA " << riley::CameraId().AsUInt32() << " " << riley::CameraId::InvalidId().AsUInt32() << std::endl;
+		// std::cerr << "FIRST CAMERA " << c.AsUInt32() << " " << ( c != riley::CameraId() ) << std::endl;
+
+		// auto c2 = riley->CreateCamera(
+		// 	riley::UserId(), RtUString( "myLovelyCamera2" ),
+		// 	projectionShader, StaticTransform(), RtParamList()
+		// );
+
+		// std::cerr << "SECOND CAMERA " << c2.AsUInt32() << " " << ( c2 != riley::CameraId() ) << std::endl;
+
 	}
 
 	~Session()
 	{
-		auto m = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
-		m->DestroyRiley( riley );
+		auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
+		rileyManager->DestroyRiley( riley );
+
+		PRManRenderEnd();
+		PRManSystemEnd();
 	}
 
-	riley::Riley * const riley;
+	riley::Riley *riley;
 	const IECoreScenePreview::Renderer::RenderType renderType;
 
 };
@@ -358,7 +408,7 @@ class RenderManOutput : public IECore::RefCounted
 			// TODO : DON'T THINK THIS GUY CAN OWN THE RENDER TARGET, BECAUSE THE
 			// RENDER VIEW ONLY TAKES ONE TARGET.
 
-			m_session->riley->CreateRenderTarget(
+			m_renderTarget = m_session->riley->CreateRenderTarget(
 				riley::UserId(), { 1, &m_renderOutput }, { 640, 480, 0 },
 				/* filterMode = */ RtUString( "weighted" ), /* pixelVariance = */ 1.0f,
 				RtParamList()
@@ -393,6 +443,7 @@ class RenderManOutput : public IECore::RefCounted
 		}
 
 		riley::RenderTargetId renderTarget() const { return m_renderTarget; }
+
 
 	private :
 
@@ -555,20 +606,20 @@ class RenderManGlobals : public boost::noncopyable
 
 		void output( const IECore::InternedString &name, const Output *output )
 		{
-			if( worldBegun() )
-			{
-				msg( IECore::Msg::Warning, "RenderManRender::output", "Unable to edit output (RenderMan limitation)" );
-				return;
-			}
+			// if( worldBegun() )
+			// {
+			// 	msg( IECore::Msg::Warning, "RenderManRender::output", "Unable to edit output (RenderMan limitation)" );
+			// 	return;
+			// }
 
-			if( output )
-			{
-				m_outputs[name] = new RenderManOutput( m_session, name, output );
-			}
-			else
-			{
-				m_outputs.erase( name );
-			}
+			// if( output )
+			// {
+			// 	m_outputs[name] = new RenderManOutput( m_session, name, output );
+			// }
+			// else
+			// {
+			// 	m_outputs.erase( name );
+			// }
 		}
 
 		RenderManCameraPtr camera( const std::string &name, const IECoreScene::Camera *camera )
@@ -584,6 +635,8 @@ class RenderManGlobals : public boost::noncopyable
 			return result;
 		}
 
+		// TODO : UPDATE WHEN YOU FIGURE OUT THE NEW RESTRICTIONS
+		//
 		// Despite being designed as a modern edit-anything-at-any-time renderer API,
 		// in places Riley is still implemented as a veneer over an old RI-like
 		// state. Except now you have to guess how the API functions map to
@@ -628,7 +681,9 @@ class RenderManGlobals : public boost::noncopyable
 			}
 
 			updateCamera();
-			m_session->riley->SetOptions( m_options ); // TODO : MAYBE THIS SHOULD COME FIRST?
+
+			// REMOVED FOR NOW, SINCE WE'RE CURRENTLY CALLING IN SESSION CONSTRUCTOR
+			//m_session->riley->SetOptions( m_options ); // TODO : MAYBE THIS SHOULD COME FIRST?
 
 			// Make integrator
 
@@ -651,24 +706,100 @@ class RenderManGlobals : public boost::noncopyable
 			// Update render view
 			/// TODO : CAN SOME OF THIS MOVE TO `RENDER()` NOW?
 
-			if( m_outputs.size() == 1 )
-			{
-				std::cerr << "CREATING RENDER VIEW " << m_outputs.begin()->second->renderTarget().AsUInt32() << " " << m_cameraId.AsUInt32() << " " << integrator.AsUInt32() << std::endl;
-				m_renderView = m_session->riley->CreateRenderView(
-					riley::UserId(), m_outputs.begin()->second->renderTarget(), m_cameraId,
-					integrator, { 0, nullptr }, { 0, nullptr }, RtParamList()
-				);
-			}
-			else
-			{
-				std::cerr << "UNSUPPORTED OUTPUTS" << std::endl;
-			}
 
-			//createDisplays( m_cameraId );
+			// m_renderOutput = m_session->riley->CreateRenderOutput(
+			// 	riley::UserId(), RtUString( name.c_str() ), riley::RenderOutputType::k_Color,
+			// 	RtUString( "Ci" ), /* accumulationRule = */ RtUString( "filter" ),
+			// 	Rix::k_blackmanharris, { 3.0f, 3.0f }, /* relativePixelVariance = */ 1.0f, RtParamList()
+			// );
 
-			// TODO : THIS METHOD DOESN'T EXIST ANY MORE. SO HOW DO WE SAY WHAT CAMERA TO USE??
-			// WorldBegin! Ho ho ho!
-			//m_session->riley->SetActiveCamera( m_cameraId );
+			// /// \todo Support importance sampling
+
+			// std::cerr << 2 << std::endl;
+
+			// // TODO : DON'T THINK THIS GUY CAN OWN THE RENDER TARGET, BECAUSE THE
+			// // RENDER VIEW ONLY TAKES ONE TARGET.
+
+			// m_renderTarget = m_session->riley->CreateRenderTarget(
+			// 	riley::UserId(), { 1, &m_renderOutput }, { 640, 480, 0 },
+			// 	/* filterMode = */ RtUString( "weighted" ), /* pixelVariance = */ 1.0f,
+			// 	RtParamList()
+			// );
+
+			// std::cerr << 3 << std::endl;
+
+			// string driver = output->getType();
+			// if( driver == "exr" )
+			// {
+			// 	driver = "openexr";
+			// }
+
+			// RtParamList driverParams;
+			// ParamListAlgo::convertParameters( output->parameters(), driverParams );
+
+			// std::cerr << 4 << std::endl;
+
+			// m_session->riley->CreateDisplay(
+			// 	riley::UserId(), m_renderTarget, RtUString( name.c_str() ), RtUString( driver.c_str() ),
+			// 	{ 0, nullptr }, driverParams
+
+			// );
+
+
+			// if( m_outputs.size() == 1 )
+			// {
+			// 	std::cerr << "CREATING RENDER VIEW " << m_outputs.begin()->second->renderTarget().AsUInt32() << " " << m_cameraId.AsUInt32() << " " << integrator.AsUInt32() << std::endl;
+			// 	m_renderView = m_session->riley->CreateRenderView(
+			// 		riley::UserId(), m_outputs.begin()->second->renderTarget(), m_cameraId,
+			// 		integrator, { 0, nullptr }, { 0, nullptr }, RtParamList()
+			// 	);
+			// }
+			// else
+			// {
+			// 	std::cerr << "UNSUPPORTED OUTPUTS" << std::endl;
+			// }
+
+			riley::RenderOutputId renderOutput = m_session->riley->CreateRenderOutput(
+				riley::UserId(),
+				/* name = */ RtUString( "myoutput" ),
+				/* type = */ riley::RenderOutputType::k_Color,
+				/* source = */ RtUString( "Ci" ),
+				/* accumulationRule = */ RtUString( "filter" ),
+				/* filter = */ Rix::k_gaussian,
+				/* filterSize = */ { 3.0f, 3.0f },
+				/* relativePixelVariance = */ 1.0f,
+				RtParamList()
+			);
+
+			riley::Extent resolution = { 640, 480, 1 }; // DOCS SAY 0, HDPRMAN SAYS 1
+
+			auto renderTarget = m_session->riley->CreateRenderTarget(
+				riley::UserId(),
+				{ 1, &renderOutput },
+				resolution,
+				RtUString( "importance" ),
+				0.015f,
+				RtParamList()
+			);
+
+			auto display = m_session->riley->CreateDisplay(
+				riley::UserId(),
+				renderTarget,
+				RtUString( "mydisplay" ),
+				RtUString( "openexr" ),
+				{ 1, &renderOutput },
+				RtParamList()
+			);
+
+			m_renderView = m_session->riley->CreateRenderView(
+				riley::UserId(),
+				renderTarget,
+				m_cameraId,
+				integrator,
+				{ 0, nullptr },
+				{ 0, nullptr },
+				RtParamList()
+			);
 
 			m_worldBegun = true;
 		}
@@ -676,14 +807,20 @@ class RenderManGlobals : public boost::noncopyable
 		void render()
 		{
 			ensureWorld();
-			updateCamera();
+			//updateCamera();
 
 			switch( m_session->renderType )
 			{
 				case IECoreScenePreview::Renderer::Batch : {
-					// TODO : HOW DO WE START A RENDER NOW???
 					RtParamList renderOptions;
+					std::cerr << "RENDER VIEW " << m_renderView.AsUInt32() << std::endl;
 					renderOptions.SetString( RtUString( "renderMode" ), RtUString( "batch" ) );
+
+					 renderOptions.SetString(
+				        Rix::k_dice_referencecamera,
+        				RtUString( "ieCoreRenderMan:camera" )
+					);
+
 					m_session->riley->Render( { 1, &m_renderView }, renderOptions );
 					break;
 				}
@@ -742,6 +879,7 @@ class RenderManGlobals : public boost::noncopyable
 					camera->parameters()
 				);
 				std::cerr << "CREATEDCAMERA " << m_cameraId.AsUInt32() << std::endl;
+				m_session->riley->SetDefaultDicingCamera( m_cameraId );
 			}
 			else
 			{
@@ -1555,9 +1693,6 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 			{
 				throw IECore::Exception( "SceneDescription mode not supported by RenderMan" );
 			}
-
-			const char *argv[] = { "ieCoreRenderMan" };
-			PRManBegin( 1, (char **)argv );
 
 			m_session = new Session( renderType );
 			m_globals = boost::make_unique<RenderManGlobals>( m_session );

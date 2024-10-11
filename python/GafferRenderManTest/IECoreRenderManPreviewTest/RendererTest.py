@@ -61,7 +61,7 @@ class RendererTest( GafferTest.TestCase ) :
 			GafferScene.Private.IECoreScenePreview.Renderer.create(
 				"RenderMan",
 				GafferScene.Private.IECoreScenePreview.Renderer.RenderType.SceneDescription,
-				self.temporaryDirectory() + "/test.rib"
+				self.temporaryDirectory() / "test.rib"
 			)
 
 	def testOutput( self ) :
@@ -74,7 +74,7 @@ class RendererTest( GafferTest.TestCase ) :
 		r.output(
 			"test",
 			IECoreScene.Output(
-				self.temporaryDirectory() + "/beauty.exr",
+				( self.temporaryDirectory() / "beauty.exr" ).as_posix(),
 				"exr",
 				"rgba",
 				{
@@ -87,7 +87,7 @@ class RendererTest( GafferTest.TestCase ) :
 		r.render()
 		del r
 
-		self.assertTrue( os.path.exists( self.temporaryDirectory() + "/beauty.exr" ) )
+		self.assertTrue( ( self.temporaryDirectory() / "beauty.exr" ).is_file() )
 
 	def testObject( self ) :
 
