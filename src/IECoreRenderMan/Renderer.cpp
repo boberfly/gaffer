@@ -36,6 +36,7 @@
 
 #include "GeometryAlgo.h"
 #include "ParamListAlgo.h"
+#include "Renderer/Session.h"
 
 #include "GafferScene/Private/IECoreScenePreview/Renderer.h"
 
@@ -146,66 +147,6 @@ struct AnimatedTransform : riley::Transform
 };
 
 static riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
-
-// The various Renderer components all need access to the same
-// Riley object, and also need to know the render type because it
-// affects whether or not they need to delete resources on destruction.
-// Furthermore, we don't want to require all client code to destroy
-// all AttributeInterfaces and ObjectInterfaces before destroying the
-// renderer - that's too much of a pain, especially in Python. All
-// components therefore share ownership of a Session, which provides
-// the Riley instance and render type, and is destroyed only when the
-// last owner dies.
-struct Session : public IECore::RefCounted
-{
-
-	Session( IECoreScenePreview::Renderer::RenderType renderType )
-		:	riley( nullptr ), renderType( renderType ), m_optionsSet( false )
-	{
-		/// \todo What is the `rileyVariant` argument for? XPU?
-		auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
-
-		// `argv[0]==""`  prevents RenderMan doing its own signal handling.
-		vector<const char *> args = { "prman" }; // TODO : REVERT TO "". BUT YOU'RE GETTING SOME USEFUL OUTPUT WITHOUT FOR NOW.
-		PRManSystemBegin( args.size(), args.data() );
-		// TODO : THERE CAN ONLY BE ONE OF THESE. SO WE'RE GOING TO NEED TO PREVENT
-		// THE CREATION OF TWO RENDERERS AT ONCE.
-		PRManRenderBegin( args.size(), args.data() );
-
-		riley = rileyManager->CreateRiley( RtUString(), RtParamList() );
-	}
-
-	~Session()
-	{
-		if( !m_optionsSet )
-		{
-			// Riley crashes if you don't call `SetOptions()` before destruction.
-			riley->SetOptions( RtParamList() );
-		}
-
-		auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
-		rileyManager->DestroyRiley( riley );
-
-		PRManRenderEnd();
-		PRManSystemEnd();
-	}
-
-	void setOptions( const RtParamList &options )
-	{
-		riley->SetOptions( options );
-		m_optionsSet = true;
-	}
-
-	riley::Riley *riley;
-	const IECoreScenePreview::Renderer::RenderType renderType;
-
-	private :
-
-		bool m_optionsSet;
-
-};
-
-IE_CORE_DECLAREPTR( Session );
 
 } // namespace
 
@@ -365,7 +306,7 @@ class RenderManGlobals : public boost::noncopyable
 
 	public :
 
-		RenderManGlobals( const SessionPtr &session )
+		RenderManGlobals( const IECoreRenderMan::Renderer::SessionPtr &session )
 			:	m_session( session ), m_options(),
 				m_cameraId( riley::CameraId::InvalidId() ),
 				m_expectedWorldBeginThreadId( std::this_thread::get_id() ), m_worldBegun( false )
@@ -790,7 +731,7 @@ class RenderManGlobals : public boost::noncopyable
 
 		}
 
-		SessionPtr m_session;
+		IECoreRenderMan::Renderer::SessionPtr m_session;
 		RtParamList m_options;
 
 		std::unordered_map<InternedString, IECoreScene::ConstOutputPtr> m_outputs;
@@ -1039,7 +980,7 @@ class RenderManMaterial : public IECore::RefCounted
 
 	public :
 
-		RenderManMaterial( const IECoreScene::ShaderNetwork *network, const ConstSessionPtr &session )
+		RenderManMaterial( const IECoreScene::ShaderNetwork *network, const IECoreRenderMan::Renderer::ConstSessionPtr &session )
 			:	m_session( session )
 		{
 			if( network )
@@ -1067,7 +1008,7 @@ class RenderManMaterial : public IECore::RefCounted
 
 	private :
 
-		ConstSessionPtr m_session;
+		IECoreRenderMan::Renderer::ConstSessionPtr m_session;
 		riley::MaterialId m_id;
 
 };
@@ -1079,7 +1020,7 @@ class ShaderCache : public IECore::RefCounted
 
 	public :
 
-		ShaderCache( const ConstSessionPtr &session )
+		ShaderCache( const IECoreRenderMan::Renderer::ConstSessionPtr &session )
 			:	m_session( session )
 		{
 		}
@@ -1118,7 +1059,7 @@ class ShaderCache : public IECore::RefCounted
 
 	private :
 
-		ConstSessionPtr m_session;
+		IECoreRenderMan::Renderer::ConstSessionPtr m_session;
 
 		using Cache = tbb::concurrent_hash_map<IECore::MurmurHash, ConstRenderManMaterialPtr>;
 		Cache m_cache;
@@ -1220,7 +1161,7 @@ class RenderManObject : public IECoreScenePreview::Renderer::ObjectInterface
 
 	public :
 
-		RenderManObject( riley::GeometryPrototypeId geometryPrototype, const RenderManAttributes *attributes, const ConstSessionPtr &session )
+		RenderManObject( riley::GeometryPrototypeId geometryPrototype, const RenderManAttributes *attributes, const IECoreRenderMan::Renderer::ConstSessionPtr &session )
 			:	m_session( session ), m_geometryInstance( riley::GeometryInstanceId::InvalidId() )
 		{
 			if( geometryPrototype != riley::GeometryPrototypeId::InvalidId() )
@@ -1316,7 +1257,7 @@ class RenderManObject : public IECoreScenePreview::Renderer::ObjectInterface
 
 	private :
 
-		ConstSessionPtr m_session;
+		IECoreRenderMan::Renderer::ConstSessionPtr m_session;
 		riley::GeometryInstanceId m_geometryInstance;
 		/// Used to keep material etc alive as long as we need it.
 		/// \todo Not sure if this is necessary or not? Perhaps Riley will
@@ -1341,7 +1282,7 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 
 	public :
 
-		RenderManLight( riley::GeometryPrototypeId geometryPrototype, const ConstRenderManAttributesPtr &attributes, const ConstSessionPtr &session )
+		RenderManLight( riley::GeometryPrototypeId geometryPrototype, const ConstRenderManAttributesPtr &attributes, const IECoreRenderMan::Renderer::ConstSessionPtr &session )
 			:	m_session( session ), m_lightShader( riley::LightShaderId::InvalidId() ), m_lightInstance( riley::LightInstanceId::InvalidId() )
 		{
 			assignAttributes( attributes );
@@ -1463,7 +1404,7 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 			}
 		}
 
-		const ConstSessionPtr m_session;
+		const IECoreRenderMan::Renderer::ConstSessionPtr m_session;
 		riley::LightShaderId m_lightShader;
 		riley::LightInstanceId m_lightInstance;
 		/// Used to keep material etc alive as long as we need it.
@@ -1497,7 +1438,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 				throw IECore::Exception( "SceneDescription mode not supported by RenderMan" );
 			}
 
-			m_session = new Session( renderType );
+			m_session = new IECoreRenderMan::Renderer::Session( renderType );
 			m_globals = boost::make_unique<RenderManGlobals>( m_session );
 			m_shaderCache = new ShaderCache( m_session );
 		}
@@ -1588,7 +1529,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 	private :
 
-		SessionPtr m_session;
+		IECoreRenderMan::Renderer::SessionPtr m_session;
 
 		std::unique_ptr<RenderManGlobals> m_globals;
 		ShaderCachePtr m_shaderCache;
