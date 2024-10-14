@@ -160,7 +160,7 @@ struct Session : public IECore::RefCounted
 {
 
 	Session( IECoreScenePreview::Renderer::RenderType renderType )
-		:	riley( nullptr ), renderType( renderType )
+		:	riley( nullptr ), renderType( renderType ), m_optionsSet( false )
 	{
 		/// \todo What is the `rileyVariant` argument for? XPU?
 		auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
@@ -177,8 +177,11 @@ struct Session : public IECore::RefCounted
 
 	~Session()
 	{
-		// TODO : I HEARD THAT RILEY CRASHES IF IF IS NOT CALLED
-		// BEFORE DESTRUCTION.
+		if( !m_optionsSet )
+		{
+			// Riley crashes if you don't call `SetOptions()` before destruction.
+			riley->SetOptions( RtParamList() );
+		}
 
 		auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
 		rileyManager->DestroyRiley( riley );
@@ -187,8 +190,18 @@ struct Session : public IECore::RefCounted
 		PRManSystemEnd();
 	}
 
+	void setOptions( const RtParamList &options )
+	{
+		riley->SetOptions( options );
+		m_optionsSet = true;
+	}
+
 	riley::Riley *riley;
 	const IECoreScenePreview::Renderer::RenderType renderType;
+
+	private :
+
+		bool m_optionsSet;
 
 };
 
@@ -352,7 +365,7 @@ class RenderManGlobals : public boost::noncopyable
 
 	public :
 
-		RenderManGlobals( const ConstSessionPtr &session )
+		RenderManGlobals( const SessionPtr &session )
 			:	m_session( session ), m_options(),
 				m_cameraId( riley::CameraId::InvalidId() ),
 				m_expectedWorldBeginThreadId( std::this_thread::get_id() ), m_worldBegun( false )
@@ -557,7 +570,7 @@ class RenderManGlobals : public boost::noncopyable
 				);
 			}
 
-			m_session->riley->SetOptions( m_options );
+			m_session->setOptions( m_options );
 
 			updateCamera();
 
@@ -793,7 +806,7 @@ class RenderManGlobals : public boost::noncopyable
 
 		}
 
-		ConstSessionPtr m_session;
+		SessionPtr m_session;
 		RtParamList m_options;
 
 		std::unordered_map<InternedString, IECoreScene::ConstOutputPtr> m_outputs;
