@@ -248,8 +248,6 @@ if "RMANTREE" in os.environ :
 
 		GafferRenderManUI.RenderManShaderUI.appendShaders( nodeMenu.definition() )
 
-		nodeMenu.append( "/RenderMan/Render", GafferRenderMan.RenderManRender, searchText = "RenderManRender" )
-		nodeMenu.append( "/RenderMan/Interactive Render", GafferRenderMan.InteractiveRenderManRender, searchText = "InteractiveRenderManRender" )
 		nodeMenu.append( "/RenderMan/Attributes", GafferRenderMan.RenderManAttributes, searchText = "RenderManAttributes" )
 		nodeMenu.append( "/RenderMan/Integrator", GafferRenderMan.RenderManIntegrator, searchText = "RenderManIntegrator" )
 		nodeMenu.append( "/RenderMan/Options", GafferRenderMan.RenderManOptions, searchText = "RenderManOptions" )

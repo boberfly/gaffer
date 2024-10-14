@@ -38,8 +38,6 @@ __import__( "GafferSceneUI" )
 
 from . import RenderManShaderUI
 from . import RenderManOptionsUI
-from . import InteractiveRenderManRenderUI
-from . import RenderManRenderUI
 from . import RenderManAttributesUI
 
 __import__( "IECore" ).loadConfig( "GAFFER_STARTUP_PATHS", subdirectory = "GafferRenderManUI" )

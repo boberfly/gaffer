@@ -36,17 +36,14 @@
 
 #include "boost/python.hpp"
 
-#include "GafferRenderMan/InteractiveRenderManRender.h"
 #include "GafferRenderMan/RenderManAttributes.h"
 #include "GafferRenderMan/RenderManIntegrator.h"
 #include "GafferRenderMan/RenderManLight.h"
 #include "GafferRenderMan/RenderManOptions.h"
-#include "GafferRenderMan/RenderManRender.h"
 #include "GafferRenderMan/RenderManShader.h"
 #include "GafferRenderMan/TagPlug.h"
 
-#include "GafferDispatchBindings/TaskNodeBinding.h"
-
+#include "GafferBindings/DependencyNodeBinding.h"
 #include "GafferBindings/PlugBinding.h"
 
 #include "boost/python/suite/indexing/container_utils.hpp"
@@ -55,7 +52,6 @@
 using namespace boost::python;
 using namespace Gaffer;
 using namespace GafferBindings;
-using namespace GafferDispatchBindings;
 using namespace GafferRenderMan;
 
 namespace
@@ -90,8 +86,6 @@ object tagPlugTags( const TagPlug &p )
 
 BOOST_PYTHON_MODULE( _GafferRenderMan )
 {
-	TaskNodeClass<RenderManRender>();
-	NodeClass<InteractiveRenderManRender>();
 	GafferBindings::DependencyNodeClass<RenderManShader>();
 	GafferBindings::DependencyNodeClass<RenderManLight>()
 		.def( "loadShader", &loadShader )

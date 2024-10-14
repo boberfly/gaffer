@@ -45,6 +45,8 @@ import GafferRenderMan
 
 class InteractiveRenderManRenderTest( GafferSceneTest.InteractiveRenderTest ) :
 
+	renderer = "RenderMan"
+
 	@unittest.skip( "Feature not supported yet" )
 	def testAddAndRemoveOutput( self ) :
 
@@ -74,10 +76,6 @@ class InteractiveRenderManRenderTest( GafferSceneTest.InteractiveRenderTest ) :
 	def testLightLinking( self ) :
 
 		pass
-
-	def _createInteractiveRender( self ) :
-
-		return GafferRenderMan.InteractiveRenderManRender()
 
 	def _createConstantShader( self ) :
 

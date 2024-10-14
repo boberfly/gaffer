@@ -41,14 +41,12 @@ namespace GafferRenderMan
 
 enum TypeId
 {
-	RenderManRenderTypeId = 110400,
-	InteractiveRenderManRenderTypeId = 110401,
-	RenderManShaderTypeId = 110402,
-	RenderManLightTypeId = 110403,
-	RenderManIntegratorTypeId = 110404,
-	RenderManAttributesTypeId = 110405,
-	RenderManOptionsTypeId = 110406,
-	TagPlugTypeId = 110407,
+	RenderManShaderTypeId = 110400,
+	RenderManLightTypeId = 110401,
+	RenderManIntegratorTypeId = 110402,
+	RenderManAttributesTypeId = 110403,
+	RenderManOptionsTypeId = 110404,
+	TagPlugTypeId = 110405,
 	LastTypeId = 110450
 };
 
