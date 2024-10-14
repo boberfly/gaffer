@@ -1391,6 +1391,10 @@ libraries = {
 		"requiredOptions" : [ "RENDERMAN_ROOT" ],
 	},
 
+	"IECoreRenderManTest" : {
+		"requiredOptions" : [ "RENDERMAN_ROOT" ],
+	},
+
 	"GafferRenderMan" : {
 		"envAppends" : {
 			"CPPPATH" : [ "$RENDERMAN_ROOT/include" ],

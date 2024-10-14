@@ -34,9 +34,7 @@
 #
 ##########################################################################
 
-import os
 import unittest
-import imath
 
 import OpenImageIO
 
@@ -46,7 +44,6 @@ import IECoreScene
 
 import GafferTest
 import GafferScene
-import GafferRenderMan
 
 class RendererTest( GafferTest.TestCase ) :
 

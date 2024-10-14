@@ -34,8 +34,6 @@
 #
 ##########################################################################
 
-from .IECoreRenderManPreviewTest import *
-
 from .RenderManShaderTest import RenderManShaderTest
 from .RenderManLightTest import RenderManLightTest
 from .InteractiveRenderManRenderTest import InteractiveRenderManRenderTest
