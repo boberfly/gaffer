@@ -159,3 +159,11 @@ void Camera::transformInternal( std::vector<Imath::M44f> samples, const std::vec
 		IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Camera::transform", "Unexpected edit failure" );
 	}
 }
+
+void Camera::options( const IECoreScene::Camera *camera, RtParamList &options )
+{
+	const Imath::V2i resolution = camera->renderResolution();
+	options.SetIntegerArray( Rix::k_Ri_FormatResolution, resolution.getValue(), 2 );
+	options.SetFloat( Rix::k_Ri_FormatPixelAspectRatio, camera->getPixelAspectRatio() );
+	/// \todo Crop window
+}

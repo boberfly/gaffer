@@ -532,27 +532,7 @@ void Globals::deleteRenderView()
 	m_renderOutputs.clear();
 }
 
-	/// TODO : MAKE THIS HAPPEN SOMEHOW
+void Globals::updateCameraOptions()
+{
 
-	///m_options.SetIntegerArray( Rix::k_Ri_FormatResolution, resolution.getValue(), 2 );
-
-	//    const GfVec2i res = GetResolutionFromDisplayWindow();
-
-	//     options->SetIntegerArray(
-	//         RixStr.k_Ri_FormatResolution,
-	//         res.data(), 2);
-
-	//     // Compute how the data window sits in the display window.
-	//     const GfVec4f cropWindow =
-	//         _ComputeCropWindow(
-	//             _framing.dataWindow,
-	//             _framing.displayWindow.GetMin(),
-	//             res);
-
-	//     options->SetFloatArray(
-	//         RixStr.k_Ri_CropWindow,
-	//         cropWindow.data(), 4);
-
-	//     options->SetFloat(
-	//         RixStr.k_Ri_FormatPixelAspectRatio,
-	//         _framing.pixelAspectRatio);
+}

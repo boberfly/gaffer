@@ -92,6 +92,7 @@ class Globals : public boost::noncopyable
 		bool worldBegun();
 		void updateRenderView();
 		void deleteRenderView();
+		void updateCameraOptions();
 
 		IECoreRenderMan::Renderer::SessionPtr m_session;
 		RtParamList m_options;
