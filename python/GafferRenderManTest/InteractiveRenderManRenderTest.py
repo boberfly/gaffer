@@ -34,23 +34,14 @@
 #
 ##########################################################################
 
-import os
 import unittest
 
-import Gaffer
-import GafferTest
-import GafferScene
 import GafferSceneTest
 import GafferRenderMan
 
 class InteractiveRenderManRenderTest( GafferSceneTest.InteractiveRenderTest ) :
 
 	renderer = "RenderMan"
-
-	@unittest.skip( "Feature not supported yet" )
-	def testAddAndRemoveOutput( self ) :
-
-		pass
 
 	@unittest.skip( "Feature not supported yet" )
 	def testLightFilters( self ) :
@@ -76,7 +67,7 @@ class InteractiveRenderManRenderTest( GafferSceneTest.InteractiveRenderTest ) :
 
 		shader = GafferRenderMan.RenderManShader()
 		shader.loadShader( "PxrConstant" )
-		return shader, shader["parameters"]["emitColor"]
+		return shader, shader["parameters"]["emitColor"], shader["out"]
 
 	def _createTraceSetShader( self ) :
 
@@ -90,7 +81,7 @@ class InteractiveRenderManRenderTest( GafferSceneTest.InteractiveRenderTest ) :
 
 		shader = GafferRenderMan.RenderManShader()
 		shader.loadShader( "PxrDiffuse" )
-		return shader, shader["parameters"]["diffuseColor"]
+		return shader, shader["parameters"]["diffuseColor"], shader["out"]
 
 	def _createPointLight( self ) :
 
