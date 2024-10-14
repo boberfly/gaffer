@@ -34,8 +34,7 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#ifndef GAFFERRENDERMAN_RENDERMANINTEGRATOR_H
-#define GAFFERRENDERMAN_RENDERMANINTEGRATOR_H
+#pragma once
 
 #include "GafferRenderMan/Export.h"
 #include "GafferRenderMan/TypeIds.h"
@@ -70,5 +69,3 @@ class GAFFERSCENE_API RenderManIntegrator : public GafferScene::GlobalShader
 IE_CORE_DECLAREPTR( RenderManIntegrator )
 
 } // namespace GafferRenderMan
-
-#endif // GAFFERRENDERMAN_RENDERMANINTEGRATOR_H

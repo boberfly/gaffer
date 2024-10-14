@@ -34,8 +34,7 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#ifndef GAFFERRENDERMAN_TYPEIDS_H
-#define GAFFERRENDERMAN_TYPEIDS_H
+#pragma once
 
 namespace GafferRenderMan
 {
@@ -54,5 +53,3 @@ enum TypeId
 };
 
 } // namespace GafferRenderMan
-
-#endif // GAFFERRENDERMAN_TYPEIDS_H

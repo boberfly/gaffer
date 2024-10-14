@@ -32,8 +32,7 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#ifndef IECORERENDERMAN_GEOMETRYALGO_H
-#define IECORERENDERMAN_GEOMETRYALGO_H
+#pragma once
 
 #include "IECoreScene/Primitive.h"
 
@@ -103,5 +102,3 @@ void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVaria
 } // namespace GeometryAlgo
 
 } // namespace IECoreRenderMan
-
-#endif // IECORERENDERMAN_GEOMETRYALGO_H

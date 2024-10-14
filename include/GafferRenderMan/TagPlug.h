@@ -34,8 +34,7 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#ifndef GAFFERRENDERMAN_TAGPLUG_H
-#define GAFFERRENDERMAN_TAGPLUG_H
+#pragma once
 
 #include "GafferRenderMan/Export.h"
 #include "GafferRenderMan/TypeIds.h"
@@ -74,5 +73,3 @@ class GAFFERRENDERMAN_API TagPlug : public Gaffer::Plug
 IE_CORE_DECLAREPTR( TagPlug );
 
 } // namespace GafferRenderMan
-
-#endif // GAFFERRENDERMAN_TAGPLUG_H

@@ -32,8 +32,7 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#ifndef GAFFERRENDERMAN_EXPORT_H
-#define GAFFERRENDERMAN_EXPORT_H
+#pragma once
 
 #include "IECore/Export.h"
 
@@ -42,5 +41,3 @@
 #else
 	#define GAFFERRENDERMAN_API IECORE_IMPORT
 #endif
-
-#endif // #ifndef GAFFERRENDERMAN_EXPORT_H

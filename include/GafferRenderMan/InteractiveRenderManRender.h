@@ -34,8 +34,7 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#ifndef GAFFERRENDERMAN_INTERACTIVERENDERMANRENDER_H
-#define GAFFERRENDERMAN_INTERACTIVERENDERMANRENDER_H
+#pragma once
 
 #include "GafferRenderMan/Export.h"
 #include "GafferRenderMan/TypeIds.h"
@@ -59,5 +58,3 @@ class GAFFERRENDERMAN_API InteractiveRenderManRender : public GafferScene::Inter
 IE_CORE_DECLAREPTR( InteractiveRenderManRender );
 
 } // namespace GafferRenderMan
-
-#endif // GAFFERRENDERMAN_INTERACTIVERENDERMANRENDER_H

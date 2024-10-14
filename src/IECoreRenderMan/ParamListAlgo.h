@@ -32,8 +32,7 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#ifndef IECORERENDERMAN_PARAMLISTALGO_H
-#define IECORERENDERMAN_PARAMLISTALGO_H
+#pragma once
 
 #include "IECore/CompoundData.h"
 
@@ -51,5 +50,3 @@ void convertParameters( const IECore::CompoundDataMap &parameters, RtParamList &
 } // namespace ParamListAlgo
 
 } // namespace IECoreRenderMan
-
-#endif // IECORERENDERMAN_PARAMLISTALGO_H
