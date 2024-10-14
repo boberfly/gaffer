@@ -91,9 +91,6 @@ PtDspyError DspyImageOpen( PtDspyImageHandle *image, const char *driverName, con
 	for( int i = 0; i < formatCount; i++ )
 	{
 		format[i].type = PkDspyFloat32 | PkDspyByteOrderNative;
-		//format[i].type = PkDspyFloat32;
-		//format[i].type = PkDspyUnsigned8;
-		std::cerr << "FORMAT " << i << " " << format[i].name << std::endl;
 	}
 
 	// Process the parameter list. We use some of the parameters to help determine
@@ -236,11 +233,6 @@ PtDspyError DspyImageOpen( PtDspyImageHandle *image, const char *driverName, con
 
 	// Create the display driver
 
-	for( int i = 0; i < (int)channels.size(); ++i )
-	{
-		std::cerr << "CHANNEL " << i << " : " << channels[i] << std::endl;
-	}
-
 	IECoreImage::DisplayDriverPtr dd = nullptr;
 	try
 	{
@@ -276,8 +268,6 @@ PtDspyError DspyImageOpen( PtDspyImageHandle *image, const char *driverName, con
 PtDspyError DspyImageQuery( PtDspyImageHandle image, PtDspyQueryType type, int size, void *data )
 {
 	IECoreImage::DisplayDriver *dd = static_cast<IECoreImage::DisplayDriver *>( image );
-
-	std::cerr << "QUERY " << type << std::endl;
 
 	if( type == PkRedrawQuery )
 	{

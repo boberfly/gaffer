@@ -56,11 +56,11 @@ class RendererTest( GafferTest.TestCase ) :
 
 	def testSceneDescription( self ) :
 
-		with self.assertRaisesRegexp( RuntimeError, "SceneDescription mode not supported" ) :
+		with self.assertRaisesRegex( RuntimeError, "SceneDescription mode not supported" ) :
 			GafferScene.Private.IECoreScenePreview.Renderer.create(
 				"RenderMan",
 				GafferScene.Private.IECoreScenePreview.Renderer.RenderType.SceneDescription,
-				self.temporaryDirectory() / "test.rib"
+				( self.temporaryDirectory() / "test.rib" ).as_posix()
 			)
 
 	def testOutput( self ) :

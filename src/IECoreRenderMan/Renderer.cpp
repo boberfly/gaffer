@@ -376,7 +376,6 @@ class RenderManGlobals : public boost::noncopyable
 
 			if( char *p = getenv( "RMAN_DISPLAYS_PATH" ) )
 			{
-				std::cerr << "PATH " << p << std::endl;
 				string searchPath = string( p ) + ":@";
 				m_options.SetString( Rix::k_searchpath_display, RtUString( searchPath.c_str() ) );
 			}
@@ -651,7 +650,6 @@ class RenderManGlobals : public boost::noncopyable
 
 			if( m_cameraId == riley::CameraId::InvalidId() )
 			{
-				std::cerr << "CREATING CAMERA " << (int)camera->projection().type << " " << camera->projection().name.CStr() << std::endl;
 				m_cameraId = m_session->riley->CreateCamera(
 					riley::UserId(),
 					RtUString( "ieCoreRenderMan:camera" ),
@@ -659,7 +657,6 @@ class RenderManGlobals : public boost::noncopyable
 					camera->cameraToWorldTransform(),
 					camera->parameters()
 				);
-				std::cerr << "CREATEDCAMERA " << m_cameraId.AsUInt32() << std::endl;
 				//m_session->riley->SetDefaultDicingCamera( m_cameraId );
 			}
 			else
@@ -678,8 +675,6 @@ class RenderManGlobals : public boost::noncopyable
 		void updateRenderView()
 		{
 			// TODO. SUPPORT EDITS.
-
-			std::cerr << "UPDATING RENDER VIEW" << std::endl;
 
 			struct DisplayDefinition
 			{
@@ -755,8 +750,6 @@ class RenderManGlobals : public boost::noncopyable
 					{ m_renderOutputs.begin() + firstRenderOutputIndex, m_renderOutputs.end() },
 					driverParamList
 				} );
-
-				std::cerr << "DISPLAY " << name << " " << displayDefinitions.back().outputs.size() << std::endl;
 			}
 
 			// TODO : HOW DOES THIS RELATE TO THE FORMAT OPTION???
@@ -771,15 +764,8 @@ class RenderManGlobals : public boost::noncopyable
 				RtParamList()
 			);
 
-			std::cerr << "TARGET SIZE IS " << m_renderOutputs.size() << std::endl;
-
 			for( const auto &definition : displayDefinitions )
 			{
-				std::cerr << "MAKING DISPLAY " << std::endl;
-				for( const auto &x : definition.outputs )
-				{
-					std::cerr << "    OUTPUT " << x.AsUInt32() << std::endl;
-				}
 				m_displays.push_back(
 					m_session->riley->CreateDisplay(
 						riley::UserId(),
@@ -791,8 +777,6 @@ class RenderManGlobals : public boost::noncopyable
 					)
 				);
 			}
-
-			std::cerr << "MADE " << m_displays.size() << "DISPLAYS" << std::endl;
 
 			m_renderView = m_session->riley->CreateRenderView(
 				riley::UserId(),
