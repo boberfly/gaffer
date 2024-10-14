@@ -53,11 +53,6 @@ class InteractiveRenderManRenderTest( GafferSceneTest.InteractiveRenderTest ) :
 		pass
 
 	@unittest.skip( "Feature not supported yet" )
-	def testEditResolution( self ) :
-
-		pass
-
-	@unittest.skip( "Feature not supported yet" )
 	def testLightFilters( self ) :
 
 		pass
