@@ -42,6 +42,8 @@
 
 #include "Riley.h"
 
+#include "tbb/concurrent_hash_map.h"
+
 namespace IECoreRenderMan::Renderer
 {
 
@@ -61,12 +63,21 @@ struct Session : public IECore::RefCounted
 
 	void setOptions( const RtParamList &options );
 
+	// Camera collaborates with Session to maintain a map of cameras currently
+	// in existence. This is used by Globals when creating the RenderView.
+	void addCamera( const std::string &name, riley::CameraId camera );
+	riley::CameraId getCamera( const std::string &name ) const;
+	void removeCamera( const std::string &name );
+
 	riley::Riley *riley;
 	const IECoreScenePreview::Renderer::RenderType renderType;
 
 	private :
 
 		bool m_optionsSet;
+
+		using CameraMap = tbb::concurrent_hash_map<std::string, riley::CameraId>;
+		CameraMap m_cameras;
 
 };
 

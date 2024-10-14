@@ -34,65 +34,43 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
+#pragma once
+
 #include "Session.h"
 
-using namespace std;
-using namespace IECoreRenderMan::Renderer;
+#include "GafferScene/Private/IECoreScenePreview/Renderer.h"
 
-Session::Session( IECoreScenePreview::Renderer::RenderType renderType )
-	:	riley( nullptr ), renderType( renderType ), m_optionsSet( false )
+#include "IECore/RefCounted.h"
+
+#include "Riley.h"
+
+namespace IECoreRenderMan::Renderer
 {
-	/// \todo What is the `rileyVariant` argument for? XPU?
-	auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
 
-	// `argv[0]==""`  prevents RenderMan doing its own signal handling.
-	vector<const char *> args = { "prman" }; // TODO : REVERT TO "". BUT YOU'RE GETTING SOME USEFUL OUTPUT WITHOUT FOR NOW.
-	PRManSystemBegin( args.size(), args.data() );
-	// TODO : THERE CAN ONLY BE ONE OF THESE. SO WE'RE GOING TO NEED TO PREVENT
-	// THE CREATION OF TWO RENDERERS AT ONCE.
-	PRManRenderBegin( args.size(), args.data() );
-
-	riley = rileyManager->CreateRiley( RtUString(), RtParamList() );
-}
-
-Session::~Session()
+class Camera :  public IECoreScenePreview::Renderer::ObjectInterface
 {
-	if( !m_optionsSet )
-	{
-		// Riley crashes if you don't call `SetOptions()` before destruction.
-		riley->SetOptions( RtParamList() );
-	}
 
-	auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
-	rileyManager->DestroyRiley( riley );
+	public :
 
-	PRManRenderEnd();
-	PRManSystemEnd();
-}
+		Camera( const std::string &name, const IECoreScene::Camera *camera, const SessionPtr &session );
+		~Camera();
 
-void Session::setOptions( const RtParamList &options )
-{
-	riley->SetOptions( options );
-	m_optionsSet = true;
-}
+		void transform( const Imath::M44f &transform ) override;
+		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override;
+		bool attributes( const IECoreScenePreview::Renderer::AttributesInterface *attributes ) override;
+		void link( const IECore::InternedString &type, const IECoreScenePreview::Renderer::ConstObjectSetPtr &objects ) override;
+		void assignID( uint32_t id ) override;
 
-void Session::addCamera( const std::string &name, riley::CameraId camera )
-{
-	m_cameras.insert( { name, camera } );
-}
+	private :
 
-riley::CameraId Session::getCamera( const std::string &name ) const
-{
-	CameraMap::const_accessor a;
-	if( m_cameras.find( a, name ) )
-	{
-		return a->second;
-	}
+		void transformInternal( std::vector<Imath::M44f> samples, const std::vector<float> &times );
 
-	return riley::CameraId::InvalidId();
-}
+		const SessionPtr m_session;
+		const std::string m_name;
+		riley::CameraId m_cameraId;
 
-void Session::removeCamera( const std::string &name )
-{
-	m_cameras.erase( name );
-}
+};
+
+IE_CORE_DECLAREPTR( Camera );
+
+} // namespace IECoreRenderMan::Renderer

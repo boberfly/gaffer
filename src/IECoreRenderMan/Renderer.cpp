@@ -36,6 +36,7 @@
 
 #include "GeometryAlgo.h"
 #include "ParamListAlgo.h"
+#include "Renderer/Camera.h"
 #include "Renderer/Session.h"
 
 #include "GafferScene/Private/IECoreScenePreview/Renderer.h"
@@ -151,144 +152,6 @@ static riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
 } // namespace
 
 //////////////////////////////////////////////////////////////////////////
-// RenderManCamera
-//////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-
-class RenderManCamera :  public IECoreScenePreview::Renderer::ObjectInterface
-{
-
-	public :
-
-		// We deliberately do not pass a `Riley *` here. Trying to make parallel
-		// calls of any sort before `RenderManGlobals::ensureWorld()` will trigger
-		// RenderMan crashes, so we must bide our time and convert things later.
-		RenderManCamera( const IECoreScene::Camera *camera, const std::function<void ()> &destructor = std::function<void ()>() )
-			:	m_destructor( destructor )
-		{
-			// Options
-
-			const V2i resolution = camera->getResolution();
-			m_options.SetIntegerArray( Rix::k_Ri_FormatResolution, resolution.getValue(), 2 );
-			m_options.SetFloat( Rix::k_Ri_FormatPixelAspectRatio, camera->getPixelAspectRatio() );
-
-			const V2f shutter = camera->getShutter();
-			m_options.SetFloatArray( Rix::k_Ri_Shutter, shutter.getValue(), 2 );
-
-			// Parameters
-
-			m_parameters.SetFloat( Rix::k_nearClip, camera->getClippingPlanes()[0] );
-			m_parameters.SetFloat( Rix::k_farClip, camera->getClippingPlanes()[1] );
-
-			// Projection
-
-			/// \todo Fill projection from camera
-			m_projectionParameters.SetFloat( Rix::k_fov, 35.0f );
-
-			m_projection = {
-				riley::ShadingNode::Type::k_Projection, RtUString( "PxrCamera" ),
-				RtUString( "projection" ), m_projectionParameters
-			};
-
-			transform( M44f() );
-		}
-
-		~RenderManCamera()
-		{
-			if( m_destructor )
-			{
-				m_destructor();
-			}
-		}
-
-		const riley::ShadingNode &projection() const
-		{
-			return m_projection;
-		}
-
-		const riley::Transform &cameraToWorldTransform() const
-		{
-			return m_cameraToWorldTransform;
-		}
-
-		const RtParamList &parameters() const
-		{
-			return m_parameters;
-		}
-
-		const RtParamList &options() const
-		{
-			return m_options;
-		}
-
-		// ObjectInterface methods
-		// =======================
-
-		void transform( const Imath::M44f &transform ) override
-		{
-			transformInternal( { transform }, { 0.0f } );
-		}
-
-		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override
-		{
-			transformInternal( samples, times );
-		}
-
-		bool attributes( const IECoreScenePreview::Renderer::AttributesInterface *attributes ) override
-		{
-			return true;
-		}
-
-		void link( const IECore::InternedString &type, const IECoreScenePreview::Renderer::ConstObjectSetPtr &objects ) override
-		{
-		}
-
-		void assignID( uint32_t id ) override
-		{
-			// TODO
-		}
-
-	private :
-
-		void transformInternal( const std::vector<Imath::M44f> &samples, const std::vector<float> &times )
-		{
-			m_transformSamples = samples;
-			for( auto &m : m_transformSamples )
-			{
-				m = M44f().scale( V3f( 1, 1, -1 ) ) * m;
-			}
-
-			m_transformTimes = times;
-
-			m_cameraToWorldTransform.samples = m_transformSamples.size();
-			m_cameraToWorldTransform.matrix = reinterpret_cast<const RtMatrix4x4 *>( m_transformSamples.data() );
-			m_cameraToWorldTransform.time = m_transformTimes.data();
-		}
-
-		RtUString m_name;
-
-		RtParamList m_options;
-
-		riley::ShadingNode m_projection;
-		RtParamList m_projectionParameters;
-
-		riley::Transform m_cameraToWorldTransform;
-		vector<M44f> m_transformSamples;
-		vector<float> m_transformTimes;
-
-		RtParamList m_parameters;
-
-		std::function<void ()> m_destructor;
-
-};
-
-IE_CORE_DECLAREPTR( RenderManCamera );
-
-} // namespace
-
-//////////////////////////////////////////////////////////////////////////
 // RenderManGlobals
 //////////////////////////////////////////////////////////////////////////
 
@@ -308,11 +171,8 @@ class RenderManGlobals : public boost::noncopyable
 
 		RenderManGlobals( const IECoreRenderMan::Renderer::SessionPtr &session )
 			:	m_session( session ), m_options(),
-				m_cameraId( riley::CameraId::InvalidId() ),
 				m_expectedWorldBeginThreadId( std::this_thread::get_id() ), m_worldBegun( false )
 		{
-			IECoreScene::ConstCameraPtr defaultCamera = new IECoreScene::Camera();
-			m_defaultCamera = new RenderManCamera( defaultCamera.get() );
 			m_integrator = new Shader( "PxrPathTracer", "renderman:integrator" );
 
 			if( char *p = getenv( "RMAN_DISPLAYS_PATH" ) )
@@ -452,19 +312,6 @@ class RenderManGlobals : public boost::noncopyable
 			}
 		}
 
-		RenderManCameraPtr camera( const std::string &name, const IECoreScene::Camera *camera )
-		{
-			std::function<void ()> destructor;
-			if( m_session->renderType == IECoreScenePreview::Renderer::Interactive )
-			{
-				destructor = [this, name]{ m_cameras.erase( name ); };
-			}
-
-			RenderManCameraPtr result = new RenderManCamera( camera, destructor );
-			m_cameras.insert( { name, result } );
-			return result;
-		}
-
 		// TODO : UPDATE WHEN YOU FIGURE OUT THE NEW RESTRICTIONS
 		//
 		// Despite being designed as a modern edit-anything-at-any-time renderer API,
@@ -512,8 +359,6 @@ class RenderManGlobals : public boost::noncopyable
 
 			m_session->setOptions( m_options );
 
-			updateCamera();
-
 			// Make integrator
 
 			RtParamList integratorParams;
@@ -536,7 +381,6 @@ class RenderManGlobals : public boost::noncopyable
 		void render()
 		{
 			ensureWorld();
-			//updateCamera();
 
 			switch( m_session->renderType )
 			{
@@ -578,43 +422,30 @@ class RenderManGlobals : public boost::noncopyable
 			return m_worldBegun;
 		}
 
-		void updateCamera()
-		{
-			const RenderManCamera *camera = m_defaultCamera.get();
-			CameraMap::const_accessor a;
-			if( m_cameras.find( a, m_cameraOption ) )
-			{
-				camera = a->second.get();
-			}
-
-			//m_options.Update( camera->options() );
-
-			if( m_cameraId == riley::CameraId::InvalidId() )
-			{
-				m_cameraId = m_session->riley->CreateCamera(
-					riley::UserId(),
-					RtUString( "ieCoreRenderMan:camera" ),
-					camera->projection(),
-					camera->cameraToWorldTransform(),
-					camera->parameters()
-				);
-				//m_session->riley->SetDefaultDicingCamera( m_cameraId );
-			}
-			else
-			{
-				/// \todo Is there any benefit in sending edits
-				/// only for the things that have changed?
-				m_session->riley->ModifyCamera(
-					m_cameraId,
-					&camera->projection(),
-					&camera->cameraToWorldTransform(),
-					&camera->parameters()
-				);
-			}
-		}
-
 		void updateRenderView()
 		{
+			// Find camera
+
+			riley::CameraId camera = m_session->getCamera( m_cameraOption );
+			if( camera == riley::CameraId::InvalidId() )
+			{
+				if( m_defaultCamera == riley::CameraId::InvalidId() )
+				{
+					m_defaultCamera = m_session->riley->CreateCamera(
+						riley::UserId(),
+						RtUString( "ieCoreRenderMan:defaultCamera" ),
+						/// \todo Projection? Pointing wrong way?
+						{
+							riley::ShadingNode::Type::k_Projection, RtUString( "PxrCamera" ),
+							RtUString( "projection" ), RtParamList()
+						},
+						StaticTransform( M44f() ),
+						RtParamList()
+					);
+				}
+				camera = m_defaultCamera;
+			}
+
 			// TODO. SUPPORT EDITS.
 
 			struct DisplayDefinition
@@ -722,7 +553,7 @@ class RenderManGlobals : public boost::noncopyable
 			m_renderView = m_session->riley->CreateRenderView(
 				riley::UserId(),
 				m_renderTarget,
-				m_cameraId,
+				camera,
 				m_integratorId,
 				{ 0, nullptr },
 				{ 0, nullptr },
@@ -740,10 +571,7 @@ class RenderManGlobals : public boost::noncopyable
 		riley::IntegratorId m_integratorId;
 
 		std::string m_cameraOption;
-		using CameraMap = tbb::concurrent_hash_map<std::string, ConstRenderManCameraPtr>;
-		CameraMap m_cameras;
-		RenderManCameraPtr m_defaultCamera;
-		riley::CameraId m_cameraId;
+		riley::CameraId m_defaultCamera;
 
 		std::vector<riley::RenderOutputId> m_renderOutputs;
 		std::vector<riley::DisplayId> m_displays;
@@ -1470,7 +1298,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 		ObjectInterfacePtr camera( const std::string &name, const IECoreScene::Camera *camera, const AttributesInterface *attributes ) override
 		{
-			RenderManCameraPtr result = m_globals->camera( name, camera );
+			IECoreRenderMan::Renderer::CameraPtr result = new IECoreRenderMan::Renderer::Camera( name, camera, m_session );
 			result->attributes( attributes );
 			return result;
 		}
