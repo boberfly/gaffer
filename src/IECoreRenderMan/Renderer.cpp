@@ -166,53 +166,13 @@ struct Session : public IECore::RefCounted
 		auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
 
 		// `argv[0]==""`  prevents RenderMan doing its own signal handling.
-		vector<const char *> args = { "prman" }; // TODO : REVERT TO "". BUT YOU'RE GETTING SOME USEFUL OUTPUT WITHOUT.
+		vector<const char *> args = { "prman" }; // TODO : REVERT TO "". BUT YOU'RE GETTING SOME USEFUL OUTPUT WITHOUT FOR NOW.
 		PRManSystemBegin( args.size(), args.data() );
 		// TODO : THERE CAN ONLY BE ONE OF THESE. SO WE'RE GOING TO NEED TO PREVENT
 		// THE CREATION OF TWO RENDERERS AT ONCE.
 		PRManRenderBegin( args.size(), args.data() );
 
 		riley = rileyManager->CreateRiley( RtUString(), RtParamList() );
-
-
-
-		// RtParamList options;
-		// // int resolution[2] = { 640, 480 };
-
-	    // // options.SetIntegerArray(
-		// // 	Rix::k_Ri_FormatResolution,
-		// // 	resolution, 2
-		// // );
-		// // options.SetFloat(
-        // // 	Rix::k_Ri_FormatPixelAspectRatio,
-        // // 	1.0f
-		// // );
-
-		// riley->SetOptions( options );
-
-		// RtParamList cp;
-		// cp.SetFloat( Rix::k_fov, 35.0f );
-
-		// riley::ShadingNode projectionShader = {
-		// 	riley::ShadingNode::Type::k_Projection, RtUString( "PxrCamera" ),
-		// 	RtUString( "projection" ), cp
-		// };
-
-		// auto c = riley->CreateCamera(
-		// 	riley::UserId(), RtUString( "myLovelyCamera" ),
-		// 	projectionShader, StaticTransform(), RtParamList()
-		// );
-
-		// std::cerr << "INVALID CAMERA " << riley::CameraId().AsUInt32() << " " << riley::CameraId::InvalidId().AsUInt32() << std::endl;
-		// std::cerr << "FIRST CAMERA " << c.AsUInt32() << " " << ( c != riley::CameraId() ) << std::endl;
-
-		// auto c2 = riley->CreateCamera(
-		// 	riley::UserId(), RtUString( "myLovelyCamera2" ),
-		// 	projectionShader, StaticTransform(), RtParamList()
-		// );
-
-		// std::cerr << "SECOND CAMERA " << c2.AsUInt32() << " " << ( c2 != riley::CameraId() ) << std::endl;
-
 	}
 
 	~Session()
