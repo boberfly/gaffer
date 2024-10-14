@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2018, John Haddon. All rights reserved.
+#  Copyright (c) 2024, Cinesite VFX Ltd. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -34,13 +34,16 @@
 #
 ##########################################################################
 
-from .RenderManShaderTest import RenderManShaderTest
-from .RenderManLightTest import RenderManLightTest
-from .InteractiveRenderManRenderTest import InteractiveRenderManRenderTest
-from .RenderManRenderTest import RenderManRenderTest
-from .TagPlugTest import TagPlugTest
-from .ModuleTest import ModuleTest
+import unittest
+
+import IECoreRenderMan
+
+import GafferSceneTest
+
+class RenderManRenderTest( GafferSceneTest.RenderTest ) :
+
+	renderer = "RenderMan"
+	#sceneDescriptionSuffix = ".ass"
 
 if __name__ == "__main__":
-	import unittest
 	unittest.main()
