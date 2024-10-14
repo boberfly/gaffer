@@ -76,12 +76,14 @@ void Session::setOptions( const RtParamList &options )
 	m_optionsSet = true;
 }
 
-void Session::addCamera( const std::string &name, riley::CameraId camera )
+void Session::addCamera( const std::string &name, const CameraInfo &camera )
 {
-	m_cameras.insert( { name, camera } );
+	CameraMap::accessor a;
+	m_cameras.insert( a, name );
+	a->second = camera;
 }
 
-riley::CameraId Session::getCamera( const std::string &name ) const
+Session::CameraInfo Session::getCamera( const std::string &name ) const
 {
 	CameraMap::const_accessor a;
 	if( m_cameras.find( a, name ) )
@@ -89,7 +91,7 @@ riley::CameraId Session::getCamera( const std::string &name ) const
 		return a->second;
 	}
 
-	return riley::CameraId::InvalidId();
+	return { riley::CameraId::InvalidId(), nullptr };
 }
 
 void Session::removeCamera( const std::string &name )

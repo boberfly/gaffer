@@ -63,10 +63,16 @@ struct Session : public IECore::RefCounted
 
 	void setOptions( const RtParamList &options );
 
-	// Camera collaborates with Session to maintain a map of cameras currently
-	// in existence. This is used by Globals when creating the RenderView.
-	void addCamera( const std::string &name, riley::CameraId camera );
-	riley::CameraId getCamera( const std::string &name ) const;
+	struct CameraInfo
+	{
+		riley::CameraId id;
+		IECoreScene::ConstCameraPtr source;
+	};
+
+	/// `Camera` collaborates with `Session` to maintain a map of cameras currently
+	/// in existence. This is used by `Globals` when creating the `riley::RenderView`.
+	void addCamera( const std::string &name, const CameraInfo &camera );
+	CameraInfo getCamera( const std::string &name ) const;
 	void removeCamera( const std::string &name );
 
 	riley::Riley *riley;
@@ -76,7 +82,7 @@ struct Session : public IECore::RefCounted
 
 		bool m_optionsSet;
 
-		using CameraMap = tbb::concurrent_hash_map<std::string, riley::CameraId>;
+		using CameraMap = tbb::concurrent_hash_map<std::string, CameraInfo>;
 		CameraMap m_cameras;
 
 };

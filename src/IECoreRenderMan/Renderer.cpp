@@ -171,6 +171,7 @@ class RenderManGlobals : public boost::noncopyable
 
 		RenderManGlobals( const IECoreRenderMan::Renderer::SessionPtr &session )
 			:	m_session( session ), m_options(),
+				m_renderTargetResolution( -1 ),
 				m_expectedWorldBeginThreadId( std::this_thread::get_id() ), m_worldBegun( false )
 		{
 			m_integrator = new Shader( "PxrPathTracer", "renderman:integrator" );
@@ -201,19 +202,19 @@ class RenderManGlobals : public boost::noncopyable
 
 		void option( const IECore::InternedString &name, const IECore::Object *value )
 		{
-			if( worldBegun() && name != g_cameraOption )
-			{
-				if( name != "frame" ) /// \todo Stop RenderController outputting frame unnecessarily
-				{
-					msg(
-						IECore::Msg::Warning, "RenderManRender::option",
-						boost::str(
-							boost::format( "Unable to edit option \"%s\" (RenderMan limitation)" ) % name
-						)
-					);
-				}
-				return;
-			}
+			// if( worldBegun() && name != g_cameraOption )
+			// {
+			// 	if( name != "frame" ) /// \todo Stop RenderController outputting frame unnecessarily
+			// 	{
+			// 		msg(
+			// 			IECore::Msg::Warning, "RenderManRender::option",
+			// 			boost::str(
+			// 				boost::format( "Unable to edit option \"%s\" (RenderMan limitation)" ) % name
+			// 			)
+			// 		);
+			// 	}
+			// 	return;
+			// }
 
 			if( name == g_integratorOption )
 			{
@@ -225,6 +226,7 @@ class RenderManGlobals : public boost::noncopyable
 				else if( auto *network = reportedCast<const ShaderNetwork>( value, "option", name ) )
 				{
 					m_integrator = network->outputShader();
+					/// TODO : DELETE RENDER VIEW
 				}
 			}
 			else if( name == g_cameraOption )
@@ -296,12 +298,6 @@ class RenderManGlobals : public boost::noncopyable
 
 		void output( const IECore::InternedString &name, const Output *output )
 		{
-			if( worldBegun() )
-			{
-				msg( IECore::Msg::Warning, "RenderManRender::output", "Unable to edit output (RenderMan limitation)" );
-				return;
-			}
-
 			if( output )
 			{
 				m_outputs[name] = output;
@@ -310,6 +306,8 @@ class RenderManGlobals : public boost::noncopyable
 			{
 				m_outputs.erase( name );
 			}
+
+			deleteRenderView();
 		}
 
 		// TODO : UPDATE WHEN YOU FIGURE OUT THE NEW RESTRICTIONS
@@ -372,15 +370,13 @@ class RenderManGlobals : public boost::noncopyable
 			};
 
 			m_integratorId = m_session->riley->CreateIntegrator( riley::UserId(), integratorNode );
-
-			updateRenderView();
-
 			m_worldBegun = true;
 		}
 
 		void render()
 		{
 			ensureWorld();
+			updateRenderView();
 
 			switch( m_session->renderType )
 			{
@@ -424,11 +420,13 @@ class RenderManGlobals : public boost::noncopyable
 
 		void updateRenderView()
 		{
-			// Find camera
+			// Find camera.
 
-			riley::CameraId camera = m_session->getCamera( m_cameraOption );
-			if( camera == riley::CameraId::InvalidId() )
+			IECoreRenderMan::Renderer::Session::CameraInfo camera = m_session->getCamera( m_cameraOption );
+			if( camera.id == riley::CameraId::InvalidId() )
 			{
+				/// \todo Should the Camera and/or Session class be responsible for
+				/// providing a default camera?
 				if( m_defaultCamera == riley::CameraId::InvalidId() )
 				{
 					m_defaultCamera = m_session->riley->CreateCamera(
@@ -443,10 +441,35 @@ class RenderManGlobals : public boost::noncopyable
 						RtParamList()
 					);
 				}
-				camera = m_defaultCamera;
+				camera.id = m_defaultCamera;
+				camera.source = new IECoreScene::Camera();
 			}
 
-			// TODO. SUPPORT EDITS.
+			const Imath::V2i resolution = camera.source->renderResolution();
+
+			// If we still have a render view, then it is valid from
+			// `m_outputs`, and all we need to do is update the camera and
+			// resolution.
+
+			if( m_renderView != riley::RenderViewId::InvalidId() )
+			{
+				if( resolution != m_renderTargetResolution )
+				{
+					// Must only modify this if it has actually changed, because it causes
+					// Riley to close and reopen all the display drivers.
+					const riley::Extent extent = { (uint32_t)resolution[0], (uint32_t)resolution[1], 0 };
+					m_session->riley->ModifyRenderTarget(
+						m_renderTarget, nullptr, &extent, nullptr, nullptr, nullptr
+					);
+					m_renderTargetResolution = resolution;
+				}
+				m_session->riley->ModifyRenderView(
+					m_renderView, nullptr, &camera.id, nullptr, nullptr, nullptr, nullptr
+				);
+				return;
+			}
+
+			// Otherwise we need to build the render view from out list of outputs.
 
 			struct DisplayDefinition
 			{
@@ -524,17 +547,17 @@ class RenderManGlobals : public boost::noncopyable
 				} );
 			}
 
-			// TODO : HOW DOES THIS RELATE TO THE FORMAT OPTION???
-			riley::Extent resolution = { 640, 480, 0 }; // DOCS SAY 0, HDPRMAN SAYS 1
-
 			m_renderTarget = m_session->riley->CreateRenderTarget(
 				riley::UserId(),
 				{ (uint32_t)m_renderOutputs.size(), m_renderOutputs.data() },
-				resolution,
+				// Why must the resolution be specified both here _and_ via the
+				// `k_Ri_FormatResolution` option? Riley only knows.
+				{ (uint32_t)resolution[0], (uint32_t)resolution[1], 0 },
 				RtUString( "importance" ),
 				0.015f,
 				RtParamList()
 			);
+			m_renderTargetResolution = resolution;
 
 			for( const auto &definition : displayDefinitions )
 			{
@@ -553,12 +576,67 @@ class RenderManGlobals : public boost::noncopyable
 			m_renderView = m_session->riley->CreateRenderView(
 				riley::UserId(),
 				m_renderTarget,
-				camera,
+				camera.id,
 				m_integratorId,
 				{ 0, nullptr },
 				{ 0, nullptr },
 				RtParamList()
 			);
+
+		}
+
+		void deleteRenderView()
+		{
+			if( m_renderView == riley::RenderViewId::InvalidId() )
+			{
+				return;
+			}
+
+			m_session->riley->DeleteRenderView( m_renderView );
+			m_renderView = riley::RenderViewId::InvalidId();
+
+			for( const auto &display : m_displays )
+			{
+				m_session->riley->DeleteDisplay( display );
+			}
+			m_displays.clear();
+
+			m_session->riley->DeleteRenderTarget( m_renderTarget );
+			m_renderTarget = riley::RenderTargetId::InvalidId();
+
+			for( const auto &renderOutput : m_renderOutputs )
+			{
+				m_session->riley->DeleteRenderOutput( renderOutput );
+			}
+			m_renderOutputs.clear();
+		}
+
+		void updateCameraOptions()
+		{
+			/// TODO : MAKE THIS HAPPEN SOMEHOW
+
+			///m_options.SetIntegerArray( Rix::k_Ri_FormatResolution, resolution.getValue(), 2 );
+
+			//    const GfVec2i res = GetResolutionFromDisplayWindow();
+
+			//     options->SetIntegerArray(
+			//         RixStr.k_Ri_FormatResolution,
+			//         res.data(), 2);
+
+			//     // Compute how the data window sits in the display window.
+			//     const GfVec4f cropWindow =
+			//         _ComputeCropWindow(
+			//             _framing.dataWindow,
+			//             _framing.displayWindow.GetMin(),
+			//             res);
+
+			//     options->SetFloatArray(
+			//         RixStr.k_Ri_CropWindow,
+			//         cropWindow.data(), 4);
+
+			//     options->SetFloat(
+			//         RixStr.k_Ri_FormatPixelAspectRatio,
+			//         _framing.pixelAspectRatio);
 
 		}
 
@@ -576,6 +654,7 @@ class RenderManGlobals : public boost::noncopyable
 		std::vector<riley::RenderOutputId> m_renderOutputs;
 		std::vector<riley::DisplayId> m_displays;
 		riley::RenderTargetId m_renderTarget;
+		Imath::V2i m_renderTargetResolution;
 		riley::RenderViewId m_renderView;
 
 		tbb::spin_mutex m_worldBeginMutex;

@@ -100,7 +100,7 @@ Camera::Camera( const std::string &name, const IECoreScene::Camera *camera, cons
 		paramList
 	);
 
-	m_session->addCamera( name, m_cameraId );
+	m_session->addCamera( name, { m_cameraId, camera } );
 }
 
 Camera::~Camera()
