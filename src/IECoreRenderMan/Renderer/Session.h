@@ -66,12 +66,13 @@ struct Session : public IECore::RefCounted
 	struct CameraInfo
 	{
 		riley::CameraId id;
-		IECoreScene::ConstCameraPtr source;
+		RtParamList options;
 	};
 
 	/// `Camera` collaborates with `Session` to maintain a map of cameras currently
 	/// in existence. This is used by `Globals` when creating the `riley::RenderView`.
 	void addCamera( const std::string &name, const CameraInfo &camera );
+	/// \todo Should we return `const &`?
 	CameraInfo getCamera( const std::string &name ) const;
 	void removeCamera( const std::string &name );
 

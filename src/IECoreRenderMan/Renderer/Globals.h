@@ -108,7 +108,7 @@ class Globals : public boost::noncopyable
 		std::vector<riley::RenderOutputId> m_renderOutputs;
 		std::vector<riley::DisplayId> m_displays;
 		riley::RenderTargetId m_renderTarget;
-		Imath::V2i m_renderTargetResolution;
+		riley::Extent m_renderTargetExtent;
 		riley::RenderViewId m_renderView;
 
 		tbb::spin_mutex m_worldBeginMutex;

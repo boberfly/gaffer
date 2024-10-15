@@ -61,9 +61,6 @@ class Camera :  public IECoreScenePreview::Renderer::ObjectInterface
 		void link( const IECore::InternedString &type, const IECoreScenePreview::Renderer::ConstObjectSetPtr &objects ) override;
 		void assignID( uint32_t id ) override;
 
-		/// Translates camera parameters to Riley options, including format and crop window.
-		static void options( const IECoreScene::Camera *camera, RtParamList &options );
-
 	private :
 
 		void transformInternal( std::vector<Imath::M44f> samples, const std::vector<float> &times );

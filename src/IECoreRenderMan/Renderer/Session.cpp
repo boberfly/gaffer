@@ -91,7 +91,7 @@ Session::CameraInfo Session::getCamera( const std::string &name ) const
 		return a->second;
 	}
 
-	return { riley::CameraId::InvalidId(), nullptr };
+	return { riley::CameraId::InvalidId(), RtParamList() };
 }
 
 void Session::removeCamera( const std::string &name )

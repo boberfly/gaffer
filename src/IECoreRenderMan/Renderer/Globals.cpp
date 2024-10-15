@@ -93,7 +93,7 @@ struct IdentityTransform : riley::Transform
 
 Globals::Globals( const IECoreRenderMan::Renderer::SessionPtr &session )
 	:	m_session( session ), m_options(),
-		m_renderTargetResolution( -1 ),
+		m_renderTargetExtent(),
 		m_expectedWorldBeginThreadId( std::this_thread::get_id() ), m_worldBegun( false )
 {
 	m_integrator = new Shader( "PxrPathTracer", "renderman:integrator" );
@@ -300,6 +300,11 @@ void Globals::render()
 	ensureWorld();
 	updateRenderView();
 
+	/// \todo Is it worth avoiding this work when nothing has changed?
+	IECoreRenderMan::Renderer::Session::CameraInfo camera = m_session->getCamera( m_cameraOption );
+	m_options.Update( camera.options );
+	m_session->setOptions( m_options );
+
 	switch( m_session->renderType )
 	{
 		case IECoreScenePreview::Renderer::Batch : {
@@ -363,26 +368,29 @@ void Globals::updateRenderView()
 			);
 		}
 		camera.id = m_defaultCamera;
-		camera.source = new IECoreScene::Camera();
 	}
 
-	const Imath::V2i resolution = camera.source->renderResolution();
+	riley::Extent extent = { 640, 480, 0 };
+	if( auto *resolution = camera.options.GetIntegerArray( Rix::k_Ri_FormatResolution, 2 ) )
+	{
+		extent.x = resolution[0];
+		extent.y = resolution[1];
+	}
 
-	// If we still have a render view, then it is valid from
+	// If we still have a render view, then it is valid for
 	// `m_outputs`, and all we need to do is update the camera and
 	// resolution.
 
 	if( m_renderView != riley::RenderViewId::InvalidId() )
 	{
-		if( resolution != m_renderTargetResolution )
+		if( extent.x != m_renderTargetExtent.x || extent.y != m_renderTargetExtent.y )
 		{
 			// Must only modify this if it has actually changed, because it causes
 			// Riley to close and reopen all the display drivers.
-			const riley::Extent extent = { (uint32_t)resolution[0], (uint32_t)resolution[1], 0 };
 			m_session->riley->ModifyRenderTarget(
 				m_renderTarget, nullptr, &extent, nullptr, nullptr, nullptr
 			);
-			m_renderTargetResolution = resolution;
+			m_renderTargetExtent = extent;
 		}
 		m_session->riley->ModifyRenderView(
 			m_renderView, nullptr, &camera.id, nullptr, nullptr, nullptr, nullptr
@@ -473,12 +481,12 @@ void Globals::updateRenderView()
 		{ (uint32_t)m_renderOutputs.size(), m_renderOutputs.data() },
 		// Why must the resolution be specified both here _and_ via the
 		// `k_Ri_FormatResolution` option? Riley only knows.
-		{ (uint32_t)resolution[0], (uint32_t)resolution[1], 0 },
+		extent,
 		RtUString( "importance" ),
 		0.015f,
 		RtParamList()
 	);
-	m_renderTargetResolution = resolution;
+	m_renderTargetExtent = extent;
 
 	for( const auto &definition : displayDefinitions )
 	{
