@@ -309,6 +309,7 @@ void Globals::render()
 			break;
 		}
 		case IECoreScenePreview::Renderer::Interactive :
+			/// \todo Would it reduce latency if we reused the same thread?
 			m_interactiveRenderThread = std::thread(
 				[this] {
 					RtParamList renderOptions;
