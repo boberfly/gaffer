@@ -39,6 +39,8 @@
 #include "GeometryAlgo.h"
 #include "Globals.h"
 #include "Material.h"
+#include "Globals.h"
+#include "Object.h"
 #include "ParamListAlgo.h"
 #include "Session.h"
 #include "Transform.h"
@@ -62,127 +64,6 @@ namespace
 {
 
 static riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
-
-} // namespace
-
-//////////////////////////////////////////////////////////////////////////
-// RenderManObject
-//////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-
-class RenderManObject : public IECoreScenePreview::Renderer::ObjectInterface
-{
-
-	public :
-
-		RenderManObject( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, const ConstSessionPtr &session )
-			:	m_session( session ), m_geometryInstance( riley::GeometryInstanceId::InvalidId() )
-		{
-			if( geometryPrototype != riley::GeometryPrototypeId::InvalidId() )
-			{
-				m_material = attributes->material();
-				m_geometryInstance = m_session->riley->CreateGeometryInstance(
-					riley::UserId(),
-					/* group = */ riley::GeometryPrototypeId::InvalidId(),
-					geometryPrototype,
-					m_material->id(),
-					g_emptyCoordinateSystems,
-					StaticTransform(),
-					attributes->paramList()
-				);
-			}
-		}
-
-		~RenderManObject()
-		{
-			if( m_session->renderType == IECoreScenePreview::Renderer::Interactive )
-			{
-				if( m_geometryInstance != riley::GeometryInstanceId::InvalidId() )
-				{
-					m_session->riley->DeleteGeometryInstance( riley::GeometryPrototypeId::InvalidId(), m_geometryInstance );
-				}
-			}
-		}
-
-		void transform( const Imath::M44f &transform ) override
-		{
-			StaticTransform staticTransform( transform );
-			const riley::GeometryInstanceResult result = m_session->riley->ModifyGeometryInstance(
-				/* group = */ riley::GeometryPrototypeId::InvalidId(),
-				m_geometryInstance,
-				/* material = */ nullptr,
-				/* coordsys = */ nullptr,
-				&staticTransform,
-				/* attributes = */ nullptr
-			);
-
-			if( result != riley::GeometryInstanceResult::k_Success )
-			{
-				IECore::msg( IECore::Msg::Warning, "RenderManObject::transform", "Unexpected edit failure" );
-			}
-		}
-
-		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override
-		{
-			AnimatedTransform animatedTransform( samples, times );
-			const riley::GeometryInstanceResult result = m_session->riley->ModifyGeometryInstance(
-				/* group = */ riley::GeometryPrototypeId::InvalidId(),
-				m_geometryInstance,
-				/* material = */ nullptr,
-				/* coordsys = */ nullptr,
-				&animatedTransform,
-				/* attributes = */ nullptr
-			);
-
-			if( result != riley::GeometryInstanceResult::k_Success )
-			{
-				IECore::msg( IECore::Msg::Warning, "RenderManObject::transform", "Unexpected edit failure" );
-			}
-		}
-
-		bool attributes( const IECoreScenePreview::Renderer::AttributesInterface *attributes ) override
-		{
-			const auto renderManAttributes = static_cast<const Attributes *>( attributes );
-			m_material = renderManAttributes->material();
-
-			const riley::GeometryInstanceResult result = m_session->riley->ModifyGeometryInstance(
-				/* group = */ riley::GeometryPrototypeId::InvalidId(),
-				m_geometryInstance,
-				&m_material->id(),
-				/* coordsys = */ nullptr,
-				/* xform = */ nullptr,
-				&renderManAttributes->paramList()
-			);
-
-			if( result != riley::GeometryInstanceResult::k_Success )
-			{
-				IECore::msg( IECore::Msg::Warning, "RenderManObject::attributes", "Unexpected edit failure" );
-			}
-			return true;
-		}
-
-		void link( const IECore::InternedString &type, const IECoreScenePreview::Renderer::ConstObjectSetPtr &objects ) override
-		{
-		}
-
-		void assignID( uint32_t id ) override
-		{
-		}
-
-	private :
-
-		ConstSessionPtr m_session;
-		riley::GeometryInstanceId m_geometryInstance;
-		/// Used to keep material etc alive as long as we need it.
-		/// \todo Not sure if this is necessary or not? Perhaps Riley will
-		/// extend lifetime anyway? It's not clear if `DeleteMaterial`
-		/// actually destroys the material, or just drops a reference
-		/// to it.
-		ConstMaterialPtr m_material;
-
-};
 
 } // namespace
 
@@ -446,7 +327,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 			m_globals->ensureWorld();
 			/// \todo Cache geometry masters
 			riley::GeometryPrototypeId geometryPrototype = GeometryAlgo::convert( object, m_session->riley );
-			return new RenderManObject( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session );
+			return new IECoreRenderMan::Object( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session );
 		}
 
 		ObjectInterfacePtr object( const std::string &name, const std::vector<const IECore::Object *> &samples, const std::vector<float> &times, const AttributesInterface *attributes ) override
