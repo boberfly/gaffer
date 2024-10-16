@@ -279,7 +279,7 @@ Gaffer::Plug *loadParameter( const boost::property_tree::ptree &parameter, Plug 
 	{
 		msg(
 			IECore::Msg::Warning, "RenderManShader::loadShader",
-			boost::format( "Parameter \"%s\" has unsupported type \"%s\"" ) % name % type
+			fmt::format( "Parameter \"{}\" has unsupported type \"{}\"", name, type )
 		);
 		return nullptr;
 	}
@@ -366,7 +366,7 @@ Gaffer::Plug *loadOutput( const boost::property_tree::ptree &output, Plug *paren
 	{
 		msg(
 			IECore::Msg::Warning, "RenderManShader::loadShader",
-			boost::format( "Output \"%s\" has unsupported tags" ) % name
+			fmt::format( "Output \"{}\" has unsupported tags", name )
 		);
 		return nullptr;
 	}
@@ -411,9 +411,7 @@ void RenderManShader::loadShader( const std::string &shaderName, bool keepExisti
 	if( argsFilename.empty() )
 	{
 		throw IECore::Exception(
-			boost::str(
-				boost::format( "Unable to find shader \"%s\" on RMAN_RIXPLUGINPATH" ) % shaderName
-			)
+			fmt::format( "Unable to find shader \"{}\" on RMAN_RIXPLUGINPATH", shaderName )
 		);
 	}
 

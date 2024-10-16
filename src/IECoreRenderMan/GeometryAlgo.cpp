@@ -46,6 +46,8 @@
 
 #include "RixPredefinedStrings.hpp"
 
+#include "fmt/format.h"
+
 #include <unordered_map>
 
 using namespace std;
@@ -255,7 +257,7 @@ struct PrimitiveVariableConverter
 		IECore::msg(
 			IECore::Msg::Warning,
 			"IECoreRenderMan",
-			boost::format( "Unsupported primitive variable of type \"%s\"" ) % data->typeName()
+			fmt::format( "Unsupported primitive variable of type \"{}\"", data->typeName() )
 		);
 	}
 

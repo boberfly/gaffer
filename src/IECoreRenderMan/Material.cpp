@@ -43,6 +43,8 @@
 
 #include "boost/property_tree/xml_parser.hpp"
 
+#include "fmt/format.h"
+
 #include <unordered_set>
 
 using namespace std;
@@ -103,7 +105,7 @@ void loadParameterTypes( const boost::property_tree::ptree &tree, ParameterTypeM
 			}
 			else
 			{
-				IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", boost::format( "Unknown type %s for parameter \"%s\"." ) % type % name );
+				IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", fmt::format( "Unknown type {} for parameter \"{}\".", type, name ) );
 			}
 		}
 		else if( child.first == "page" )
@@ -124,9 +126,7 @@ ParameterTypeCache g_parameterTypeCache(
 		if( argsFilename.empty() )
 		{
 			throw IECore::Exception(
-				boost::str(
-					boost::format( "Unable to find shader \"%s\" on RMAN_RIXPLUGINPATH" ) % shaderName
-				)
+				fmt::format( "Unable to find shader \"{}\" on RMAN_RIXPLUGINPATH", shaderName )
 			);
 		}
 

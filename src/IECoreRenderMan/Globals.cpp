@@ -72,7 +72,7 @@ T *reportedCast( const IECore::RunTimeTyped *v, const char *type, const IECore::
 		return t;
 	}
 
-	IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", boost::format( "Expected %s but got %s for %s \"%s\"." ) % T::staticTypeName() % v->typeName() % type % name.c_str() );
+	IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", fmt::format( "Expected {} but got {} for {} \"{}\".", T::staticTypeName(), v->typeName(), type, name.c_str() ) );
 	return nullptr;
 }
 
@@ -117,9 +117,7 @@ void Globals::option( const IECore::InternedString &name, const IECore::Object *
 	// 	{
 	// 		msg(
 	// 			IECore::Msg::Warning, "RenderManRender::option",
-	// 			boost::str(
-	// 				boost::format( "Unable to edit option \"%s\" (RenderMan limitation)" ) % name
-	// 			)
+	// 			fmt::format( "Unable to edit option \"{}\" (RenderMan limitation)", name )
 	// 		);
 	// 	}
 	// 	return;

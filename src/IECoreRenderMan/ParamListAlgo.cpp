@@ -39,6 +39,8 @@
 #include "IECore/DataAlgo.h"
 #include "IECore/MessageHandler.h"
 
+#include "fmt/format.h"
+
 using namespace IECore;
 
 //////////////////////////////////////////////////////////////////////////
@@ -111,7 +113,7 @@ struct ParameterConverter
 		IECore::msg(
 			IECore::Msg::Warning,
 			"IECoreRenderMan",
-			boost::format( "Unsupported parameter \"%s\" of type \"%s\"" ) % name.CStr() % data->typeName()
+			fmt::format( "Unsupported parameter \"{}\" of type \"{}\"", name.CStr(), data->typeName() )
 		);
 	}
 
