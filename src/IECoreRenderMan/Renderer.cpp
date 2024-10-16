@@ -167,17 +167,9 @@ class RenderManAttributes : public IECoreScenePreview::Renderer::AttributesInter
 
 	public :
 
-		// TODO : IS THIS STILL TRUE?
-		// We deliberately do not pass a `Riley *` here. Trying to make parallel
-		// calls of any sort before `RenderManGlobals::ensureWorld()` will trigger
-		// RenderMan crashes, and RenderManAttributes instances are constructed
-		// for use with RenderManCameras. Instead we pass a MaterialCache which
-		// allows us to generate materials lazily on demand, when RenderManObjects
-		// ask for them.
 		RenderManAttributes( const IECore::CompoundObject *attributes, MaterialCachePtr materialCache )
-			:	m_materialCache( materialCache )
 		{
-			m_surfaceShader = parameter<ShaderNetwork>( attributes->members(), g_surfaceShaderAttributeName );
+			m_material = materialCache->get( parameter<ShaderNetwork>( attributes->members(), g_surfaceShaderAttributeName ) );
 			m_lightShader = parameter<ShaderNetwork>( attributes->members(), g_lightShaderAttributeName );
 
 			for( const auto &attribute : attributes->members() )
@@ -203,9 +195,9 @@ class RenderManAttributes : public IECoreScenePreview::Renderer::AttributesInter
 		{
 		}
 
-		ConstMaterialPtr material() const
+		const Material *material() const
 		{
-			return m_materialCache->get( m_surfaceShader.get() );
+			return m_material.get();
 		}
 
 		const IECoreScene::ShaderNetwork *lightShader() const
@@ -221,9 +213,9 @@ class RenderManAttributes : public IECoreScenePreview::Renderer::AttributesInter
 	private :
 
 		RtParamList m_paramList;
-		IECoreScene::ConstShaderNetworkPtr m_surfaceShader;
+		ConstMaterialPtr m_material;
+		/// \todo Could we use the material cache for these too?
 		IECoreScene::ConstShaderNetworkPtr m_lightShader;
-		MaterialCachePtr m_materialCache;
 
 };
 
@@ -578,11 +570,13 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 		Renderer::AttributesInterfacePtr attributes( const IECore::CompoundObject *attributes ) override
 		{
+			m_globals->ensureWorld();
 			return new RenderManAttributes( attributes, m_materialCache );
 		}
 
 		ObjectInterfacePtr camera( const std::string &name, const IECoreScene::Camera *camera, const AttributesInterface *attributes ) override
 		{
+			m_globals->ensureWorld();
 			IECoreRenderMan::CameraPtr result = new IECoreRenderMan::Camera( name, camera, m_session );
 			result->attributes( attributes );
 			return result;
