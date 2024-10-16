@@ -34,6 +34,7 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
+#include "Attributes.h"
 #include "Camera.h"
 #include "GeometryAlgo.h"
 #include "Globals.h"
@@ -79,45 +80,6 @@ using namespace IECoreRenderMan;
 namespace
 {
 
-template<typename T>
-T *reportedCast( const IECore::RunTimeTyped *v, const char *type, const IECore::InternedString &name )
-{
-	T *t = IECore::runTimeCast<T>( v );
-	if( t )
-	{
-		return t;
-	}
-
-	IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", boost::format( "Expected %s but got %s for %s \"%s\"." ) % T::staticTypeName() % v->typeName() % type % name.c_str() );
-	return nullptr;
-}
-
-template<typename T, typename MapType>
-const T *parameter( const MapType &parameters, const IECore::InternedString &name )
-{
-	auto it = parameters.find( name );
-	if( it == parameters.end() )
-	{
-		return nullptr;
-	}
-
-	return reportedCast<const T>( it->second.get(), "parameter", name );
-}
-
-template<typename T>
-T parameter( const IECore::CompoundDataMap &parameters, const IECore::InternedString &name, const T &defaultValue )
-{
-	typedef IECore::TypedData<T> DataType;
-	if( const DataType *d = parameter<DataType>( parameters, name ) )
-	{
-		return d->readable();
-	}
-	else
-	{
-		return defaultValue;
-	}
-}
-
 struct StaticTransform : riley::Transform
 {
 
@@ -152,78 +114,6 @@ static riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
 } // namespace
 
 //////////////////////////////////////////////////////////////////////////
-// RenderManAttributes
-//////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-
-const string g_renderManPrefix( "renderman:" );
-InternedString g_surfaceShaderAttributeName( "renderman:bxdf" );
-InternedString g_lightShaderAttributeName( "renderman:light" );
-
-class RenderManAttributes : public IECoreScenePreview::Renderer::AttributesInterface
-{
-
-	public :
-
-		RenderManAttributes( const IECore::CompoundObject *attributes, MaterialCachePtr materialCache )
-		{
-			m_material = materialCache->get( parameter<ShaderNetwork>( attributes->members(), g_surfaceShaderAttributeName ) );
-			m_lightShader = parameter<ShaderNetwork>( attributes->members(), g_lightShaderAttributeName );
-
-			for( const auto &attribute : attributes->members() )
-			{
-				if( boost::starts_with( attribute.first.c_str(), g_renderManPrefix.c_str() ) )
-				{
-					if( auto data = runTimeCast<const Data>( attribute.second.get() ) )
-					{
-						ParamListAlgo::convertParameter( RtUString( attribute.first.c_str() + g_renderManPrefix.size() ), data, m_paramList );
-					}
-				}
-				else if( boost::starts_with( attribute.first.c_str(), "user:" ) )
-				{
-					if( auto data = runTimeCast<const Data>( attribute.second.get() ) )
-					{
-						ParamListAlgo::convertParameter( RtUString( attribute.first.c_str() ), data, m_paramList );
-					}
-				}
-			}
-		}
-
-		~RenderManAttributes()
-		{
-		}
-
-		const Material *material() const
-		{
-			return m_material.get();
-		}
-
-		const IECoreScene::ShaderNetwork *lightShader() const
-		{
-			return m_lightShader.get();
-		}
-
-		const RtParamList &paramList() const
-		{
-			return m_paramList;
-		}
-
-	private :
-
-		RtParamList m_paramList;
-		ConstMaterialPtr m_material;
-		/// \todo Could we use the material cache for these too?
-		IECoreScene::ConstShaderNetworkPtr m_lightShader;
-
-};
-
-IE_CORE_DECLAREPTR( RenderManAttributes )
-
-} // namespace
-
-//////////////////////////////////////////////////////////////////////////
 // RenderManObject
 //////////////////////////////////////////////////////////////////////////
 
@@ -235,7 +125,7 @@ class RenderManObject : public IECoreScenePreview::Renderer::ObjectInterface
 
 	public :
 
-		RenderManObject( riley::GeometryPrototypeId geometryPrototype, const RenderManAttributes *attributes, const ConstSessionPtr &session )
+		RenderManObject( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, const ConstSessionPtr &session )
 			:	m_session( session ), m_geometryInstance( riley::GeometryInstanceId::InvalidId() )
 		{
 			if( geometryPrototype != riley::GeometryPrototypeId::InvalidId() )
@@ -302,7 +192,7 @@ class RenderManObject : public IECoreScenePreview::Renderer::ObjectInterface
 
 		bool attributes( const IECoreScenePreview::Renderer::AttributesInterface *attributes ) override
 		{
-			const auto renderManAttributes = static_cast<const RenderManAttributes *>( attributes );
+			const auto renderManAttributes = static_cast<const Attributes *>( attributes );
 			m_material = renderManAttributes->material();
 
 			const riley::GeometryInstanceResult result = m_session->riley->ModifyGeometryInstance(
@@ -356,10 +246,10 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 
 	public :
 
-		RenderManLight( riley::GeometryPrototypeId geometryPrototype, const ConstRenderManAttributesPtr &attributes, const ConstSessionPtr &session )
+		RenderManLight( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, const ConstSessionPtr &session )
 			:	m_session( session ), m_lightShader( riley::LightShaderId::InvalidId() ), m_lightInstance( riley::LightInstanceId::InvalidId() )
 		{
-			updateLightShader( attributes.get() );
+			updateLightShader( attributes );
 			if( m_lightShader == riley::LightShaderId::InvalidId() )
 			{
 				// Riley crashes if we try to edit the transform on a light
@@ -452,7 +342,7 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 
 		bool attributes( const IECoreScenePreview::Renderer::AttributesInterface *attributes ) override
 		{
-			auto renderManAttributes = static_cast<const RenderManAttributes *>( attributes );
+			auto renderManAttributes = static_cast<const Attributes *>( attributes );
 			updateLightShader( renderManAttributes );
 
 			if( m_lightInstance == riley::LightInstanceId::InvalidId() )
@@ -502,7 +392,7 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 
 	private :
 
-		void updateLightShader( const RenderManAttributes *attributes )
+		void updateLightShader( const Attributes *attributes )
 		{
 			if( m_lightShader != riley::LightShaderId::InvalidId() )
 			{
@@ -571,7 +461,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 		Renderer::AttributesInterfacePtr attributes( const IECore::CompoundObject *attributes ) override
 		{
 			m_globals->ensureWorld();
-			return new RenderManAttributes( attributes, m_materialCache );
+			return new Attributes( attributes, m_materialCache.get() );
 		}
 
 		ObjectInterfacePtr camera( const std::string &name, const IECoreScene::Camera *camera, const AttributesInterface *attributes ) override
@@ -591,7 +481,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 				/// \todo Cache geometry masters
 				geometryPrototype = GeometryAlgo::convert( object, m_session->riley );
 			}
-			return new RenderManLight( geometryPrototype, static_cast<const RenderManAttributes *>( attributes ), m_session );
+			return new RenderManLight( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session );
 		}
 
 		ObjectInterfacePtr lightFilter( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
@@ -604,7 +494,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 			m_globals->ensureWorld();
 			/// \todo Cache geometry masters
 			riley::GeometryPrototypeId geometryPrototype = GeometryAlgo::convert( object, m_session->riley );
-			return new RenderManObject( geometryPrototype, static_cast<const RenderManAttributes *>( attributes ), m_session );
+			return new RenderManObject( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session );
 		}
 
 		ObjectInterfacePtr object( const std::string &name, const std::vector<const IECore::Object *> &samples, const std::vector<float> &times, const AttributesInterface *attributes ) override
