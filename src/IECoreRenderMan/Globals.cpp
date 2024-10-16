@@ -35,7 +35,7 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "Globals.h"
-#include "../ParamListAlgo.h"
+#include "ParamListAlgo.h"
 
 #include "IECoreScene/ShaderNetwork.h"
 
@@ -51,7 +51,7 @@
 using namespace std;
 using namespace IECore;
 using namespace IECoreScene;
-using namespace IECoreRenderMan::Renderer;
+using namespace IECoreRenderMan;
 
 namespace
 {
@@ -91,7 +91,7 @@ struct IdentityTransform : riley::Transform
 
 } // namespace
 
-Globals::Globals( const IECoreRenderMan::Renderer::SessionPtr &session )
+Globals::Globals( const SessionPtr &session )
 	:	m_session( session ), m_options(),
 		m_renderTargetExtent(),
 		m_expectedWorldBeginThreadId( std::this_thread::get_id() ), m_worldBegun( false )
@@ -301,7 +301,7 @@ void Globals::render()
 	updateRenderView();
 
 	/// \todo Is it worth avoiding this work when nothing has changed?
-	IECoreRenderMan::Renderer::Session::CameraInfo camera = m_session->getCamera( m_cameraOption );
+	Session::CameraInfo camera = m_session->getCamera( m_cameraOption );
 	m_options.Update( camera.options );
 	m_session->setOptions( m_options );
 
@@ -348,7 +348,7 @@ void Globals::updateRenderView()
 {
 	// Find camera.
 
-	IECoreRenderMan::Renderer::Session::CameraInfo camera = m_session->getCamera( m_cameraOption );
+	Session::CameraInfo camera = m_session->getCamera( m_cameraOption );
 	if( camera.id == riley::CameraId::InvalidId() )
 	{
 		/// \todo Should the Camera and/or Session class be responsible for

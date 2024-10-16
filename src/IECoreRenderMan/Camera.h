@@ -44,7 +44,7 @@
 
 #include "Riley.h"
 
-namespace IECoreRenderMan::Renderer
+namespace IECoreRenderMan
 {
 
 class Camera :  public IECoreScenePreview::Renderer::ObjectInterface
@@ -73,4 +73,4 @@ class Camera :  public IECoreScenePreview::Renderer::ObjectInterface
 
 IE_CORE_DECLAREPTR( Camera );
 
-} // namespace IECoreRenderMan::Renderer
+} // namespace IECoreRenderMan

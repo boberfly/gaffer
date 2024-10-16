@@ -34,11 +34,11 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
+#include "Camera.h"
 #include "GeometryAlgo.h"
+#include "Globals.h"
 #include "ParamListAlgo.h"
-#include "Renderer/Camera.h"
-#include "Renderer/Globals.h"
-#include "Renderer/Session.h"
+#include "Session.h"
 
 #include "GafferScene/Private/IECoreScenePreview/Renderer.h"
 
@@ -372,7 +372,7 @@ class RenderManMaterial : public IECore::RefCounted
 
 	public :
 
-		RenderManMaterial( const IECoreScene::ShaderNetwork *network, const IECoreRenderMan::Renderer::ConstSessionPtr &session )
+		RenderManMaterial( const IECoreScene::ShaderNetwork *network, const ConstSessionPtr &session )
 			:	m_session( session )
 		{
 			if( network )
@@ -400,7 +400,7 @@ class RenderManMaterial : public IECore::RefCounted
 
 	private :
 
-		IECoreRenderMan::Renderer::ConstSessionPtr m_session;
+		ConstSessionPtr m_session;
 		riley::MaterialId m_id;
 
 };
@@ -412,7 +412,7 @@ class ShaderCache : public IECore::RefCounted
 
 	public :
 
-		ShaderCache( const IECoreRenderMan::Renderer::ConstSessionPtr &session )
+		ShaderCache( const ConstSessionPtr &session )
 			:	m_session( session )
 		{
 		}
@@ -451,7 +451,7 @@ class ShaderCache : public IECore::RefCounted
 
 	private :
 
-		IECoreRenderMan::Renderer::ConstSessionPtr m_session;
+		ConstSessionPtr m_session;
 
 		using Cache = tbb::concurrent_hash_map<IECore::MurmurHash, ConstRenderManMaterialPtr>;
 		Cache m_cache;
@@ -554,7 +554,7 @@ class RenderManObject : public IECoreScenePreview::Renderer::ObjectInterface
 
 	public :
 
-		RenderManObject( riley::GeometryPrototypeId geometryPrototype, const RenderManAttributes *attributes, const IECoreRenderMan::Renderer::ConstSessionPtr &session )
+		RenderManObject( riley::GeometryPrototypeId geometryPrototype, const RenderManAttributes *attributes, const ConstSessionPtr &session )
 			:	m_session( session ), m_geometryInstance( riley::GeometryInstanceId::InvalidId() )
 		{
 			if( geometryPrototype != riley::GeometryPrototypeId::InvalidId() )
@@ -650,7 +650,7 @@ class RenderManObject : public IECoreScenePreview::Renderer::ObjectInterface
 
 	private :
 
-		IECoreRenderMan::Renderer::ConstSessionPtr m_session;
+		ConstSessionPtr m_session;
 		riley::GeometryInstanceId m_geometryInstance;
 		/// Used to keep material etc alive as long as we need it.
 		/// \todo Not sure if this is necessary or not? Perhaps Riley will
@@ -675,7 +675,7 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 
 	public :
 
-		RenderManLight( riley::GeometryPrototypeId geometryPrototype, const ConstRenderManAttributesPtr &attributes, const IECoreRenderMan::Renderer::ConstSessionPtr &session )
+		RenderManLight( riley::GeometryPrototypeId geometryPrototype, const ConstRenderManAttributesPtr &attributes, const ConstSessionPtr &session )
 			:	m_session( session ), m_lightShader( riley::LightShaderId::InvalidId() ), m_lightInstance( riley::LightInstanceId::InvalidId() )
 		{
 			updateLightShader( attributes.get() );
@@ -835,7 +835,7 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 			}
 		}
 
-		const IECoreRenderMan::Renderer::ConstSessionPtr m_session;
+		const ConstSessionPtr m_session;
 		riley::LightShaderId m_lightShader;
 		riley::LightInstanceId m_lightInstance;
 
@@ -863,8 +863,8 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 				throw IECore::Exception( "SceneDescription mode not supported by RenderMan" );
 			}
 
-			m_session = new IECoreRenderMan::Renderer::Session( renderType, messageHandler );
-			m_globals = boost::make_unique<IECoreRenderMan::Renderer::Globals>( m_session );
+			m_session = new Session( renderType, messageHandler );
+			m_globals = boost::make_unique<Globals>( m_session );
 			m_shaderCache = new ShaderCache( m_session );
 		}
 
@@ -895,7 +895,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 		ObjectInterfacePtr camera( const std::string &name, const IECoreScene::Camera *camera, const AttributesInterface *attributes ) override
 		{
-			IECoreRenderMan::Renderer::CameraPtr result = new IECoreRenderMan::Renderer::Camera( name, camera, m_session );
+			IECoreRenderMan::CameraPtr result = new IECoreRenderMan::Camera( name, camera, m_session );
 			result->attributes( attributes );
 			return result;
 		}
@@ -954,9 +954,9 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 	private :
 
-		IECoreRenderMan::Renderer::SessionPtr m_session;
+		SessionPtr m_session;
 
-		std::unique_ptr<IECoreRenderMan::Renderer::Globals> m_globals;
+		std::unique_ptr<Globals> m_globals;
 		ShaderCachePtr m_shaderCache;
 
 		static Renderer::TypeDescription<RenderManRenderer> g_typeDescription;

@@ -47,7 +47,7 @@
 
 #include <thread>
 
-namespace IECoreRenderMan::Renderer
+namespace IECoreRenderMan
 {
 
 class Globals : public boost::noncopyable
@@ -94,7 +94,7 @@ class Globals : public boost::noncopyable
 		void deleteRenderView();
 		void updateCameraOptions();
 
-		IECoreRenderMan::Renderer::SessionPtr m_session;
+		SessionPtr m_session;
 		RtParamList m_options;
 
 		std::unordered_map<IECore::InternedString, IECoreScene::ConstOutputPtr> m_outputs;
@@ -122,4 +122,4 @@ class Globals : public boost::noncopyable
 
 
 
-} // namespace IECoreRenderMan::Renderer
+} // namespace IECoreRenderMan

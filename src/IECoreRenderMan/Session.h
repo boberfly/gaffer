@@ -44,7 +44,7 @@
 
 #include "tbb/concurrent_hash_map.h"
 
-namespace IECoreRenderMan::Renderer
+namespace IECoreRenderMan
 {
 
 // The various Renderer components all need access to the same Riley object, and
@@ -93,4 +93,4 @@ struct Session : public IECore::RefCounted
 
 IE_CORE_DECLAREPTR( Session );
 
-} // namespace IECoreRenderMan::Renderer
+} // namespace IECoreRenderMan

@@ -41,7 +41,7 @@
 #include "fmt/format.h"
 
 using namespace std;
-using namespace IECoreRenderMan::Renderer;
+using namespace IECoreRenderMan;
 
 struct Session::ExceptionHandler : public RixXcpt::XcptHandler
 {

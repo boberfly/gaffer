@@ -40,7 +40,7 @@
 
 using namespace std;
 using namespace Imath;
-using namespace IECoreRenderMan::Renderer;
+using namespace IECoreRenderMan;
 
 namespace
 {
