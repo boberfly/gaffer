@@ -45,28 +45,8 @@
 
 #include "GafferScene/Private/IECoreScenePreview/Renderer.h"
 
-#include "IECoreScene/ShaderNetwork.h"
-
-#include "IECore/DataAlgo.h"
-#include "IECore/LRUCache.h"
-#include "IECore/MessageHandler.h"
-#include "IECore/SearchPath.h"
-#include "IECore/SimpleTypedData.h"
-
-#include "boost/algorithm/string.hpp"
-#include "boost/algorithm/string/predicate.hpp"
-
-#include "tbb/concurrent_hash_map.h"
-#include "tbb/spin_mutex.h"
-
 #include "Riley.h"
 #include "RixPredefinedStrings.hpp"
-
-#include "fmt/format.h"
-
-#include <thread>
-#include <unordered_map>
-#include <unordered_set>
 
 using namespace std;
 using namespace Imath;
