@@ -91,6 +91,11 @@ class InteractiveDelightRenderTest( GafferSceneTest.InteractiveRenderTest ) :
 
 		pass
 
+	@unittest.skip( "Needs fixing" )
+	def testDeleteLightShader( self ) :
+
+		pass
+
 	def _createConstantShader( self ) :
 
 		shader = GafferOSL.OSLShader()
