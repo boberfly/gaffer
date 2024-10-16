@@ -36,6 +36,8 @@
 
 import unittest
 
+import imath
+
 import OpenImageIO
 
 import IECore
@@ -166,6 +168,23 @@ class RendererTest( GafferTest.TestCase ) :
 
 		del renderer
 		del sphere
+
+	def testMissingLightShader( self ) :
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Interactive
+		)
+
+		lightShader = IECoreScene.ShaderNetwork( { "light" : IECoreScene.Shader( "BadShader", "ri:light" ), }, output = ( "light", "out" ) )
+		lightAttributes = renderer.attributes(
+			IECore.CompoundObject( { "renderman:light" : lightShader } )
+		)
+
+		# Exercises our workarounds for crashes in Riley when a light
+		# doesn't have a valid shader.
+		light = renderer.light( "/light", None, lightAttributes )
+		light.transform( imath.M44f().translate( imath.V3f( 1, 2, 3 ) ) )
 
 if __name__ == "__main__":
 	unittest.main()

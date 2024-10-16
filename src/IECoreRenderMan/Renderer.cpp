@@ -678,7 +678,13 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 		RenderManLight( riley::GeometryPrototypeId geometryPrototype, const ConstRenderManAttributesPtr &attributes, const IECoreRenderMan::Renderer::ConstSessionPtr &session )
 			:	m_session( session ), m_lightShader( riley::LightShaderId::InvalidId() ), m_lightInstance( riley::LightInstanceId::InvalidId() )
 		{
-			assignAttributes( attributes );
+			updateLightShader( attributes.get() );
+			if( m_lightShader == riley::LightShaderId::InvalidId() )
+			{
+				// Riley crashes if we try to edit the transform on a light
+				// without a shader, so we just don't make such lights.
+				return;
+			}
 
 			m_lightInstance = m_session->riley->CreateLightInstance(
 				riley::UserId(),
@@ -688,7 +694,7 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 				m_lightShader,
 				g_emptyCoordinateSystems,
 				StaticTransform(),
-				m_attributes->paramList()
+				attributes->paramList()
 			);
 		}
 
@@ -696,7 +702,10 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 		{
 			if( m_session->renderType == IECoreScenePreview::Renderer::Interactive )
 			{
-				m_session->riley->DeleteLightInstance( riley::GeometryPrototypeId::InvalidId(), m_lightInstance );
+				if( m_lightInstance != riley::LightInstanceId::InvalidId() )
+				{
+					m_session->riley->DeleteLightInstance( riley::GeometryPrototypeId::InvalidId(), m_lightInstance );
+				}
 				if( m_lightShader != riley::LightShaderId::InvalidId() )
 				{
 					m_session->riley->DeleteLightShader( m_lightShader );
@@ -706,6 +715,11 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 
 		void transform( const Imath::M44f &transform ) override
 		{
+			if( m_lightInstance == riley::LightInstanceId::InvalidId() )
+			{
+				return;
+			}
+
 			const M44f flippedTransform = M44f().scale( V3f( 1, 1, -1 ) ) * transform;
 			StaticTransform staticTransform( flippedTransform );
 
@@ -727,6 +741,11 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 
 		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override
 		{
+			if( m_lightInstance == riley::LightInstanceId::InvalidId() )
+			{
+				return;
+			}
+
 			vector<Imath::M44f> flippedSamples = samples;
 			for( auto &m : flippedSamples )
 			{
@@ -752,7 +771,27 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 
 		bool attributes( const IECoreScenePreview::Renderer::AttributesInterface *attributes ) override
 		{
-			assignAttributes( static_cast<const RenderManAttributes *>( attributes ) );
+			auto renderManAttributes = static_cast<const RenderManAttributes *>( attributes );
+			updateLightShader( renderManAttributes );
+
+			if( m_lightInstance == riley::LightInstanceId::InvalidId() )
+			{
+				// Occurs when we were created without a valid shader. We can't
+				// magic the light into existence now, even if the new
+				// attributes have a valid shader, because we don't know the
+				// transform. If we now have a shader, then return false to
+				// request that the whole object is sent again from scratch.
+				return m_lightShader == riley::LightShaderId::InvalidId();
+			}
+
+			if( m_lightShader == riley::LightShaderId::InvalidId() )
+			{
+				// Riley crashes when a light doesn't have a valid shader, so we delete the light.
+				// If we get a valid shader from a later attribute edit, we'll handle that above.
+				m_session->riley->DeleteLightInstance( riley::GeometryPrototypeId::InvalidId(), m_lightInstance );
+				m_lightInstance = riley::LightInstanceId::InvalidId();
+				return true;
+			}
 
 			const riley::LightInstanceResult result = m_session->riley->ModifyLightInstance(
 				/* group = */ riley::GeometryPrototypeId::InvalidId(),
@@ -761,12 +800,13 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 				/* light shader = */ &m_lightShader,
 				/* coordsys = */ nullptr,
 				/* xform = */ nullptr,
-				&m_attributes->paramList()
+				&renderManAttributes->paramList()
 			);
 
 			if( result != riley::LightInstanceResult::k_Success )
 			{
 				IECore::msg( IECore::Msg::Warning, "RenderManLight::attributes", "Unexpected edit failure" );
+				return false;
 			}
 			return true;
 		}
@@ -781,31 +821,23 @@ class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
 
 	private :
 
-		// Assigns `m_attributes` and updates other members associated with it.
-		// Note : This does _not_ modify m_lightInstance.
-		void assignAttributes( const ConstRenderManAttributesPtr &attributes )
+		void updateLightShader( const RenderManAttributes *attributes )
 		{
 			if( m_lightShader != riley::LightShaderId::InvalidId() )
 			{
 				m_session->riley->DeleteLightShader( m_lightShader );
+				m_lightShader = riley::LightShaderId::InvalidId();
 			}
 
-			m_attributes = attributes;
-			if( m_attributes->lightShader() )
+			if( attributes->lightShader() )
 			{
-				m_lightShader = convertLightShaderNetwork( m_attributes->lightShader(), m_session->riley );
+				m_lightShader = convertLightShaderNetwork( attributes->lightShader(), m_session->riley );
 			}
 		}
 
 		const IECoreRenderMan::Renderer::ConstSessionPtr m_session;
 		riley::LightShaderId m_lightShader;
 		riley::LightInstanceId m_lightInstance;
-		/// Used to keep material etc alive as long as we need it.
-		/// \todo Not sure if this is necessary or not? Perhaps Riley will
-		/// extend lifetime anyway? It's not clear if `DeleteMaterial`
-		/// actually destroys the material, or just drops a reference
-		/// to it. Also, we're not using material at present anyway.
-		ConstRenderManAttributesPtr m_attributes;
 
 };
 
