@@ -37,6 +37,7 @@
 #include "Camera.h"
 #include "GeometryAlgo.h"
 #include "Globals.h"
+#include "Material.h"
 #include "ParamListAlgo.h"
 #include "Session.h"
 
@@ -52,8 +53,6 @@
 
 #include "boost/algorithm/string.hpp"
 #include "boost/algorithm/string/predicate.hpp"
-#include "boost/make_unique.hpp"
-#include "boost/property_tree/xml_parser.hpp"
 
 #include "tbb/concurrent_hash_map.h"
 #include "tbb/spin_mutex.h"
@@ -153,316 +152,6 @@ static riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
 } // namespace
 
 //////////////////////////////////////////////////////////////////////////
-// Shaders
-//////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-
-using ParameterTypeMap = std::unordered_map<InternedString, pxrcore::DataType>;
-using ParameterTypeMapPtr = shared_ptr<ParameterTypeMap>;
-using ParameterTypeCache = IECore::LRUCache<string, ParameterTypeMapPtr>;
-
-void loadParameterTypes( const boost::property_tree::ptree &tree, ParameterTypeMap &typeMap )
-{
-	for( const auto &child : tree )
-	{
-		if( child.first == "param" )
-		{
-			const string name = child.second.get<string>( "<xmlattr>.name" );
-			const string type = child.second.get<string>( "<xmlattr>.type" );
-			if( type == "float" )
-			{
-				typeMap[name] = pxrcore::DataType::k_float;
-			}
-			else if( type == "int" )
-			{
-				typeMap[name] = pxrcore::DataType::k_integer;
-			}
-			else if( type == "point" )
-			{
-				typeMap[name] = pxrcore::DataType::k_point;
-			}
-			else if( type == "vector" )
-			{
-				typeMap[name] = pxrcore::DataType::k_vector;
-			}
-			else if( type == "normal" )
-			{
-				typeMap[name] = pxrcore::DataType::k_normal;
-			}
-			else if( type == "color" )
-			{
-				typeMap[name] = pxrcore::DataType::k_color;
-			}
-			else if( type == "string" )
-			{
-				typeMap[name] = pxrcore::DataType::k_string;
-			}
-			else if( type == "struct" )
-			{
-				typeMap[name] = pxrcore::DataType::k_struct;
-			}
-			else
-			{
-				IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", boost::format( "Unknown type %s for parameter \"%s\"." ) % type % name );
-			}
-		}
-		else if( child.first == "page" )
-		{
-			loadParameterTypes( child.second, typeMap );
-		}
-	}
-}
-
-ParameterTypeCache g_parameterTypeCache(
-
-	[]( const std::string &shaderName, size_t &cost ) {
-
-		const char *pluginPath = getenv( "RMAN_RIXPLUGINPATH" );
-		SearchPath searchPath( pluginPath ? pluginPath : "" );
-
-		boost::filesystem::path argsFilename = searchPath.find( "Args/" + shaderName + ".args" );
-		if( argsFilename.empty() )
-		{
-			throw IECore::Exception(
-				boost::str(
-					boost::format( "Unable to find shader \"%s\" on RMAN_RIXPLUGINPATH" ) % shaderName
-				)
-			);
-		}
-
-		std::ifstream argsStream( argsFilename.string() );
-
-		boost::property_tree::ptree tree;
-		boost::property_tree::read_xml( argsStream, tree );
-
-		auto parameterTypes = make_shared<ParameterTypeMap>();
-		loadParameterTypes( tree.get_child( "args" ), *parameterTypes );
-
-		cost = 1;
-		return parameterTypes;
-	},
-	/* maxCost = */ 10000
-
-);
-
-const pxrcore::DataType *parameterType( const Shader *shader, IECore::InternedString parameterName )
-{
-	ParameterTypeMapPtr p = g_parameterTypeCache.get( shader->getName() );
-	auto it = p->find( parameterName );
-	if( it != p->end() )
-	{
-		return &it->second;
-	}
-	return nullptr;
-}
-
-using HandleSet = std::unordered_set<InternedString>;
-
-void convertConnection( const IECoreScene::ShaderNetwork::Connection &connection, const IECoreScene::Shader *shader, RtParamList &paramList )
-{
-	const pxrcore::DataType *type = parameterType( shader, connection.destination.name );
-	if( !type )
-	{
-		return;
-	}
-
-	std::string reference = connection.source.shader;
-	if( !connection.source.name.string().empty() )
-	{
-		reference += ":" + connection.source.name.string();
-	}
-
-	const RtUString referenceU( reference.c_str() );
-
-	RtParamList::ParamInfo const info = {
-		RtUString( connection.destination.name.c_str() ),
-		*type,
-		pxrcore::DetailType::k_reference,
-		1,
-		false,
-		false,
-		false
-	};
-
-	paramList.SetParam( info, &referenceU );
-}
-
-void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, const IECoreScene::ShaderNetwork *shaderNetwork, vector<riley::ShadingNode> &shadingNodes, HandleSet &visited )
-{
-	if( !visited.insert( outputParameter.shader ).second )
-	{
-		return;
-	}
-
-	const IECoreScene::Shader *shader = shaderNetwork->getShader( outputParameter.shader );
-	riley::ShadingNode node = {
-		riley::ShadingNode::Type::k_Pattern,
-		RtUString( shader->getName().c_str() ),
-		RtUString( outputParameter.shader.c_str() ),
-		RtParamList()
-	};
-
-	if( shader->getType() == "light" || shader->getType() == "renderman:light" )
-	{
-		node.type = riley::ShadingNode::Type::k_Light;
-	}
-	else if( shader->getType() == "surface" || shader->getType() == "renderman:bxdf" )
-	{
-		node.type = riley::ShadingNode::Type::k_Bxdf;
-	}
-
-	ParamListAlgo::convertParameters( shader->parameters(), node.params );
-
-	for( const auto &connection : shaderNetwork->inputConnections( outputParameter.shader ) )
-	{
-		convertShaderNetworkWalk( connection.source, shaderNetwork, shadingNodes, visited );
-		convertConnection( connection, shader, node.params );
-	}
-
-	shadingNodes.push_back( node );
-}
-
-riley::MaterialId convertShaderNetwork( const ShaderNetwork *network, riley::Riley *riley )
-{
-	vector<riley::ShadingNode> shadingNodes;
-	shadingNodes.reserve( network->size() );
-
-	HandleSet visited;
-	convertShaderNetworkWalk( network->getOutput(), network, shadingNodes, visited );
-
-	return riley->CreateMaterial( riley::UserId(), { (uint32_t)shadingNodes.size(), shadingNodes.data() }, RtParamList() );
-}
-
-riley::LightShaderId convertLightShaderNetwork( const ShaderNetwork *network, riley::Riley *riley )
-{
-	vector<riley::ShadingNode> shadingNodes;
-	shadingNodes.reserve( network->size() );
-
-	HandleSet visited;
-	convertShaderNetworkWalk( network->getOutput(), network, shadingNodes, visited );
-
-	return riley->CreateLightShader(
-		riley::UserId(), { (uint32_t)shadingNodes.size(), shadingNodes.data() },
-		/* lightFilter = */ { 0, nullptr }
-	);
-}
-
-riley::MaterialId defaultMaterial( riley::Riley *riley )
-{
-	vector<riley::ShadingNode> shaders;
-
-	shaders.push_back( { riley::ShadingNode::Type::k_Pattern, RtUString( "PxrFacingRatio" ), RtUString( "facingRatio" ), RtParamList() } );
-
-	RtParamList toFloat3ParamList;
-	toFloat3ParamList.SetFloatReference( RtUString( "input" ), RtUString( "facingRatio:resultF" ) );
-	shaders.push_back( { riley::ShadingNode::Type::k_Pattern, RtUString( "PxrToFloat3" ), RtUString( "toFloat3" ), toFloat3ParamList } );
-
-	RtParamList constantParamList;
-	constantParamList.SetColorReference( RtUString( "emitColor" ), RtUString( "toFloat3:resultRGB" ) );
-	shaders.push_back( { riley::ShadingNode::Type::k_Bxdf, RtUString( "PxrConstant" ), RtUString( "constant" ), constantParamList } );
-
-	return riley->CreateMaterial( riley::UserId(), { (uint32_t)shaders.size(), shaders.data() }, RtParamList() );
-}
-
-// A reference counted material.
-class RenderManMaterial : public IECore::RefCounted
-{
-
-	public :
-
-		RenderManMaterial( const IECoreScene::ShaderNetwork *network, const ConstSessionPtr &session )
-			:	m_session( session )
-		{
-			if( network )
-			{
-				m_id = convertShaderNetwork( network, m_session->riley );
-			}
-			else
-			{
-				m_id = defaultMaterial( m_session->riley );
-			}
-		}
-
-		~RenderManMaterial() override
-		{
-			if( m_session->renderType == IECoreScenePreview::Renderer::Interactive )
-			{
-				m_session->riley->DeleteMaterial( m_id );
-			}
-		}
-
-		const riley::MaterialId &id() const
-		{
-			return m_id;
-		}
-
-	private :
-
-		ConstSessionPtr m_session;
-		riley::MaterialId m_id;
-
-};
-
-IE_CORE_DECLAREPTR( RenderManMaterial )
-
-class ShaderCache : public IECore::RefCounted
-{
-
-	public :
-
-		ShaderCache( const ConstSessionPtr &session )
-			:	m_session( session )
-		{
-		}
-
-		// Can be called concurrently with other calls to `get()`
-		ConstRenderManMaterialPtr get( const IECoreScene::ShaderNetwork *network )
-		{
-			Cache::accessor a;
-			m_cache.insert( a, network ? network->Object::hash() : IECore::MurmurHash() );
-			if( !a->second )
-			{
-				a->second = new RenderManMaterial( network, m_session );
-			}
-			return a->second;
-		}
-
-		// Must not be called concurrently with anything.
-		void clearUnused()
-		{
-			vector<IECore::MurmurHash> toErase;
-			for( const auto &m : m_cache )
-			{
-				if( m.second->refCount() == 1 )
-				{
-					// Only one reference - this is ours, so
-					// nothing outside of the cache is using the
-					// shader.
-					toErase.push_back( m.first );
-				}
-			}
-			for( const auto &e : toErase )
-			{
-				m_cache.erase( e );
-			}
-		}
-
-	private :
-
-		ConstSessionPtr m_session;
-
-		using Cache = tbb::concurrent_hash_map<IECore::MurmurHash, ConstRenderManMaterialPtr>;
-		Cache m_cache;
-
-};
-
-IE_CORE_DECLAREPTR( ShaderCache )
-
-} // namespace
-
-//////////////////////////////////////////////////////////////////////////
 // RenderManAttributes
 //////////////////////////////////////////////////////////////////////////
 
@@ -482,11 +171,11 @@ class RenderManAttributes : public IECoreScenePreview::Renderer::AttributesInter
 		// We deliberately do not pass a `Riley *` here. Trying to make parallel
 		// calls of any sort before `RenderManGlobals::ensureWorld()` will trigger
 		// RenderMan crashes, and RenderManAttributes instances are constructed
-		// for use with RenderManCameras. Instead we pass a ShaderCache which
+		// for use with RenderManCameras. Instead we pass a MaterialCache which
 		// allows us to generate materials lazily on demand, when RenderManObjects
 		// ask for them.
-		RenderManAttributes( const IECore::CompoundObject *attributes, ShaderCachePtr shaderCache )
-			:	m_shaderCache( shaderCache )
+		RenderManAttributes( const IECore::CompoundObject *attributes, MaterialCachePtr materialCache )
+			:	m_materialCache( materialCache )
 		{
 			m_surfaceShader = parameter<ShaderNetwork>( attributes->members(), g_surfaceShaderAttributeName );
 			m_lightShader = parameter<ShaderNetwork>( attributes->members(), g_lightShaderAttributeName );
@@ -514,9 +203,9 @@ class RenderManAttributes : public IECoreScenePreview::Renderer::AttributesInter
 		{
 		}
 
-		ConstRenderManMaterialPtr material() const
+		ConstMaterialPtr material() const
 		{
-			return m_shaderCache->get( m_surfaceShader.get() );
+			return m_materialCache->get( m_surfaceShader.get() );
 		}
 
 		const IECoreScene::ShaderNetwork *lightShader() const
@@ -534,7 +223,7 @@ class RenderManAttributes : public IECoreScenePreview::Renderer::AttributesInter
 		RtParamList m_paramList;
 		IECoreScene::ConstShaderNetworkPtr m_surfaceShader;
 		IECoreScene::ConstShaderNetworkPtr m_lightShader;
-		ShaderCachePtr m_shaderCache;
+		MaterialCachePtr m_materialCache;
 
 };
 
@@ -657,7 +346,7 @@ class RenderManObject : public IECoreScenePreview::Renderer::ObjectInterface
 		/// extend lifetime anyway? It's not clear if `DeleteMaterial`
 		/// actually destroys the material, or just drops a reference
 		/// to it.
-		ConstRenderManMaterialPtr m_material;
+		ConstMaterialPtr m_material;
 
 };
 
@@ -855,7 +544,6 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 	public :
 
-		/// TODO : USE MESSAGEHANDLER
 		RenderManRenderer( RenderType renderType, const std::string &fileName, const MessageHandlerPtr &messageHandler )
 		{
 			if( renderType == SceneDescription )
@@ -864,8 +552,8 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 			}
 
 			m_session = new Session( renderType, messageHandler );
-			m_globals = boost::make_unique<Globals>( m_session );
-			m_shaderCache = new ShaderCache( m_session );
+			m_globals = std::make_unique<Globals>( m_session );
+			m_materialCache = new MaterialCache( m_session );
 		}
 
 		~RenderManRenderer() override
@@ -890,7 +578,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 		Renderer::AttributesInterfacePtr attributes( const IECore::CompoundObject *attributes ) override
 		{
-			return new RenderManAttributes( attributes, m_shaderCache );
+			return new RenderManAttributes( attributes, m_materialCache );
 		}
 
 		ObjectInterfacePtr camera( const std::string &name, const IECoreScene::Camera *camera, const AttributesInterface *attributes ) override
@@ -933,7 +621,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 		void render() override
 		{
-			m_shaderCache->clearUnused();
+			m_materialCache->clearUnused();
 			m_globals->render();
 		}
 
@@ -957,7 +645,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 		SessionPtr m_session;
 
 		std::unique_ptr<Globals> m_globals;
-		ShaderCachePtr m_shaderCache;
+		MaterialCachePtr m_materialCache;
 
 		static Renderer::TypeDescription<RenderManRenderer> g_typeDescription;
 
