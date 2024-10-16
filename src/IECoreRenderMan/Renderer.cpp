@@ -41,6 +41,7 @@
 #include "Material.h"
 #include "ParamListAlgo.h"
 #include "Session.h"
+#include "Transform.h"
 
 #include "GafferScene/Private/IECoreScenePreview/Renderer.h"
 
@@ -79,35 +80,6 @@ using namespace IECoreRenderMan;
 
 namespace
 {
-
-struct StaticTransform : riley::Transform
-{
-
-	StaticTransform( const Imath::M44f &m = Imath::M44f() )
-		:	m_time( 0 )
-	{
-		samples = 1;
-		matrix = &reinterpret_cast<const RtMatrix4x4 &>( m );
-		time = &m_time;
-	}
-
-	private :
-
-		float m_time;
-
-};
-
-struct AnimatedTransform : riley::Transform
-{
-
-	AnimatedTransform( const vector<Imath::M44f> &transformSamples, const vector<float> &sampleTimes )
-	{
-		samples = transformSamples.size();
-		matrix = reinterpret_cast<const RtMatrix4x4 *>( transformSamples.data() );
-		time = sampleTimes.data();
-	}
-
-};
 
 static riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
 

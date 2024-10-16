@@ -36,6 +36,7 @@
 
 #include "Globals.h"
 #include "ParamListAlgo.h"
+#include "Transform.h"
 
 #include "IECoreScene/ShaderNetwork.h"
 
@@ -74,20 +75,6 @@ T *reportedCast( const IECore::RunTimeTyped *v, const char *type, const IECore::
 	IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", boost::format( "Expected %s but got %s for %s \"%s\"." ) % T::staticTypeName() % v->typeName() % type % name.c_str() );
 	return nullptr;
 }
-
-struct IdentityTransform : riley::Transform
-{
-
-	IdentityTransform()
-	{
-		static const Imath::M44f g_matrix;
-		static const float g_time = 0;
-		samples = 1;
-		matrix = reinterpret_cast<const RtMatrix4x4 *>( g_matrix.getValue() );
-		time = &g_time;
-	}
-
-};
 
 } // namespace
 
