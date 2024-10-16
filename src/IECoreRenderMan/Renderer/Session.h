@@ -58,7 +58,7 @@ namespace IECoreRenderMan::Renderer
 struct Session : public IECore::RefCounted
 {
 
-	Session( IECoreScenePreview::Renderer::RenderType renderType );
+	Session( IECoreScenePreview::Renderer::RenderType renderType, const IECore::MessageHandlerPtr &messageHandler );
 	~Session();
 
 	void setOptions( const RtParamList &options );
@@ -80,6 +80,9 @@ struct Session : public IECore::RefCounted
 	const IECoreScenePreview::Renderer::RenderType renderType;
 
 	private :
+
+		struct ExceptionHandler;
+		std::unique_ptr<ExceptionHandler> m_exceptionHandler;
 
 		bool m_optionsSet;
 

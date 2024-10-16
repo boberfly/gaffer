@@ -863,7 +863,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 				throw IECore::Exception( "SceneDescription mode not supported by RenderMan" );
 			}
 
-			m_session = new IECoreRenderMan::Renderer::Session( renderType );
+			m_session = new IECoreRenderMan::Renderer::Session( renderType, messageHandler );
 			m_globals = boost::make_unique<IECoreRenderMan::Renderer::Globals>( m_session );
 			m_shaderCache = new ShaderCache( m_session );
 		}

@@ -36,22 +36,69 @@
 
 #include "Session.h"
 
+#include "XcptErrorCodes.h"
+
+#include "fmt/format.h"
+
 using namespace std;
 using namespace IECoreRenderMan::Renderer;
 
-Session::Session( IECoreScenePreview::Renderer::RenderType renderType )
-	:	riley( nullptr ), renderType( renderType ), m_optionsSet( false )
+struct Session::ExceptionHandler : public RixXcpt::XcptHandler
 {
-	/// \todo What is the `rileyVariant` argument for? XPU?
-	auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
 
-	// `argv[0]==""`  prevents RenderMan doing its own signal handling.
-	vector<const char *> args = { "prman" }; // TODO : REVERT TO "". BUT YOU'RE GETTING SOME USEFUL OUTPUT WITHOUT FOR NOW.
+	ExceptionHandler( const IECore::MessageHandlerPtr &messageHandler )
+		:	m_messageHandler( messageHandler )
+	{
+	}
+
+	void HandleXcpt( int code, int severity, const char *message ) override
+	{
+		IECore::Msg::Level level;
+		switch( severity )
+		{
+			case RIE_INFO :
+				level = IECore::Msg::Level::Info;
+				break;
+			case RIE_WARNING :
+				level = IECore::Msg::Level::Warning;
+				break;
+			default :
+				level = IECore::Msg::Level::Error;
+				break;
+		}
+
+		m_messageHandler->handle( level, "RenderMan", message );
+	}
+
+	void HandleExitRequest( int code ) override
+	{
+		/// \todo Not sure how best to handle this. We don't want
+		/// to exit the application, but perhaps we want to prevent
+		/// any further attempt to interact with the renderer?
+	}
+
+	private :
+
+		IECore::MessageHandlerPtr m_messageHandler;
+
+};
+
+
+Session::Session( IECoreScenePreview::Renderer::RenderType renderType, const IECore::MessageHandlerPtr &messageHandler )
+	:	riley( nullptr ), renderType( renderType ), m_exceptionHandler( std::make_unique<ExceptionHandler>( messageHandler ) ), m_optionsSet( false )
+{
+	// `argv[0]==""` prevents RenderMan doing its own signal handling.
+	vector<const char *> args = { "" };
 	PRManSystemBegin( args.size(), args.data() );
-	// TODO : THERE CAN ONLY BE ONE OF THESE. SO WE'RE GOING TO NEED TO PREVENT
-	// THE CREATION OF TWO RENDERERS AT ONCE.
+	/// \todo There can only be one PRMan/Riley instance at a time, so we need to
+	/// prevent the creation of a second renderer.
 	PRManRenderBegin( args.size(), args.data() );
 
+	auto rixXcpt = (RixXcpt *)RixGetContext()->GetRixInterface( k_RixXcpt );
+	rixXcpt->Register( m_exceptionHandler.get() );
+
+	auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
+	/// \todo What is the `rileyVariant` argument for? XPU?
 	riley = rileyManager->CreateRiley( RtUString(), RtParamList() );
 }
 
@@ -65,6 +112,9 @@ Session::~Session()
 
 	auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
 	rileyManager->DestroyRiley( riley );
+
+	auto rixXcpt = (RixXcpt *)RixGetContext()->GetRixInterface( k_RixXcpt );
+	rixXcpt->Unregister( m_exceptionHandler.get() );
 
 	PRManRenderEnd();
 	PRManSystemEnd();
