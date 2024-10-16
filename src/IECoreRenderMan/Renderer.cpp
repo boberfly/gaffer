@@ -38,6 +38,7 @@
 #include "Camera.h"
 #include "GeometryAlgo.h"
 #include "Globals.h"
+#include "Light.h"
 #include "Material.h"
 #include "Globals.h"
 #include "Object.h"
@@ -55,201 +56,6 @@ using namespace Imath;
 using namespace IECore;
 using namespace IECoreScene;
 using namespace IECoreRenderMan;
-
-//////////////////////////////////////////////////////////////////////////
-// Utilities
-//////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-
-static riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
-
-} // namespace
-
-//////////////////////////////////////////////////////////////////////////
-// RenderManLight
-//////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-
-class RenderManLight : public IECoreScenePreview::Renderer::ObjectInterface
-{
-
-	public :
-
-		RenderManLight( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, const ConstSessionPtr &session )
-			:	m_session( session ), m_lightShader( riley::LightShaderId::InvalidId() ), m_lightInstance( riley::LightInstanceId::InvalidId() )
-		{
-			updateLightShader( attributes );
-			if( m_lightShader == riley::LightShaderId::InvalidId() )
-			{
-				// Riley crashes if we try to edit the transform on a light
-				// without a shader, so we just don't make such lights.
-				return;
-			}
-
-			m_lightInstance = m_session->riley->CreateLightInstance(
-				riley::UserId(),
-				/* group = */ riley::GeometryPrototypeId::InvalidId(),
-				geometryPrototype,
-				riley::MaterialId::InvalidId(), /// \todo Use `attributes->material()`?
-				m_lightShader,
-				g_emptyCoordinateSystems,
-				StaticTransform(),
-				attributes->paramList()
-			);
-		}
-
-		~RenderManLight()
-		{
-			if( m_session->renderType == IECoreScenePreview::Renderer::Interactive )
-			{
-				if( m_lightInstance != riley::LightInstanceId::InvalidId() )
-				{
-					m_session->riley->DeleteLightInstance( riley::GeometryPrototypeId::InvalidId(), m_lightInstance );
-				}
-				if( m_lightShader != riley::LightShaderId::InvalidId() )
-				{
-					m_session->riley->DeleteLightShader( m_lightShader );
-				}
-			}
-		}
-
-		void transform( const Imath::M44f &transform ) override
-		{
-			if( m_lightInstance == riley::LightInstanceId::InvalidId() )
-			{
-				return;
-			}
-
-			const M44f flippedTransform = M44f().scale( V3f( 1, 1, -1 ) ) * transform;
-			StaticTransform staticTransform( flippedTransform );
-
-			const riley::LightInstanceResult result = m_session->riley->ModifyLightInstance(
-				/* group = */ riley::GeometryPrototypeId::InvalidId(),
-				m_lightInstance,
-				/* material = */ nullptr,
-				/* light shader = */ nullptr,
-				/* coordsys = */ nullptr,
-				&staticTransform,
-				/* attributes = */ nullptr
-			);
-
-			if( result != riley::LightInstanceResult::k_Success )
-			{
-				IECore::msg( IECore::Msg::Warning, "RenderManLight::transform", "Unexpected edit failure" );
-			}
-		}
-
-		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override
-		{
-			if( m_lightInstance == riley::LightInstanceId::InvalidId() )
-			{
-				return;
-			}
-
-			vector<Imath::M44f> flippedSamples = samples;
-			for( auto &m : flippedSamples )
-			{
-				m = M44f().scale( V3f( 1, 1, -1 ) ) * m;
-			}
-			AnimatedTransform animatedTransform( flippedSamples, times );
-
-			const riley::LightInstanceResult result = m_session->riley->ModifyLightInstance(
-				/* group = */ riley::GeometryPrototypeId::InvalidId(),
-				m_lightInstance,
-				/* material = */ nullptr,
-				/* light shader = */ nullptr,
-				/* coordsys = */ nullptr,
-				&animatedTransform,
-				/* attributes = */ nullptr
-			);
-
-			if( result != riley::LightInstanceResult::k_Success )
-			{
-				IECore::msg( IECore::Msg::Warning, "RenderManLight::transform", "Unexpected edit failure" );
-			}
-		}
-
-		bool attributes( const IECoreScenePreview::Renderer::AttributesInterface *attributes ) override
-		{
-			auto renderManAttributes = static_cast<const Attributes *>( attributes );
-			updateLightShader( renderManAttributes );
-
-			if( m_lightInstance == riley::LightInstanceId::InvalidId() )
-			{
-				// Occurs when we were created without a valid shader. We can't
-				// magic the light into existence now, even if the new
-				// attributes have a valid shader, because we don't know the
-				// transform. If we now have a shader, then return false to
-				// request that the whole object is sent again from scratch.
-				return m_lightShader == riley::LightShaderId::InvalidId();
-			}
-
-			if( m_lightShader == riley::LightShaderId::InvalidId() )
-			{
-				// Riley crashes when a light doesn't have a valid shader, so we delete the light.
-				// If we get a valid shader from a later attribute edit, we'll handle that above.
-				m_session->riley->DeleteLightInstance( riley::GeometryPrototypeId::InvalidId(), m_lightInstance );
-				m_lightInstance = riley::LightInstanceId::InvalidId();
-				return true;
-			}
-
-			const riley::LightInstanceResult result = m_session->riley->ModifyLightInstance(
-				/* group = */ riley::GeometryPrototypeId::InvalidId(),
-				m_lightInstance,
-				/* material = */ nullptr,
-				/* light shader = */ &m_lightShader,
-				/* coordsys = */ nullptr,
-				/* xform = */ nullptr,
-				&renderManAttributes->paramList()
-			);
-
-			if( result != riley::LightInstanceResult::k_Success )
-			{
-				IECore::msg( IECore::Msg::Warning, "RenderManLight::attributes", "Unexpected edit failure" );
-				return false;
-			}
-			return true;
-		}
-
-		void link( const IECore::InternedString &type, const IECoreScenePreview::Renderer::ConstObjectSetPtr &objects ) override
-		{
-		}
-
-		void assignID( uint32_t id ) override
-		{
-		}
-
-	private :
-
-		void updateLightShader( const Attributes *attributes )
-		{
-			if( m_lightShader != riley::LightShaderId::InvalidId() )
-			{
-				m_session->riley->DeleteLightShader( m_lightShader );
-				m_lightShader = riley::LightShaderId::InvalidId();
-			}
-
-			if( attributes->lightShader() )
-			{
-				m_lightShader = convertLightShaderNetwork( attributes->lightShader(), m_session->riley );
-			}
-		}
-
-		const ConstSessionPtr m_session;
-		riley::LightShaderId m_lightShader;
-		riley::LightInstanceId m_lightInstance;
-
-};
-
-} // namespace
-
-//////////////////////////////////////////////////////////////////////////
-// RenderManRenderer
-//////////////////////////////////////////////////////////////////////////
 
 namespace
 {
@@ -314,7 +120,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 				/// \todo Cache geometry masters
 				geometryPrototype = GeometryAlgo::convert( object, m_session->riley );
 			}
-			return new RenderManLight( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session );
+			return new IECoreRenderMan::Light( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session );
 		}
 
 		ObjectInterfacePtr lightFilter( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
