@@ -36,46 +36,13 @@
 
 #include "Camera.h"
 
+#include "Transform.h"
+
 #include "RixPredefinedStrings.hpp"
 
 using namespace std;
 using namespace Imath;
 using namespace IECoreRenderMan;
-
-namespace
-{
-
-struct StaticTransform : riley::Transform
-{
-
-	StaticTransform( const Imath::M44f &m = Imath::M44f() )
-		:	m_time( 0 )
-	{
-		samples = 1;
-		matrix = &reinterpret_cast<const RtMatrix4x4 &>( m );
-		time = &m_time;
-	}
-
-	private :
-
-		float m_time;
-
-};
-
-/// TODO : MOVE AND SHARE
-struct AnimatedTransform : riley::Transform
-{
-
-	AnimatedTransform( const vector<Imath::M44f> &transformSamples, const vector<float> &sampleTimes )
-	{
-		samples = transformSamples.size();
-		matrix = reinterpret_cast<const RtMatrix4x4 *>( transformSamples.data() );
-		time = sampleTimes.data();
-	}
-
-};
-
-} // namespace
 
 Camera::Camera( const std::string &name, const IECoreScene::Camera *camera, const SessionPtr &session )
 	:	m_session( session ), m_name( name )
