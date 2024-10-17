@@ -64,15 +64,20 @@ const IECore::InternedString g_frameOption( "frame" );
 const IECore::InternedString g_integratorOption( "renderman:integrator" );
 
 template<typename T>
-T *reportedCast( const IECore::RunTimeTyped *v, const char *type, const IECore::InternedString &name )
+T *optionCast( const IECore::RunTimeTyped *v, const IECore::InternedString &name )
 {
+	if( !v )
+	{
+		return nullptr;
+	}
+
 	T *t = IECore::runTimeCast<T>( v );
 	if( t )
 	{
 		return t;
 	}
 
-	IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", fmt::format( "Expected {} but got {} for {} \"{}\".", T::staticTypeName(), v->typeName(), type, name.c_str() ) );
+	IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", fmt::format( "Expected {} but got {} for option \"{}\".", T::staticTypeName(), v->typeName(), name.c_str() ) );
 	return nullptr;
 }
 
@@ -83,7 +88,8 @@ Globals::Globals( const SessionPtr &session )
 		m_renderTargetExtent(),
 		m_expectedWorldBeginThreadId( std::this_thread::get_id() ), m_worldBegun( false )
 {
-	m_integrator = new Shader( "PxrPathTracer", "renderman:integrator" );
+	// Initialise `m_integratorToConvert`.
+	option( g_integratorOption, nullptr );
 
 	if( char *p = getenv( "RMAN_DISPLAYS_PATH" ) )
 	{
@@ -111,46 +117,29 @@ Globals::~Globals()
 
 void Globals::option( const IECore::InternedString &name, const IECore::Object *value )
 {
-	// if( worldBegun() && name != g_cameraOption )
-	// {
-	// 	if( name != "frame" ) /// \todo Stop RenderController outputting frame unnecessarily
-	// 	{
-	// 		msg(
-	// 			IECore::Msg::Warning, "RenderManRender::option",
-	// 			fmt::format( "Unable to edit option \"{}\" (RenderMan limitation)", name )
-	// 		);
-	// 	}
-	// 	return;
-	// }
-
 	if( name == g_integratorOption )
 	{
-		if( worldBegun() )
+		if( auto *network = optionCast<const ShaderNetwork>( value, name ) )
 		{
-			// TODO : ISN'T THIS COVERED ABOVE?
-			msg( IECore::Msg::Warning, "RenderManRender::option", "Unable to edit integrator (RenderMan limitation)" );
+			m_integratorToConvert = network->outputShader();
 		}
-		else if( auto *network = reportedCast<const ShaderNetwork>( value, "option", name ) )
+		else
 		{
-			m_integrator = network->outputShader();
-			/// TODO : DELETE RENDER VIEW
+			m_integratorToConvert = new Shader( "PxrPathTracer", "renderman:integrator" );
 		}
 	}
 	else if( name == g_cameraOption )
 	{
-		if( auto *d = reportedCast<const StringData>( value, "option", name ) )
+		if( auto *d = optionCast<const StringData>( value, name ) )
 		{
 			m_cameraOption = d->readable();
 		}
 	}
 	else if( name == g_frameOption )
 	{
-		if( value )
+		if( auto *d = optionCast<const IntData>( value, name ) )
 		{
-			if( auto *d = reportedCast<const IntData>( value, "option", name ) )
-			{
-				m_options.SetInteger( RtUString( "Ri:Frame" ), d->readable() );
-			}
+			m_options.SetInteger( RtUString( "Ri:Frame" ), d->readable() );
 		}
 		else
 		{
@@ -159,12 +148,9 @@ void Globals::option( const IECore::InternedString &name, const IECore::Object *
 	}
 	else if( name == g_sampleMotionOption )
 	{
-		if( value )
+		if( auto *d = optionCast<const BoolData>( value, name ) )
 		{
-			if( auto *d = reportedCast<const BoolData>( value, "option", name ) )
-			{
-				m_options.SetInteger( RtUString( "hider:samplemotion" ), d->readable() );
-			}
+			m_options.SetInteger( RtUString( "hider:samplemotion" ), d->readable() );
 		}
 		else
 		{
@@ -174,12 +160,9 @@ void Globals::option( const IECore::InternedString &name, const IECore::Object *
 	else if( boost::starts_with( name.c_str(), g_renderManPrefix.c_str() ) )
 	{
 		const RtUString renderManName( name.c_str() + g_renderManPrefix.size() );
-		if( value )
+		if( auto data = optionCast<const Data>( value, name ) )
 		{
-			if( auto data = runTimeCast<const Data>( value ) )
-			{
-				ParamListAlgo::convertParameter( renderManName, data, m_options );
-			}
+			ParamListAlgo::convertParameter( renderManName, data, m_options );
 		}
 		else
 		{
@@ -189,12 +172,9 @@ void Globals::option( const IECore::InternedString &name, const IECore::Object *
 	else if( boost::starts_with( name.c_str(), "user:" ) )
 	{
 		const RtUString renderManName( name.c_str() );
-		if( value )
+		if( auto data = optionCast<const Data>( value, name ) )
 		{
-			if( auto data = runTimeCast<const Data>( value ) )
-			{
-				ParamListAlgo::convertParameter( renderManName, data, m_options );
-			}
+			ParamListAlgo::convertParameter( renderManName, data, m_options );
 		}
 		else
 		{
@@ -263,26 +243,43 @@ void Globals::ensureWorld()
 	}
 
 	m_session->setOptions( m_options );
+	m_worldBegun = true;
+}
 
-	// Make integrator
+void Globals::updateIntegrator()
+{
+	if( !m_integratorToConvert )
+	{
+		return;
+	}
 
-	RtParamList integratorParams;
-	ParamListAlgo::convertParameters( m_integrator->parameters(), integratorParams );
+	if( m_integratorId != riley::IntegratorId::InvalidId() )
+	{
+		// Note : we update the render view to use the new integrator in
+		// `updateRenderView()`, called immediately after `updateIntegrator()`.
+		// So far it seems to be OK that the render view has a dangling
+		// integrator in the meantime.
+		m_session->riley->DeleteIntegrator( m_integratorId );
+	}
+
+	RtParamList integratorParamList;
+	ParamListAlgo::convertParameters( m_integratorToConvert->parameters(), integratorParamList );
 
 	riley::ShadingNode integratorNode = {
 		riley::ShadingNode::Type::k_Integrator,
-		RtUString( m_integrator->getName().c_str() ),
+		RtUString( m_integratorToConvert->getName().c_str() ),
 		RtUString( "integrator" ),
-		integratorParams
+		integratorParamList
 	};
 
 	m_integratorId = m_session->riley->CreateIntegrator( riley::UserId(), integratorNode );
-	m_worldBegun = true;
+	m_integratorToConvert = nullptr;
 }
 
 void Globals::render()
 {
 	ensureWorld();
+	updateIntegrator();
 	updateRenderView();
 
 	/// \todo Is it worth avoiding this work when nothing has changed?
@@ -378,7 +375,7 @@ void Globals::updateRenderView()
 			m_renderTargetExtent = extent;
 		}
 		m_session->riley->ModifyRenderView(
-			m_renderView, nullptr, &camera.id, nullptr, nullptr, nullptr, nullptr
+			m_renderView, nullptr, &camera.id, &m_integratorId, nullptr, nullptr, nullptr
 		);
 		return;
 	}
@@ -523,9 +520,4 @@ void Globals::deleteRenderView()
 		m_session->riley->DeleteRenderOutput( renderOutput );
 	}
 	m_renderOutputs.clear();
-}
-
-void Globals::updateCameraOptions()
-{
-
 }

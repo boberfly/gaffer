@@ -94,6 +94,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 		void output( const IECore::InternedString &name, const Output *output ) override
 		{
+			m_globals->ensureWorld();
 			m_globals->output( name, output );
 		}
 

@@ -35,6 +35,7 @@
 ##########################################################################
 
 import unittest
+import time
 
 import imath
 
@@ -185,6 +186,72 @@ class RendererTest( GafferTest.TestCase ) :
 		# doesn't have a valid shader.
 		light = renderer.light( "/light", None, lightAttributes )
 		light.transform( imath.M44f().translate( imath.V3f( 1, 2, 3 ) ) )
+
+	def testIntegratorEdit( self ) :
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Interactive
+		)
+
+		renderer.output(
+			"test",
+			IECoreScene.Output(
+				"test",
+				"ieDisplay",
+				"rgba",
+				{
+					"driverType" : "ImageDisplayDriver",
+					"handle" : "myLovelySphere",
+				}
+			)
+		)
+
+		object = renderer.object(
+			"sphere",
+			IECoreScene.SpherePrimitive(),
+			renderer.attributes( IECore.CompoundObject() )
+		)
+
+		renderer.render()
+		time.sleep( 1 )
+		renderer.pause()
+
+		image = IECoreImage.ImageDisplayDriver.storedImage( "myLovelySphere" )
+		IECoreImage.ImageWriter( image, "/tmp/test2.exr" ).write()
+		self.assertEqual( self.__colorAtUV( image, imath.V2i( 0.5 ) ), imath.Color4f( 1 ) )
+
+		renderer.option(
+			"renderman:integrator",
+			IECoreScene.ShaderNetwork(
+				shaders = {
+					"integrator" : IECoreScene.Shader(
+						"PxrVisualizer", "renderman:integrator",
+						{
+							"style" : "objectnormals",
+							"wireframe" : False,
+						}
+					),
+				},
+				output = "integrator"
+			)
+		)
+
+		renderer.render()
+		time.sleep( 1 )
+
+		image = IECoreImage.ImageDisplayDriver.storedImage( "myLovelySphere" )
+		self.assertNotEqual( self.__colorAtUV( image, imath.V2i( 0.5 ) ), imath.Color4f( 0, 0.514117, 0.515205, 1 ) )
+
+	def __colorAtUV( self, image, uv ) :
+
+		dimensions = image.dataWindow.size() + imath.V2i( 1 )
+
+		ix = int( uv.x * ( dimensions.x - 1 ) )
+		iy = int( uv.y * ( dimensions.y - 1 ) )
+		i = iy * dimensions.x + ix
+
+		return imath.Color4f( image["R"][i], image["G"][i], image["B"][i], image["A"][i] if "A" in image.keys() else 0.0 )
 
 if __name__ == "__main__":
 	unittest.main()

@@ -90,16 +90,21 @@ class Globals : public boost::noncopyable
 	private :
 
 		bool worldBegun();
+		void updateIntegrator();
 		void updateRenderView();
 		void deleteRenderView();
-		void updateCameraOptions();
 
 		SessionPtr m_session;
 		RtParamList m_options;
 
 		std::unordered_map<IECore::InternedString, IECoreScene::ConstOutputPtr> m_outputs;
 
-		IECoreScene::ConstShaderPtr m_integrator; // TODO : CAN WE AVOID STORING THIS?
+		// We are given integrators via `option()`, and other options
+		// might appear after the integrator. We can't create a Riley
+		// integrator until after we've called `Riley::SetOptions()`
+		// with all the options though, so we store the integrator
+		// definition and convert it later.
+		IECoreScene::ConstShaderPtr m_integratorToConvert;
 		riley::IntegratorId m_integratorId;
 
 		std::string m_cameraOption;
