@@ -41,48 +41,33 @@
 #include "IECoreScene/Output.h"
 #include "IECoreScene/Shader.h"
 
-#include "boost/noncopyable.hpp"
+#include "GafferScene/Private/IECoreScenePreview/Renderer.h"
 
-#include "tbb/spin_mutex.h"
+#include "boost/noncopyable.hpp"
 
 #include <thread>
 
 namespace IECoreRenderMan
 {
 
+/// Handles global operations for Renderer. Creates and owns the
+/// Session, because a session cannot be created without a complete
+/// set of options.
 class Globals : public boost::noncopyable
 {
 
 	public :
 
-		Globals( Session *session );
+		Globals( IECoreScenePreview::Renderer::RenderType renderType, const IECore::MessageHandlerPtr &messageHandler );
 		~Globals();
 
 		void option( const IECore::InternedString &name, const IECore::Object *value );
 		void output( const IECore::InternedString &name, const IECoreScene::Output *output );
 
-		// TODO : UPDATE WHEN YOU FIGURE OUT THE NEW RESTRICTIONS
-		//
-		// Despite being designed as a modern edit-anything-at-any-time renderer API,
-		// in places Riley is still implemented as a veneer over an old RI-like
-		// state. Except now you have to guess how the API functions map to
-		// state transitions in the backend.
-		//
-		// It turns out that `SetActiveCamera()` is basically `WorldBegin`,
-		// and you must create _all_ cameras before calling it, and you must
-		// not create geometry until _after_ calling it. We use `ensureWorld()`
-		// to make this transition at the latest possible moment, just before we
-		// are given our first geometry. After we've entered the world, we
-		// refuse to make any further edits to cameras or outputs.
-		//
-		// There are further ordering requirements on top of the above. The
-		// only workable sequence of operations I've found is this :
-		//
-		//   1. CreateCamera().
-		//   2. CreateIntegrator().
-		//   3. SetRenderTargetIds().
-		//   4. SetActiveCamera().
-		void ensureWorld();
+		/// Creates the session on first call, using all the options specified
+		/// so far. We want to defer this call until the last moment possible,
+		/// as Riley doesn't support subsequent edits to many scene options.
+		Session *acquireSession();
 
 		void render();
 		void pause();
@@ -94,20 +79,26 @@ class Globals : public boost::noncopyable
 		void updateRenderView();
 		void deleteRenderView();
 
-		Session *m_session;
-		RtParamList m_options;
+		// We are not allowed to call anything in the Riley API before we've
+		// called `Riley::SetOptions()`. So we buffer all the options and output
+		// into the following member variables, and create the Riley session
+		// only when we must.
 
+		RtParamList m_options;
+		std::string m_cameraOption;
+		IECoreScene::ConstShaderPtr m_integratorToConvert;
 		std::unordered_map<IECore::InternedString, IECoreScene::ConstOutputPtr> m_outputs;
 
-		// We are given integrators via `option()`, and other options
-		// might appear after the integrator. We can't create a Riley
-		// integrator until after we've called `Riley::SetOptions()`
-		// with all the options though, so we store the integrator
-		// definition and convert it later.
-		IECoreScene::ConstShaderPtr m_integratorToConvert;
-		riley::IntegratorId m_integratorId;
+		// When we require the Riley session, we create it in `acquireSession()`.
 
-		std::string m_cameraOption;
+		const IECoreScenePreview::Renderer::RenderType m_renderType;
+		const IECore::MessageHandlerPtr m_messageHandler;
+		std::unique_ptr<Session> m_session;
+
+		// Then once we have the session, we are free to use the Riley API
+		// to populate the scene, which we store in the following members.
+
+		riley::IntegratorId m_integratorId;
 		riley::CameraId m_defaultCamera;
 
 		std::vector<riley::RenderOutputId> m_renderOutputs;
@@ -115,9 +106,6 @@ class Globals : public boost::noncopyable
 		riley::RenderTargetId m_renderTarget;
 		riley::Extent m_renderTargetExtent;
 		riley::RenderViewId m_renderView;
-
-		tbb::spin_mutex m_worldBeginMutex;
-		bool m_worldBegun;
 
 		std::thread m_interactiveRenderThread;
 

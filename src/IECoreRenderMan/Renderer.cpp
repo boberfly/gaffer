@@ -51,6 +51,8 @@
 #include "Riley.h"
 #include "RixPredefinedStrings.hpp"
 
+#include "tbb/spin_rw_mutex.h"
+
 using namespace std;
 using namespace Imath;
 using namespace IECore;
@@ -66,15 +68,14 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 	public :
 
 		RenderManRenderer( RenderType renderType, const std::string &fileName, const MessageHandlerPtr &messageHandler )
+			:	m_session( nullptr )
 		{
 			if( renderType == SceneDescription )
 			{
 				throw IECore::Exception( "SceneDescription mode not supported by RenderMan" );
 			}
 
-			m_session = std::make_unique<Session>( renderType, messageHandler );
-			m_globals = std::make_unique<Globals>( m_session.get() );
-			m_materialCache = new MaterialCache( m_session.get() );
+			m_globals = std::make_unique<Globals>( renderType, messageHandler );
 		}
 
 		~RenderManRenderer() override
@@ -99,28 +100,27 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 		Renderer::AttributesInterfacePtr attributes( const IECore::CompoundObject *attributes ) override
 		{
-			m_globals->ensureWorld();
+			acquireSession();
 			return new Attributes( attributes, m_materialCache.get() );
 		}
 
 		ObjectInterfacePtr camera( const std::string &name, const IECoreScene::Camera *camera, const AttributesInterface *attributes ) override
 		{
-			m_globals->ensureWorld();
-			IECoreRenderMan::CameraPtr result = new IECoreRenderMan::Camera( name, camera, m_session.get() );
+			IECoreRenderMan::CameraPtr result = new IECoreRenderMan::Camera( name, camera, acquireSession() );
 			result->attributes( attributes );
 			return result;
 		}
 
 		ObjectInterfacePtr light( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
 		{
-			m_globals->ensureWorld();
+			acquireSession();
 			riley::GeometryPrototypeId geometryPrototype = riley::GeometryPrototypeId::InvalidId();
 			if( object )
 			{
 				/// \todo Cache geometry masters
 				geometryPrototype = GeometryAlgo::convert( object, m_session->riley );
 			}
-			return new IECoreRenderMan::Light( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session.get() );
+			return new IECoreRenderMan::Light( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session );
 		}
 
 		ObjectInterfacePtr lightFilter( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
@@ -130,10 +130,10 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 		Renderer::ObjectInterfacePtr object( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
 		{
-			m_globals->ensureWorld();
+			acquireSession();
 			/// \todo Cache geometry masters
 			riley::GeometryPrototypeId geometryPrototype = GeometryAlgo::convert( object, m_session->riley );
-			return new IECoreRenderMan::Object( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session.get() );
+			return new IECoreRenderMan::Object( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session );
 		}
 
 		ObjectInterfacePtr object( const std::string &name, const std::vector<const IECore::Object *> &samples, const std::vector<float> &times, const AttributesInterface *attributes ) override
@@ -144,6 +144,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 		void render() override
 		{
+			acquireSession();
 			m_materialCache->clearUnused();
 			m_globals->render();
 		}
@@ -160,9 +161,31 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 	private :
 
-		std::unique_ptr<Session> m_session;
 		std::unique_ptr<Globals> m_globals;
-		MaterialCachePtr m_materialCache;
+
+		// Used to acquire the Session via `m_globals` at the first point we need it.
+		// Also initialises other members that depend on the session. Needs to be thread-safe
+		// because it is called from `object()`, `attributes()` etc.
+		Session *acquireSession()
+		{
+			tbb::spin_rw_mutex::scoped_lock lock( m_acquireSessionMutex, /* write = */ false );
+			if( !m_session )
+			{
+				lock.upgrade_to_writer();
+				if( !m_session )
+				{
+					m_session = m_globals->acquireSession();
+					m_materialCache = std::make_unique<MaterialCache>( m_session );
+				}
+			}
+			return m_session;
+		}
+
+		tbb::spin_rw_mutex m_acquireSessionMutex;
+		// The following members may only be accessed after calling
+		// `acquireSession()`.
+		Session *m_session;
+		std::unique_ptr<MaterialCache> m_materialCache;
 
 		static Renderer::TypeDescription<RenderManRenderer> g_typeDescription;
 

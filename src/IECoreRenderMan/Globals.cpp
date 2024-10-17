@@ -83,10 +83,9 @@ T *optionCast( const IECore::RunTimeTyped *v, const IECore::InternedString &name
 
 } // namespace
 
-Globals::Globals( Session *session )
-	:	m_session( session ), m_options(),
-		m_renderTargetExtent(),
-		m_worldBegun( false )
+Globals::Globals( IECoreScenePreview::Renderer::RenderType renderType, const IECore::MessageHandlerPtr &messageHandler )
+	:	m_renderType( renderType ), m_messageHandler( messageHandler ),
+		m_renderTargetExtent()
 {
 	// Initialise `m_integratorToConvert`.
 	option( g_integratorOption, nullptr );
@@ -103,7 +102,7 @@ Globals::Globals( Session *session )
 		m_options.SetString( Rix::k_searchpath_shader, RtUString( searchPath.c_str() ) );
 	}
 
-	if( session->renderType == IECoreScenePreview::Renderer::Interactive )
+	if( renderType == IECoreScenePreview::Renderer::Interactive )
 	{
 		m_options.SetInteger( Rix::k_hider_incremental, 1 );
 		m_options.SetString( Rix::k_bucket_order, RtUString( "circle" ) );
@@ -197,37 +196,14 @@ void Globals::output( const IECore::InternedString &name, const Output *output )
 	deleteRenderView();
 }
 
-// TODO : UPDATE WHEN YOU FIGURE OUT THE NEW RESTRICTIONS
-//
-// Despite being designed as a modern edit-anything-at-any-time renderer API,
-// in places Riley is still implemented as a veneer over an old RI-like
-// state. Except now you have to guess how the API functions map to
-// state transitions in the backend.
-//
-// It turns out that `SetActiveCamera()` is basically `WorldBegin`,
-// and you must create _all_ cameras before calling it, and you must
-// not create geometry until _after_ calling it. We use `ensureWorld()`
-// to make this transition at the latest possible moment, just before we
-// are given our first geometry. After we've entered the world, we
-// refuse to make any further edits to cameras or outputs.
-//
-// There are further ordering requirements on top of the above. The
-// only workable sequence of operations I've found is this :
-//
-//   1. CreateCamera().
-//   2. CreateIntegrator().
-//   3. SetRenderTargetIds().
-//   4. SetActiveCamera().
-void Globals::ensureWorld()
+Session *Globals::acquireSession()
 {
-	tbb::spin_mutex::scoped_lock l( m_worldBeginMutex );
-	if( m_worldBegun )
+	if( !m_session )
 	{
-		return;
+		m_session = std::make_unique<Session>( m_renderType, m_options, m_messageHandler );
 	}
 
-	m_session->setOptions( m_options );
-	m_worldBegun = true;
+	return m_session.get();
 }
 
 void Globals::updateIntegrator()
@@ -262,14 +238,14 @@ void Globals::updateIntegrator()
 
 void Globals::render()
 {
-	ensureWorld();
+	acquireSession();
 	updateIntegrator();
 	updateRenderView();
 
 	/// \todo Is it worth avoiding this work when nothing has changed?
 	Session::CameraInfo camera = m_session->getCamera( m_cameraOption );
 	m_options.Update( camera.options );
-	m_session->setOptions( m_options );
+	m_session->riley->SetOptions( m_options );
 
 	switch( m_session->renderType )
 	{
@@ -302,12 +278,6 @@ void Globals::pause()
 		m_session->riley->Stop();
 		m_interactiveRenderThread.join();
 	}
-}
-
-bool Globals::worldBegun()
-{
-	tbb::spin_mutex::scoped_lock l( m_worldBeginMutex );
-	return m_worldBegun;
 }
 
 void Globals::updateRenderView()

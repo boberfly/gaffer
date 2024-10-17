@@ -45,15 +45,16 @@
 namespace IECoreRenderMan
 {
 
-// Owns a Riley instance and provides shared state to facilitate communication
-// between the various Renderer components.
+/// Owns a Riley instance and provides shared state to facilitate communication
+/// between the various Renderer components.
 struct Session
 {
 
-	Session( IECoreScenePreview::Renderer::RenderType renderType, const IECore::MessageHandlerPtr &messageHandler );
+	/// Options must be provided at construction time, as Riley requires them to
+	/// be set before any other operations can take place (and indeed, will crash
+	/// if the Riley instance is destroyed without `SetOptions()` being called).
+	Session( IECoreScenePreview::Renderer::RenderType renderType, const RtParamList &options, const IECore::MessageHandlerPtr &messageHandler );
 	~Session();
-
-	void setOptions( const RtParamList &options );
 
 	struct CameraInfo
 	{
@@ -75,8 +76,6 @@ struct Session
 
 		struct ExceptionHandler;
 		std::unique_ptr<ExceptionHandler> m_exceptionHandler;
-
-		bool m_optionsSet;
 
 		using CameraMap = tbb::concurrent_hash_map<std::string, CameraInfo>;
 		CameraMap m_cameras;

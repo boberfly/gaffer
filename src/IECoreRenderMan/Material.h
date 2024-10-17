@@ -67,7 +67,7 @@ class Material : public IECore::RefCounted
 
 IE_CORE_DECLAREPTR( Material )
 
-class MaterialCache : public IECore::RefCounted
+class MaterialCache
 {
 
 	public :
@@ -88,8 +88,6 @@ class MaterialCache : public IECore::RefCounted
 		Cache m_cache;
 
 };
-
-IE_CORE_DECLAREPTR( MaterialCache )
 
 /// \todo Is there a better home for this? Should we have a LightShader class like the Material class?
 riley::LightShaderId convertLightShaderNetwork( const IECoreScene::ShaderNetwork *network, riley::Riley *riley );

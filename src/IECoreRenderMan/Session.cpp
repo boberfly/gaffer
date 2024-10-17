@@ -84,8 +84,8 @@ struct Session::ExceptionHandler : public RixXcpt::XcptHandler
 };
 
 
-Session::Session( IECoreScenePreview::Renderer::RenderType renderType, const IECore::MessageHandlerPtr &messageHandler )
-	:	riley( nullptr ), renderType( renderType ), m_exceptionHandler( std::make_unique<ExceptionHandler>( messageHandler ) ), m_optionsSet( false )
+Session::Session( IECoreScenePreview::Renderer::RenderType renderType, const RtParamList &options, const IECore::MessageHandlerPtr &messageHandler )
+	:	riley( nullptr ), renderType( renderType ), m_exceptionHandler( std::make_unique<ExceptionHandler>( messageHandler ) )
 {
 	// `argv[0]==""` prevents RenderMan doing its own signal handling.
 	vector<const char *> args = { "" };
@@ -100,16 +100,12 @@ Session::Session( IECoreScenePreview::Renderer::RenderType renderType, const IEC
 	auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
 	/// \todo What is the `rileyVariant` argument for? XPU?
 	riley = rileyManager->CreateRiley( RtUString(), RtParamList() );
+
+	riley->SetOptions( options );
 }
 
 Session::~Session()
 {
-	if( !m_optionsSet )
-	{
-		// Riley crashes if you don't call `SetOptions()` before destruction.
-		riley->SetOptions( RtParamList() );
-	}
-
 	auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
 	rileyManager->DestroyRiley( riley );
 
@@ -118,12 +114,6 @@ Session::~Session()
 
 	PRManRenderEnd();
 	PRManSystemEnd();
-}
-
-void Session::setOptions( const RtParamList &options )
-{
-	riley->SetOptions( options );
-	m_optionsSet = true;
 }
 
 void Session::addCamera( const std::string &name, const CameraInfo &camera )
