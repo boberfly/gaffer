@@ -86,7 +86,7 @@ T *optionCast( const IECore::RunTimeTyped *v, const IECore::InternedString &name
 Globals::Globals( const SessionPtr &session )
 	:	m_session( session ), m_options(),
 		m_renderTargetExtent(),
-		m_expectedWorldBeginThreadId( std::this_thread::get_id() ), m_worldBegun( false )
+		m_worldBegun( false )
 {
 	// Initialise `m_integratorToConvert`.
 	option( g_integratorOption, nullptr );
@@ -224,22 +224,6 @@ void Globals::ensureWorld()
 	if( m_worldBegun )
 	{
 		return;
-	}
-
-	if( std::this_thread::get_id() != m_expectedWorldBeginThreadId )
-	{
-		// We are required to make all calls up till `SetActiveCamera()`
-		// from the same thread that the `Riley` instance was created on.
-		// If we are being driven by a multi-threaded client, our gambit
-		// of calling `ensureWorld()` from `Renderer::object()` cannot meet
-		// this requirement. The best we can do is provide such clients a
-		// nostalgic hoop to jump through.
-		IECore::msg(
-			Msg::Error,
-			"RenderManRenderer",
-			"You must call `Renderer::command( \"renderman:worldBegin\" )` before commencing "
-			"multithreaded geometry output (RenderMan limitation)."
-		);
 	}
 
 	m_session->setOptions( m_options );

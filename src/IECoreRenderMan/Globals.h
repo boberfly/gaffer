@@ -117,7 +117,6 @@ class Globals : public boost::noncopyable
 		riley::RenderViewId m_renderView;
 
 		tbb::spin_mutex m_worldBeginMutex;
-		std::thread::id m_expectedWorldBeginThreadId;
 		bool m_worldBegun;
 
 		std::thread m_interactiveRenderThread;

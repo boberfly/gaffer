@@ -1706,12 +1706,6 @@ void RenderController::updateInternal( const ProgressCallback &callback, const I
 			);
 			tbb::task::spawn_root_and_wait( *task );
 
-			if( i == SceneGraph::CameraType && m_renderer->name() == "RenderMan" )
-			{
-				/// \todo Remove once Riley's `SetActiveCamera()` restrictions
-				/// have been lifted.
-				m_renderer->command( "renderman:worldBegin" );
-			}
 			if( i == SceneGraph::LightFilterType && m_lightLinks && m_lightLinks->lightFilterLinksDirty() )
 			{
 				m_lightLinks->outputLightFilterLinks( m_scene.get() );

@@ -94,7 +94,6 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 		void output( const IECore::InternedString &name, const Output *output ) override
 		{
-			m_globals->ensureWorld();
 			m_globals->output( name, output );
 		}
 
@@ -156,11 +155,6 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 		IECore::DataPtr command( const IECore::InternedString name, const IECore::CompoundDataMap &parameters ) override
 		{
-			if( name == "renderman:worldBegin" )
-			{
-				m_globals->ensureWorld();
-			}
-
 			return nullptr;
 		}
 

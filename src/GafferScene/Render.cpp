@@ -352,14 +352,6 @@ void Render::executeInternal( bool flushCaches ) const
 		GafferScene::Private::RendererAlgo::LightLinks lightLinks;
 
 		GafferScene::Private::RendererAlgo::outputCameras( adaptedInPlug(), renderOptions, renderSets, renderer.get() );
-
-		if( renderer->name() == "RenderMan" )
-		{
-			/// \todo Remove once Riley's `SetActiveCamera()` restrictions
-			/// have been lifted.
-			renderer->command( "renderman:worldBegin" );
-		}
-
 		GafferScene::Private::RendererAlgo::outputLights( adaptedInPlug(), renderOptions, renderSets, &lightLinks, renderer.get() );
 		GafferScene::Private::RendererAlgo::outputLightFilters( adaptedInPlug(), renderOptions, renderSets, &lightLinks, renderer.get() );
 		lightLinks.outputLightFilterLinks( adaptedInPlug() );
