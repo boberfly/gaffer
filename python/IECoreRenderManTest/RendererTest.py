@@ -139,37 +139,6 @@ class RendererTest( GafferTest.TestCase ) :
 		image = IECoreImage.ImageDisplayDriver.storedImage( "myLovelySphere" )
 		self.assertEqual( max( image["A"] ), 1 )
 
-	def testDestroyObjectAfterRenderer( self ) :
-
-		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
-			"RenderMan",
-			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Interactive
-		)
-
-		renderer.output(
-			"test",
-			IECoreScene.Output(
-				"test",
-				"ieDisplay",
-				"rgba",
-				{
-					"driverType" : "ImageDisplayDriver",
-					"handle" : "myLovelySphere",
-				}
-			)
-		)
-
-		sphere = renderer.object(
-			"sphere",
-			IECoreScene.SpherePrimitive(),
-			renderer.attributes( IECore.CompoundObject() )
-		)
-
-		renderer.render()
-
-		del renderer
-		del sphere
-
 	def testMissingLightShader( self ) :
 
 		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
@@ -186,6 +155,9 @@ class RendererTest( GafferTest.TestCase ) :
 		# doesn't have a valid shader.
 		light = renderer.light( "/light", None, lightAttributes )
 		light.transform( imath.M44f().translate( imath.V3f( 1, 2, 3 ) ) )
+
+		del light
+		del renderer
 
 	def testIntegratorEdit( self ) :
 
@@ -242,6 +214,9 @@ class RendererTest( GafferTest.TestCase ) :
 
 		image = IECoreImage.ImageDisplayDriver.storedImage( "myLovelySphere" )
 		self.assertNotEqual( self.__colorAtUV( image, imath.V2i( 0.5 ) ), imath.Color4f( 0, 0.514117, 0.515205, 1 ) )
+
+		del object
+		del renderer
 
 	def __colorAtUV( self, image, uv ) :
 

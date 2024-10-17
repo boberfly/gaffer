@@ -256,7 +256,7 @@ riley::MaterialId defaultMaterial( riley::Riley *riley )
 // Material
 //////////////////////////////////////////////////////////////////////////
 
-Material::Material( const IECoreScene::ShaderNetwork *network, const ConstSessionPtr &session )
+Material::Material( const IECoreScene::ShaderNetwork *network, const Session *session )
 	:	m_session( session )
 {
 	if( network )
@@ -300,7 +300,7 @@ riley::LightShaderId IECoreRenderMan::convertLightShaderNetwork( const IECoreSce
 // MaterialCache
 //////////////////////////////////////////////////////////////////////////
 
-MaterialCache::MaterialCache( const ConstSessionPtr &session )
+MaterialCache::MaterialCache( const Session *session )
 	:	m_session( session )
 {
 }

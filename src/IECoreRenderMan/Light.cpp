@@ -49,7 +49,7 @@ static riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
 
 } // namespace
 
-Light::Light( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, const ConstSessionPtr &session )
+Light::Light( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, const Session *session )
 	:	m_session( session ), m_lightShader( riley::LightShaderId::InvalidId() ), m_lightInstance( riley::LightInstanceId::InvalidId() )
 {
 	updateLightShader( attributes );

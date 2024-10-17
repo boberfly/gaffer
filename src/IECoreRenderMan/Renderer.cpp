@@ -72,9 +72,9 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 				throw IECore::Exception( "SceneDescription mode not supported by RenderMan" );
 			}
 
-			m_session = new Session( renderType, messageHandler );
-			m_globals = std::make_unique<Globals>( m_session );
-			m_materialCache = new MaterialCache( m_session );
+			m_session = std::make_unique<Session>( renderType, messageHandler );
+			m_globals = std::make_unique<Globals>( m_session.get() );
+			m_materialCache = new MaterialCache( m_session.get() );
 		}
 
 		~RenderManRenderer() override
@@ -106,7 +106,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 		ObjectInterfacePtr camera( const std::string &name, const IECoreScene::Camera *camera, const AttributesInterface *attributes ) override
 		{
 			m_globals->ensureWorld();
-			IECoreRenderMan::CameraPtr result = new IECoreRenderMan::Camera( name, camera, m_session );
+			IECoreRenderMan::CameraPtr result = new IECoreRenderMan::Camera( name, camera, m_session.get() );
 			result->attributes( attributes );
 			return result;
 		}
@@ -120,7 +120,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 				/// \todo Cache geometry masters
 				geometryPrototype = GeometryAlgo::convert( object, m_session->riley );
 			}
-			return new IECoreRenderMan::Light( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session );
+			return new IECoreRenderMan::Light( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session.get() );
 		}
 
 		ObjectInterfacePtr lightFilter( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
@@ -133,7 +133,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 			m_globals->ensureWorld();
 			/// \todo Cache geometry masters
 			riley::GeometryPrototypeId geometryPrototype = GeometryAlgo::convert( object, m_session->riley );
-			return new IECoreRenderMan::Object( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session );
+			return new IECoreRenderMan::Object( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session.get() );
 		}
 
 		ObjectInterfacePtr object( const std::string &name, const std::vector<const IECore::Object *> &samples, const std::vector<float> &times, const AttributesInterface *attributes ) override
@@ -160,8 +160,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 	private :
 
-		SessionPtr m_session;
-
+		std::unique_ptr<Session> m_session;
 		std::unique_ptr<Globals> m_globals;
 		MaterialCachePtr m_materialCache;
 

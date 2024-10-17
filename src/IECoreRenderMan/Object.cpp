@@ -48,7 +48,7 @@ static riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
 
 } // namespace
 
-Object::Object( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, const ConstSessionPtr &session )
+Object::Object( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, const Session *session )
 	:	m_session( session ), m_geometryInstance( riley::GeometryInstanceId::InvalidId() )
 {
 	if( geometryPrototype != riley::GeometryPrototypeId::InvalidId() )

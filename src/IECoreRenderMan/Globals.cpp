@@ -83,7 +83,7 @@ T *optionCast( const IECore::RunTimeTyped *v, const IECore::InternedString &name
 
 } // namespace
 
-Globals::Globals( const SessionPtr &session )
+Globals::Globals( Session *session )
 	:	m_session( session ), m_options(),
 		m_renderTargetExtent(),
 		m_worldBegun( false )

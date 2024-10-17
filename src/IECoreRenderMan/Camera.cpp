@@ -44,7 +44,7 @@ using namespace std;
 using namespace Imath;
 using namespace IECoreRenderMan;
 
-Camera::Camera( const std::string &name, const IECoreScene::Camera *camera, const SessionPtr &session )
+Camera::Camera( const std::string &name, const IECoreScene::Camera *camera, Session *session )
 	:	m_session( session ), m_name( name )
 {
 	// Parameters

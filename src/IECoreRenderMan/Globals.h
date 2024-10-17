@@ -55,7 +55,7 @@ class Globals : public boost::noncopyable
 
 	public :
 
-		Globals( const SessionPtr &session );
+		Globals( Session *session );
 		~Globals();
 
 		void option( const IECore::InternedString &name, const IECore::Object *value );
@@ -94,7 +94,7 @@ class Globals : public boost::noncopyable
 		void updateRenderView();
 		void deleteRenderView();
 
-		SessionPtr m_session;
+		Session *m_session;
 		RtParamList m_options;
 
 		std::unordered_map<IECore::InternedString, IECoreScene::ConstOutputPtr> m_outputs;

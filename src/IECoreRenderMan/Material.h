@@ -53,14 +53,14 @@ class Material : public IECore::RefCounted
 
 	public :
 
-		Material( const IECoreScene::ShaderNetwork *network, const ConstSessionPtr &session );
+		Material( const IECoreScene::ShaderNetwork *network, const Session *session );
 		~Material() override;
 
 		const riley::MaterialId &id() const;
 
 	private :
 
-		ConstSessionPtr m_session;
+		const Session *m_session;
 		riley::MaterialId m_id;
 
 };
@@ -72,7 +72,7 @@ class MaterialCache : public IECore::RefCounted
 
 	public :
 
-		MaterialCache( const ConstSessionPtr &session );
+		MaterialCache( const Session *session );
 
 		// Can be called concurrently with other calls to `get()`
 		ConstMaterialPtr get( const IECoreScene::ShaderNetwork *network );
@@ -82,7 +82,7 @@ class MaterialCache : public IECore::RefCounted
 
 	private :
 
-		ConstSessionPtr m_session;
+		const Session *m_session;
 
 		using Cache = tbb::concurrent_hash_map<IECore::MurmurHash, ConstMaterialPtr>;
 		Cache m_cache;

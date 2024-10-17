@@ -49,7 +49,7 @@ class Object : public IECoreScenePreview::Renderer::ObjectInterface
 
 	public :
 
-		Object( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, const ConstSessionPtr &session );
+		Object( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, const Session *session );
 		~Object();
 
 		void transform( const Imath::M44f &transform ) override;
@@ -60,7 +60,7 @@ class Object : public IECoreScenePreview::Renderer::ObjectInterface
 
 	private :
 
-		ConstSessionPtr m_session;
+		const Session *m_session;
 		riley::GeometryInstanceId m_geometryInstance;
 		/// Used to keep material etc alive as long as we need it.
 		/// \todo Not sure if this is necessary or not? Perhaps Riley will

@@ -38,8 +38,6 @@
 
 #include "GafferScene/Private/IECoreScenePreview/Renderer.h"
 
-#include "IECore/RefCounted.h"
-
 #include "Riley.h"
 
 #include "tbb/concurrent_hash_map.h"
@@ -47,15 +45,9 @@
 namespace IECoreRenderMan
 {
 
-// The various Renderer components all need access to the same Riley object, and
-// also need to know the render type because it affects whether or not they need
-// to delete resources on destruction. Furthermore, we don't want to require all
-// client code to destroy all AttributeInterfaces and ObjectInterfaces before
-// destroying the renderer - that's too much of a pain, especially in Python.
-// All components therefore share ownership of a Session, which provides the
-// Riley instance and render type, and is destroyed only when the last owner
-// dies.
-struct Session : public IECore::RefCounted
+// Owns a Riley instance and provides shared state to facilitate communication
+// between the various Renderer components.
+struct Session
 {
 
 	Session( IECoreScenePreview::Renderer::RenderType renderType, const IECore::MessageHandlerPtr &messageHandler );

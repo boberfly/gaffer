@@ -52,7 +52,7 @@ class Camera :  public IECoreScenePreview::Renderer::ObjectInterface
 
 	public :
 
-		Camera( const std::string &name, const IECoreScene::Camera *camera, const SessionPtr &session );
+		Camera( const std::string &name, const IECoreScene::Camera *camera, Session *session );
 		~Camera();
 
 		void transform( const Imath::M44f &transform ) override;
@@ -65,7 +65,7 @@ class Camera :  public IECoreScenePreview::Renderer::ObjectInterface
 
 		void transformInternal( std::vector<Imath::M44f> samples, const std::vector<float> &times );
 
-		const SessionPtr m_session;
+		Session *m_session;
 		const std::string m_name;
 		riley::CameraId m_cameraId;
 
