@@ -63,6 +63,15 @@ class InteractiveRenderManRenderTest( GafferSceneTest.InteractiveRenderTest ) :
 
 		pass
 
+	@unittest.skip( "Crop window doesn't change data window" )
+	def testEditCropWindow( self ) :
+
+		# RenderMan doesn't reopen the display drivers when the crop
+		# window decreases in size, only when it increases. This will
+		# cause the base class test to fail, even though we are passing
+		# edits and RenderMan is only re-rendering the requested area.
+		pass
+
 	def _createConstantShader( self ) :
 
 		shader = GafferRenderMan.RenderManShader()
