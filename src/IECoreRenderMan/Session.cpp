@@ -85,7 +85,7 @@ struct Session::ExceptionHandler : public RixXcpt::XcptHandler
 
 
 Session::Session( IECoreScenePreview::Renderer::RenderType renderType, const RtParamList &options, const IECore::MessageHandlerPtr &messageHandler )
-	:	riley( nullptr ), renderType( renderType ), m_exceptionHandler( std::make_unique<ExceptionHandler>( messageHandler ) )
+	:	riley( nullptr ), renderType( renderType )
 {
 	// `argv[0]==""` prevents RenderMan doing its own signal handling.
 	vector<const char *> args = { "" };
@@ -94,8 +94,12 @@ Session::Session( IECoreScenePreview::Renderer::RenderType renderType, const RtP
 	/// prevent the creation of a second renderer.
 	PRManRenderBegin( args.size(), args.data() );
 
-	auto rixXcpt = (RixXcpt *)RixGetContext()->GetRixInterface( k_RixXcpt );
-	rixXcpt->Register( m_exceptionHandler.get() );
+	if( messageHandler )
+	{
+		m_exceptionHandler = std::make_unique<ExceptionHandler>( messageHandler );
+		auto rixXcpt = (RixXcpt *)RixGetContext()->GetRixInterface( k_RixXcpt );
+		rixXcpt->Register( m_exceptionHandler.get() );
+	}
 
 	auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
 	/// \todo What is the `rileyVariant` argument for? XPU?
@@ -109,8 +113,11 @@ Session::~Session()
 	auto rileyManager = (RixRileyManager *)RixGetContext()->GetRixInterface( k_RixRileyManager );
 	rileyManager->DestroyRiley( riley );
 
-	auto rixXcpt = (RixXcpt *)RixGetContext()->GetRixInterface( k_RixXcpt );
-	rixXcpt->Unregister( m_exceptionHandler.get() );
+	if( m_exceptionHandler )
+	{
+		auto rixXcpt = (RixXcpt *)RixGetContext()->GetRixInterface( k_RixXcpt );
+		rixXcpt->Unregister( m_exceptionHandler.get() );
+	}
 
 	PRManRenderEnd();
 	PRManSystemEnd();
