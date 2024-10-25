@@ -36,14 +36,11 @@
 
 import unittest
 
-import IECoreRenderMan
-
 import GafferSceneTest
 
 class RenderManRenderTest( GafferSceneTest.RenderTest ) :
 
 	renderer = "RenderMan"
-	#sceneDescriptionSuffix = ".ass"
 
 if __name__ == "__main__":
 	unittest.main()
