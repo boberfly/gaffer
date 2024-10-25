@@ -75,7 +75,13 @@ Camera::Camera( const std::string &name, const IECoreScene::Camera *camera, Sess
 
 	options.SetIntegerArray( Rix::k_Ri_FormatResolution, resolution.getValue(), 2 );
 	options.SetFloat( Rix::k_Ri_FormatPixelAspectRatio, camera->getPixelAspectRatio() );
-	/// \todo Crop window
+
+	const Box2f cropWindow = camera->getCropWindow();
+	if( !cropWindow.isEmpty() )
+	{
+		float renderManCropWindow[4] = { cropWindow.min.x, cropWindow.max.x, cropWindow.min.y, cropWindow.max.y };
+		options.SetFloatArray( Rix::k_Ri_CropWindow, renderManCropWindow, 4 );
+	}
 
 	m_session->addCamera( name, { m_cameraId, options } );
 }
