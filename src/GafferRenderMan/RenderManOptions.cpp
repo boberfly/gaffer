@@ -49,27 +49,27 @@ RenderManOptions::RenderManOptions( const std::string &name )
 
 	Gaffer::CompoundDataPlug *options = optionsPlug();
 
-	options->addChild( new NameValuePlug( "renderman:hider:maxsamples", new IntData( 64 ), false, "hiderMaxSamples" ) );
-	options->addChild( new NameValuePlug( "renderman:hider:minsamples", new IntData( -1 ), false, "hiderMinSamples" ) );
-	options->addChild( new NameValuePlug( "renderman:Ri:PixelVariance", new FloatPlug( "value", Plug::In, 0.001, 0, 1 ), false, "pixelVariance" ) );
-	options->addChild( new NameValuePlug( "renderman:hider:incremental", new BoolData( false ), false, "hiderIncremental" ) );
+	options->addChild( new NameValuePlug( "ri:hider:maxsamples", new IntData( 64 ), false, "hiderMaxSamples" ) );
+	options->addChild( new NameValuePlug( "ri:hider:minsamples", new IntData( -1 ), false, "hiderMinSamples" ) );
+	options->addChild( new NameValuePlug( "ri:Ri:PixelVariance", new FloatPlug( "value", Plug::In, 0.001, 0, 1 ), false, "pixelVariance" ) );
+	options->addChild( new NameValuePlug( "ri:hider:incremental", new BoolData( false ), false, "hiderIncremental" ) );
 
-	options->addChild( new NameValuePlug( "renderman:bucket:order", new StringData( "horizontal" ), false, "bucketOrder" ) );
-	options->addChild( new NameValuePlug( "renderman:limits:bucketsize", new V2iData( V2i( 16 ) ), false, "bucketSize" ) );
+	options->addChild( new NameValuePlug( "ri:bucket:order", new StringData( "horizontal" ), false, "bucketOrder" ) );
+	options->addChild( new NameValuePlug( "ri:limits:bucketsize", new V2iData( V2i( 16 ) ), false, "bucketSize" ) );
 	options->addChild( new NameValuePlug( "limits:threads", new IntData( 0 ), false, "limitsThreads" ) );
 
 	// Searchpaths. Deliberately omitting shader path because we use OSL_SHADER_PATHS
 	// instead, and displays path because we use RMAN_DISPLAYS_PATH instead.
 
-	options->addChild( new NameValuePlug( "renderman:searchpath:texture", new StringData( "" ), false, "searchPathTexture" ) );
-	options->addChild( new NameValuePlug( "renderman:searchpath:rixplugin", new StringData( "" ), false, "searchPathRixPlugin" ) );
-	options->addChild( new NameValuePlug( "renderman:searchpath:dirmap", new StringData( "" ), false, "searchPathDirMap" ) );
+	options->addChild( new NameValuePlug( "ri:searchpath:texture", new StringData( "" ), false, "searchPathTexture" ) );
+	options->addChild( new NameValuePlug( "ri:searchpath:rixplugin", new StringData( "" ), false, "searchPathRixPlugin" ) );
+	options->addChild( new NameValuePlug( "ri:searchpath:dirmap", new StringData( "" ), false, "searchPathDirMap" ) );
 
 	// Statistics
 
-	options->addChild( new NameValuePlug( "renderman:statistics:level", new BoolData( false ), false, "statisticsLevel" ) );
-	options->addChild( new NameValuePlug( "renderman:statistics:filename", new StringData( "" ), false, "statisticsFileName" ) );
-	options->addChild( new NameValuePlug( "renderman:statistics:xmlfilename", new StringData( "" ), false, "statisticsXMLFileName" ) );
+	options->addChild( new NameValuePlug( "ri:statistics:level", new BoolData( false ), false, "statisticsLevel" ) );
+	options->addChild( new NameValuePlug( "ri:statistics:filename", new StringData( "" ), false, "statisticsFileName" ) );
+	options->addChild( new NameValuePlug( "ri:statistics:xmlfilename", new StringData( "" ), false, "statisticsXMLFileName" ) );
 
 }
 

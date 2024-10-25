@@ -53,9 +53,9 @@ using namespace IECoreRenderMan;
 namespace
 {
 
-const string g_renderManPrefix( "renderman:" );
-InternedString g_surfaceShaderAttributeName( "renderman:bxdf" );
-InternedString g_lightShaderAttributeName( "renderman:light" );
+const string g_renderManPrefix( "ri:" );
+InternedString g_surfaceShaderAttributeName( "ri:bxdf" );
+InternedString g_lightShaderAttributeName( "ri:light" );
 
 template<typename T>
 T *reportedCast( const IECore::RunTimeTyped *v, const char *type, const IECore::InternedString &name )

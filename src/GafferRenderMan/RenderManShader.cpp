@@ -424,7 +424,7 @@ void RenderManShader::loadShader( const std::string &shaderName, bool keepExisti
 
 	string shaderType = tree.get<string>( "args.shaderType.tag.<xmlattr>.value" );
 
-	typePlug()->source<StringPlug>()->setValue( "renderman:" + shaderType );
+	typePlug()->source<StringPlug>()->setValue( "ri:" + shaderType );
 
 	Plug *parametersPlug = this->parametersPlug()->source<Plug>();
 	if( !keepExistingValues )

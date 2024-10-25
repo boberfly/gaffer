@@ -61,5 +61,5 @@ void RenderManIntegrator::hashOptionName( const Gaffer::Context *context, IECore
 
 std::string RenderManIntegrator::computeOptionName( const Gaffer::Context *context ) const
 {
-	return "renderman:integrator";
+	return "ri:integrator";
 }

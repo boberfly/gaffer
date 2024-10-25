@@ -48,9 +48,9 @@ RenderManAttributes::RenderManAttributes( const std::string &name )
 
 	// Visibility parameters
 
-	attributes->addChild( new Gaffer::NameValuePlug( "renderman:visibility:camera", new IECore::BoolData( true ), false, "cameraVisibility" ) );
-	attributes->addChild( new Gaffer::NameValuePlug( "renderman:visibility:indirect", new IECore::BoolData( true ), false, "indirectVisibility" ) );
-	attributes->addChild( new Gaffer::NameValuePlug( "renderman:visibility:transmission", new IECore::BoolData( true ), false, "transmissionVisibility" ) );
+	attributes->addChild( new Gaffer::NameValuePlug( "ri:visibility:camera", new IECore::BoolData( true ), false, "cameraVisibility" ) );
+	attributes->addChild( new Gaffer::NameValuePlug( "ri:visibility:indirect", new IECore::BoolData( true ), false, "indirectVisibility" ) );
+	attributes->addChild( new Gaffer::NameValuePlug( "ri:visibility:transmission", new IECore::BoolData( true ), false, "transmissionVisibility" ) );
 
 }
 

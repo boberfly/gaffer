@@ -84,7 +84,7 @@ class InteractiveRenderManRenderTest( GafferSceneTest.InteractiveRenderTest ) :
 
 	def _cameraVisibilityAttribute( self ) :
 
-		return "renderman:visibility:camera"
+		return "ri:visibility:camera"
 
 	def _createMatteShader( self ) :
 

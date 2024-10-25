@@ -57,11 +57,11 @@ using namespace IECoreRenderMan;
 namespace
 {
 
-const string g_renderManPrefix( "renderman:" );
+const string g_renderManPrefix( "ri:" );
 const IECore::InternedString g_cameraOption( "camera" );
 const IECore::InternedString g_sampleMotionOption( "sampleMotion" );
 const IECore::InternedString g_frameOption( "frame" );
-const IECore::InternedString g_integratorOption( "renderman:integrator" );
+const IECore::InternedString g_integratorOption( "ri:integrator" );
 
 template<typename T>
 T *optionCast( const IECore::RunTimeTyped *v, const IECore::InternedString &name )
@@ -124,7 +124,7 @@ void Globals::option( const IECore::InternedString &name, const IECore::Object *
 		}
 		else
 		{
-			m_integratorToConvert = new Shader( "PxrPathTracer", "renderman:integrator" );
+			m_integratorToConvert = new Shader( "PxrPathTracer", "ri:integrator" );
 		}
 	}
 	else if( name == g_cameraOption )

@@ -45,12 +45,12 @@ for type in [
 	"PxrEnvDayLight"
 ] :
 
-	Gaffer.Metadata.registerValue( "renderman:light:" + type, "intensityParameter", "intensity" )
-	Gaffer.Metadata.registerValue( "renderman:light:" + type, "exposureParameter", "exposure" )
-	Gaffer.Metadata.registerValue( "renderman:light:" + type, "colorParameter", "lightColor" )
+	Gaffer.Metadata.registerValue( "ri:light:" + type, "intensityParameter", "intensity" )
+	Gaffer.Metadata.registerValue( "ri:light:" + type, "exposureParameter", "exposure" )
+	Gaffer.Metadata.registerValue( "ri:light:" + type, "colorParameter", "lightColor" )
 
-Gaffer.Metadata.registerValue( "renderman:light:PxrRectLight", "type", "quad" )
-Gaffer.Metadata.registerValue( "renderman:light:PxrDiskLight", "type", "disk" )
-Gaffer.Metadata.registerValue( "renderman:light:PxrDistantLight", "type", "distant" )
-Gaffer.Metadata.registerValue( "renderman:light:PxrCylinderLight", "type", "cylinder" )
+Gaffer.Metadata.registerValue( "ri:light:PxrRectLight", "type", "quad" )
+Gaffer.Metadata.registerValue( "ri:light:PxrDiskLight", "type", "disk" )
+Gaffer.Metadata.registerValue( "ri:light:PxrDistantLight", "type", "distant" )
+Gaffer.Metadata.registerValue( "ri:light:PxrCylinderLight", "type", "cylinder" )
 

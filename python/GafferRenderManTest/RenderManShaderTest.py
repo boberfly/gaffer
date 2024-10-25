@@ -50,7 +50,7 @@ class RenderManShaderTest( GafferSceneTest.SceneTestCase ) :
 		shader.loadShader( "PxrConstant" )
 
 		self.assertEqual( shader["name"].getValue(), "PxrConstant" )
-		self.assertEqual( shader["type"].getValue(), "renderman:bxdf" )
+		self.assertEqual( shader["type"].getValue(), "ri:bxdf" )
 
 		self.assertEqual( shader["parameters"].keys(), [ "emitColor", "presence" ] )
 

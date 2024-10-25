@@ -148,7 +148,7 @@ class RendererTest( GafferTest.TestCase ) :
 
 		lightShader = IECoreScene.ShaderNetwork( { "light" : IECoreScene.Shader( "BadShader", "ri:light" ), }, output = ( "light", "out" ) )
 		lightAttributes = renderer.attributes(
-			IECore.CompoundObject( { "renderman:light" : lightShader } )
+			IECore.CompoundObject( { "ri:light" : lightShader } )
 		)
 
 		# Exercises our workarounds for crashes in Riley when a light
@@ -194,11 +194,11 @@ class RendererTest( GafferTest.TestCase ) :
 		self.assertEqual( self.__colorAtUV( image, imath.V2i( 0.5 ) ), imath.Color4f( 1 ) )
 
 		renderer.option(
-			"renderman:integrator",
+			"ri:integrator",
 			IECoreScene.ShaderNetwork(
 				shaders = {
 					"integrator" : IECoreScene.Shader(
-						"PxrVisualizer", "renderman:integrator",
+						"PxrVisualizer", "ri:integrator",
 						{
 							"style" : "objectnormals",
 							"wireframe" : False,
