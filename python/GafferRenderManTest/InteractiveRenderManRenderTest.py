@@ -71,7 +71,7 @@ class InteractiveRenderManRenderTest( GafferSceneTest.InteractiveRenderTest ) :
 
 	def _createTraceSetShader( self ) :
 
-		return None, None
+		return None, None, None
 
 	def _cameraVisibilityAttribute( self ) :
 
