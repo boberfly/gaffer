@@ -51,6 +51,7 @@ API
   - Added `connectToApplication()` function.
   - Deprecated `connect()` function. Use `connectToApplication()` instead.
 - SceneEditor : Added `editScope()` method.
+- PlugLayout : Activations may now depend on the presence of certain plugs, as they are now reevaluated when child plugs are added and removed.
 
 1.5.0.1 (relative to 1.5.0.0)
 =======
