@@ -34,7 +34,7 @@
 #
 ##########################################################################
 
-from DocumentationTest import DocumentationTest
-from RenderManShaderUITest import RenderManShaderUITest
+from .DocumentationTest import DocumentationTest
+from .RenderManShaderUITest import RenderManShaderUITest
 
 __import__( "IECore" ).loadConfig( "GAFFER_STARTUP_PATHS", subdirectory = "GafferRenderManUITest" )
