@@ -53,6 +53,8 @@ class RenderManShaderUITest( GafferUITest.TestCase ) :
 		n = GafferRenderMan.RenderManShader()
 		n.loadShader( "PxrSurface" )
 
+		self.ignoreMessage( IECore.Msg.Level.Warning, "RenderManShader::loadShader", 'Array parameter "utilityPattern" not supported' )
+
 		self.assertEqual(
 			Gaffer.Metadata.value( n["parameters"]["diffuseGain"], "layout:section" ),
 			"Diffuse"
@@ -95,14 +97,20 @@ class RenderManShaderUITest( GafferUITest.TestCase ) :
 			if __shaderType( argsFile ) not in ( "pattern", "bxdf", "integrator" ) :
 				continue
 
-			node = GafferRenderMan.RenderManShader()
 			shaderName = os.path.basename( os.path.splitext( argsFile )[0] )
-			node.loadShader( shaderName )
+			with self.subTest( shader = shaderName ) :
 
-			# Trigger metadata parsing and ensure there are no errors
-			Gaffer.Metadata.value( node, "description" )
+				node = GafferRenderMan.RenderManShader()
+				with IECore.CapturingMessageHandler() as mh :
+					node.loadShader( shaderName )
 
-			shadersLoaded.add( shaderName )
+				for m in mh.messages :
+					self.assertRegex( m.message, '.*Array parameter .* not supported|.* has unsupported type "bxdf"' )
+
+				# Trigger metadata parsing and ensure there are no errors
+				Gaffer.Metadata.value( node, "description" )
+
+				shadersLoaded.add( shaderName )
 
 		# Guard against shaders being moved and this test therefore not
 		# loading anything.

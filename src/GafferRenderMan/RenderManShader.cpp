@@ -242,6 +242,16 @@ Gaffer::Plug *loadParameter( const boost::property_tree::ptree &parameter, Plug 
 	}
 
 	const string name = parameter.get<string>( "<xmlattr>.name" );
+
+	if( parameter.get<string>( "<xmlattr>.isDynamicArray", "0" ) == "1" )
+	{
+		msg(
+			IECore::Msg::Warning, "RenderManShader::loadShader",
+			fmt::format( "Array parameter \"{}\" not supported", name )
+		);
+		return nullptr;
+	}
+
 	const string type = parameter.get<string>( "<xmlattr>.type" );
 	if( type == "float" )
 	{
