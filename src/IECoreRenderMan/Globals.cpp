@@ -291,15 +291,16 @@ void Globals::updateRenderView()
 		/// providing a default camera?
 		if( m_defaultCamera == riley::CameraId::InvalidId() )
 		{
+			const auto matrix = Imath::M44f().scale( Imath::V3f( 1, 1, -1 ) );
 			m_defaultCamera = m_session->riley->CreateCamera(
 				riley::UserId(),
 				RtUString( "ieCoreRenderMan:defaultCamera" ),
-				/// \todo Projection? Pointing wrong way?
+				/// \todo Projection?
 				{
 					riley::ShadingNode::Type::k_Projection, RtUString( "PxrCamera" ),
 					RtUString( "projection" ), RtParamList()
 				},
-				IdentityTransform(),
+				StaticTransform( matrix ),
 				RtParamList()
 			);
 		}
