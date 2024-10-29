@@ -41,6 +41,7 @@
 #include "IECore/LRUCache.h"
 #include "IECore/SearchPath.h"
 
+#include "boost/container/flat_map.hpp"
 #include "boost/property_tree/xml_parser.hpp"
 
 #include "fmt/format.h"
@@ -187,6 +188,19 @@ void convertConnection( const IECoreScene::ShaderNetwork::Connection &connection
 	paramList.SetParam( info, &referenceU );
 }
 
+const boost::container::flat_map<string, RtUString> g_shaderNameConversions = {
+	// The lights from UsdLux bear a remarkable resemblance to RenderMan's
+	// lights, almost as if they may have been put together rather hastily, with
+	// little consideration for standardisation ;) That does at least make
+	// conversion easy for _one_ renderer backend though.
+	{ "CylinderLight", RtUString( "PxrCylinderLight" ) },
+	{ "DiskLight", RtUString( "PxrDiskLight" ) },
+	{ "DistantLight", RtUString( "PxrDistantLight" ) },
+	{ "DomeLight", RtUString( "PxrDomeLight" ) },
+	{ "RectLight", RtUString( "PxrRectLight" ) },
+	{ "SphereLight", RtUString( "PxrSphereLight" ) },
+};
+
 void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, const IECoreScene::ShaderNetwork *shaderNetwork, vector<riley::ShadingNode> &shadingNodes, HandleSet &visited )
 {
 	if( !visited.insert( outputParameter.shader ).second )
@@ -195,9 +209,12 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 	}
 
 	const IECoreScene::Shader *shader = shaderNetwork->getShader( outputParameter.shader );
+	auto nameIt = g_shaderNameConversions.find( shader->getName() );
+	RtUString shaderName = nameIt != g_shaderNameConversions.end() ? nameIt->second : RtUString( shader->getName().c_str() );
+
 	riley::ShadingNode node = {
 		riley::ShadingNode::Type::k_Pattern,
-		RtUString( shader->getName().c_str() ),
+		shaderName,
 		RtUString( outputParameter.shader.c_str() ),
 		RtParamList()
 	};

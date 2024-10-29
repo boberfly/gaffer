@@ -54,8 +54,9 @@ namespace
 {
 
 const string g_renderManPrefix( "ri:" );
-InternedString g_surfaceShaderAttributeName( "ri:surface" );
-InternedString g_lightShaderAttributeName( "ri:light" );
+const InternedString g_surfaceShaderAttributeName( "ri:surface" );
+const InternedString g_lightShaderAttributeName( "light" );
+const InternedString g_renderManLightShaderAttributeName( "ri:light" );
 
 template<typename T>
 T *reportedCast( const IECore::RunTimeTyped *v, const char *type, const IECore::InternedString &name )
@@ -87,7 +88,8 @@ const T *parameter( const MapType &parameters, const IECore::InternedString &nam
 Attributes::Attributes( const IECore::CompoundObject *attributes, MaterialCache *materialCache )
 {
 	m_material = materialCache->get( parameter<ShaderNetwork>( attributes->members(), g_surfaceShaderAttributeName ) );
-	m_lightShader = parameter<ShaderNetwork>( attributes->members(), g_lightShaderAttributeName );
+	m_lightShader = parameter<ShaderNetwork>( attributes->members(), g_renderManLightShaderAttributeName );
+	m_lightShader = m_lightShader ? m_lightShader : parameter<ShaderNetwork>( attributes->members(), g_lightShaderAttributeName );
 
 	for( const auto &attribute : attributes->members() )
 	{

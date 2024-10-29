@@ -190,7 +190,6 @@ class RendererTest( GafferTest.TestCase ) :
 		renderer.pause()
 
 		image = IECoreImage.ImageDisplayDriver.storedImage( "myLovelySphere" )
-		IECoreImage.ImageWriter( image, "/tmp/test2.exr" ).write()
 		self.assertEqual( self.__colorAtUV( image, imath.V2i( 0.5 ) ), imath.Color4f( 1 ) )
 
 		renderer.option(
@@ -217,6 +216,60 @@ class RendererTest( GafferTest.TestCase ) :
 
 		del object
 		del renderer
+
+	def testUSDLight( self ) :
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+		)
+
+		renderer.output(
+			"test",
+			IECoreScene.Output(
+				"test",
+				"ieDisplay",
+				"rgba",
+				{
+					"driverType" : "ImageDisplayDriver",
+					"handle" : "test",
+				}
+			)
+		)
+
+		renderer.object(
+			"sphere",
+			IECoreScene.SpherePrimitive(),
+			renderer.attributes( IECore.CompoundObject( {
+				"ri:surface" : IECoreScene.ShaderNetwork(
+					shaders = {
+						"output" : IECoreScene.Shader( "PxrDiffuse" )
+					},
+					output = "output",
+				)
+			} ) )
+		).transform( imath.M44f().translate( imath.V3f( 0, 0, -3 ) ) )
+
+		renderer.light(
+			"light",
+			None,
+			renderer.attributes( IECore.CompoundObject( {
+				"light" : IECoreScene.ShaderNetwork(
+					shaders = {
+						"output" : IECoreScene.Shader( "DomeLight", "light" )
+					},
+					output = "output",
+				)
+			} ) )
+		)
+
+		renderer.render()
+
+		image = IECoreImage.ImageDisplayDriver.storedImage( "test" )
+		c = self.__colorAtUV( image, imath.V2f( 0.5 ) )
+		for i in range( 0, 3 ) :
+			self.assertAlmostEqual( c[i], 0.5, delta = 0.01 )
+		self.assertEqual( c[3], 1.0 )
 
 	def __colorAtUV( self, image, uv ) :
 
