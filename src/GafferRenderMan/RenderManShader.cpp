@@ -423,6 +423,10 @@ void RenderManShader::loadShader( const std::string &shaderName, bool keepExisti
 	namePlug()->source<StringPlug>()->setValue( shaderName );
 
 	string shaderType = tree.get<string>( "args.shaderType.tag.<xmlattr>.value" );
+	if( shaderType == "bxdf" )
+	{
+		shaderType = "surface";
+	}
 
 	typePlug()->source<StringPlug>()->setValue( "ri:" + shaderType );
 

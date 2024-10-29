@@ -206,7 +206,7 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 	{
 		node.type = riley::ShadingNode::Type::k_Light;
 	}
-	else if( shader->getType() == "surface" || shader->getType() == "ri:bxdf" )
+	else if( shader->getType() == "surface" || shader->getType() == "ri:surface" )
 	{
 		node.type = riley::ShadingNode::Type::k_Bxdf;
 	}

@@ -54,7 +54,7 @@ namespace
 {
 
 const string g_renderManPrefix( "ri:" );
-InternedString g_surfaceShaderAttributeName( "ri:bxdf" );
+InternedString g_surfaceShaderAttributeName( "ri:surface" );
 InternedString g_lightShaderAttributeName( "ri:light" );
 
 template<typename T>

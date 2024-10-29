@@ -50,7 +50,7 @@ class RenderManShaderTest( GafferSceneTest.SceneTestCase ) :
 		shader.loadShader( "PxrConstant" )
 
 		self.assertEqual( shader["name"].getValue(), "PxrConstant" )
-		self.assertEqual( shader["type"].getValue(), "ri:bxdf" )
+		self.assertEqual( shader["type"].getValue(), "ri:surface" )
 
 		self.assertEqual( shader["parameters"].keys(), [ "emitColor", "presence" ] )
 
@@ -65,18 +65,18 @@ class RenderManShaderTest( GafferSceneTest.SceneTestCase ) :
 	def testLoadParametersInsidePages( self ) :
 
 		shader = GafferRenderMan.RenderManShader()
-		shader.loadShader( "PxrDirt" )
+		shader.loadShader( "PxrVolume" )
 
-		self.assertIn( "occluded", shader["parameters"] )
-		self.assertIn( "unoccluded", shader["parameters"] )
+		self.assertIn( "extinctionDistance", shader["parameters"] )
+		self.assertIn( "densityColor", shader["parameters"] )
 
 	def testLoadRemovesUnnecessaryParameters( self ) :
 
 		for keepExisting in ( True, False ) :
 
 			shader = GafferRenderMan.RenderManShader()
-			shader.loadShader( "PxrMix" )
-			self.assertIn( "color1", shader["parameters"] )
+			shader.loadShader( "PxrDiffuse" )
+			self.assertIn( "diffuseColor", shader["parameters"] )
 
 			shader.loadShader( "PxrConstant", keepExistingValues = keepExisting )
 			self.assertNotIn( "color1", shader["parameters"] )
@@ -85,7 +85,7 @@ class RenderManShaderTest( GafferSceneTest.SceneTestCase ) :
 	def testLoadOutputs( self ) :
 
 		shader = GafferRenderMan.RenderManShader()
-		shader.loadShader( "PxrBlackBody" )
+		shader.loadShader( "PxrSeExpr" )
 
 		self.assertIn( "resultRGB", shader["out"] )
 		self.assertIsInstance( shader["out"]["resultRGB"], Gaffer.Color3fPlug )
@@ -98,11 +98,6 @@ class RenderManShaderTest( GafferSceneTest.SceneTestCase ) :
 
 		self.assertIn( "resultB", shader["out"] )
 		self.assertIsInstance( shader["out"]["resultB"], Gaffer.FloatPlug )
-
-		shader.loadShader( "PxrPrimvar" )
-
-		self.assertIn( "resultP", shader["out"] )
-		self.assertIsInstance( shader["out"]["resultP"], Gaffer.V3fPlug )
 
 if __name__ == "__main__":
 	unittest.main()

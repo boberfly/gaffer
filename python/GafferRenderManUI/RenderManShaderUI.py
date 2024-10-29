@@ -159,22 +159,22 @@ def __shadersSubMenu( plugins ) :
 			}
 		)
 
-	oslDir = pathlib.Path( os.environ["RMANTREE"] ) / "lib" / "shaders"
-	for shader in sorted( oslDir.glob( "*.oso" ) ) :
-		query = oslquery.OSLQuery( str( shader ) )
-		classification = "Other"
-		for metadata in query.metadata :
-			if metadata.name == "rfh_classification" :
-				classification = metadata.value
+	# oslDir = pathlib.Path( os.environ["RMANTREE"] ) / "lib" / "shaders"
+	# for shader in sorted( oslDir.glob( "*.oso" ) ) :
+	# 	query = oslquery.OSLQuery( str( shader ) )
+	# 	classification = "Other"
+	# 	for metadata in query.metadata :
+	# 		if metadata.name == "rfh_classification" :
+	# 			classification = metadata.value
 
-		result.append(
-			"/{}/{}".format( classification, shader.stem ),
-			{
-				"command" : GafferUI.NodeMenu.nodeCreatorWrapper(
-					functools.partial( __loadShader, shader.stem, GafferOSL.OSLShader )
-				)
-			}
-		)
+	# 	result.append(
+	# 		"/{}/{}".format( classification, shader.stem ),
+	# 		{
+	# 			"command" : GafferUI.NodeMenu.nodeCreatorWrapper(
+	# 				functools.partial( __loadShader, shader.stem, GafferOSL.OSLShader )
+	# 			)
+	# 		}
+	# 	)
 
 	return result
 
