@@ -128,6 +128,10 @@ __widgetTypes = {
 	"null" : "",
 }
 
+def __boolParser( string ) :
+
+	return bool( int( string ) )
+
 def __vectorParser( string, vectorType, baseType ) :
 
 	return vectorType( *[ baseType( x ) for x in string.split() ] )
@@ -137,7 +141,7 @@ def __stringVectorDataParser( string ) :
 	return IECore.StringVectorData( string.split( "," ) )
 
 __valueParsers = {
-	"bool" : bool,
+	"bool" : __boolParser,
 	"int" : int,
 	"float" : float,
 	"string" : str,
