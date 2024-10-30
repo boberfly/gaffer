@@ -34,7 +34,10 @@
 #
 ##########################################################################
 
+import functools
 from xml.etree import cElementTree
+
+import imath
 
 import IECore
 
@@ -53,7 +56,7 @@ import IECore
 #   }
 # }
 # ```
-def parseMetadata( argsFile ) :
+def parseMetadata( argsFile, parametersToIgnore = set() ) :
 
 	result = { "parameters" : {} }
 
@@ -75,18 +78,29 @@ def parseMetadata( argsFile ) :
 				currentParameter = {}
 				result["parameters"][element.attrib["name"]] = currentParameter
 
-				currentParameter["__type"] = element.attrib["type"]
+				# We need to know the parameter type to be able to parse presets and
+				# default values. There are two different ways this is defined, so try
+				# to normalise on the "Sdr" type.
+				currentParameter["__type"] = element.attrib.get( "sdrUsdDefinitionType" )
+				if currentParameter["__type"] is None :
+					currentParameter["__type"] = element.attrib["type"] + element.attrib.get( "arraySize", "" )
+
 				currentParameter["label"] = element.attrib.get( "label" )
 				currentParameter["description"] = element.attrib.get( "help" )
 				currentParameter["layout:section"] = ".".join( pageStack )
 				currentParameter["plugValueWidget:type"] = __widgetTypes.get( element.attrib.get( "widget" ) )
 				currentParameter["nodule:type"] = "" if element.attrib.get( "connectable", "true" ).lower() == "false" else None
 
+				defaultValue = __parseValue( element.attrib.get( "default" ), currentParameter["__type"] )
+				if defaultValue is not None :
+					currentParameter["defaultValue"] = defaultValue
+
 				if element.attrib.get( "options" ) :
 					__parsePresets( element.attrib.get( "options" ), currentParameter )
 
 			elif event == "end" :
 
+				del currentParameter["__type"] # Implementation detail not for public consumption
 				currentParameter = None
 
 		elif element.tag == "help" and event == "end" :
@@ -114,30 +128,80 @@ __widgetTypes = {
 	"null" : "",
 }
 
+def __vectorParser( string, vectorType, baseType ) :
+
+	return vectorType( *[ baseType( x ) for x in string.split() ] )
+
+def __stringVectorDataParser( string ) :
+
+	return IECore.StringVectorData( string.split( "," ) )
+
+__valueParsers = {
+	"bool" : bool,
+	"int" : int,
+	"float" : float,
+	"string" : str,
+	"int2" : functools.partial( __vectorParser, vectorType = imath.V2i, baseType = int ),
+	"float2" : functools.partial( __vectorParser, vectorType = imath.V2f, baseType = float ),
+	"float3" : functools.partial( __vectorParser, vectorType = imath.V3f, baseType = float ),
+	"float4" : functools.partial( __vectorParser, vectorType = imath.V4f, baseType = float ),
+	"point" : functools.partial( __vectorParser, vectorType = imath.V3f, baseType = float ),
+	"vector" : functools.partial( __vectorParser, vectorType = imath.V3f, baseType = float ),
+	"normal" : functools.partial( __vectorParser, vectorType = imath.V3f, baseType = float ),
+	"color" : functools.partial( __vectorParser, vectorType = imath.Color3f, baseType = float ),
+	"string2" : __stringVectorDataParser,
+}
+
+def __parseValue( string, parameterType ) :
+
+	if string is None :
+		return None
+
+	parser = __valueParsers.get( parameterType )
+	if parser is None :
+		return None
+
+	try :
+		return parser( string )
+	except :
+		return None
+
+__presetContainers = {
+	"int" : IECore.IntVectorData,
+	"float" : IECore.FloatVectorData,
+	"string" : IECore.StringVectorData,
+}
+
 def __parsePresets( options, parameter ) :
 
-	presetCreator = {
-		"int" : ( IECore.IntVectorData, int ),
-		"float" : ( IECore.FloatVectorData, float ),
-		"string" : ( IECore.StringVectorData, str ),
-	}.get( parameter["__type"] )
-
-	if presetCreator is None :
+	containerType = __presetContainers.get( parameter["__type"] )
+	if containerType is None :
 		return
 
 	presetNames = IECore.StringVectorData()
-	presetValues = presetCreator[0]()
+	presetValues = containerType()
 
 	if isinstance( options, str ) :
 		for option in options.split( "|" ) :
-			value = presetCreator[1]( option )
-			presetNames.append( option.title() )
+			optionSplit = option.split( ":" )
+			if len( optionSplit ) == 2 :
+				name = optionSplit[0]
+				value = __parseValue( optionSplit[1], parameter["__type"] )
+			else :
+				assert( len( optionSplit ) == 1 )
+				name = IECore.CamelCase.toSpaced( optionSplit[0] )
+				value = __parseValue( optionSplit[0], parameter["__type"] )
+			presetNames.append( name )
 			presetValues.append( value )
 	else :
 		# Hint dict
 		for option in options :
-			presetNames.append( option.attrib["name"] )
-			presetValues.append( presetCreator[1]( option.attrib["value"] ) )
+			value = option.attrib["value"]
+			name = option.attrib.get( "name" )
+			if name is None :
+				name = IECore.CamelCase.toSpaced( value )
+			presetNames.append( name )
+			presetValues.append( __parseValue( value, parameter["__type"] ) )
 
 	parameter["presetNames"] = presetNames
 	parameter["presetValues"] = presetValues

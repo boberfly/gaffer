@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2018, John Haddon. All rights reserved.
+#  Copyright (c) 2024, Cinesite VFX Ltd. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -34,14 +34,43 @@
 #
 ##########################################################################
 
-from .RenderManShaderTest import RenderManShaderTest
-from .RenderManLightTest import RenderManLightTest
-from .InteractiveRenderManRenderTest import InteractiveRenderManRenderTest
-from .RenderManRenderTest import RenderManRenderTest
-from .RenderManOptionsTest import RenderManOptionsTest
-from .TagPlugTest import TagPlugTest
-from .ModuleTest import ModuleTest
+import os
+import pathlib
 
-if __name__ == "__main__":
-	import unittest
-	unittest.main()
+import Gaffer
+import GafferRenderMan
+
+# Pull all the option and attribute definitions out of RenderMan's `.args`
+# files and register them using Gaffer's standard metadata conventions.
+
+def __registerMetadata( path, prefix, ignore ) :
+
+	metadata = GafferRenderMan._ArgsFileAlgo.parseMetadata( path )
+	for name, values in metadata["parameters"].items() :
+
+		if name in ignore :
+			continue
+
+		target = f"{prefix}{name}"
+		for key, value in values.items() :
+			Gaffer.Metadata.registerValue( target, key, value )
+
+if "RMANTREE" in os.environ :
+
+	rmanTree = pathlib.Path( os.environ["RMANTREE"] )
+
+	__registerMetadata(
+		rmanTree / "lib" / "defaults" / "PRManOptions.args", "option:ri:",
+		ignore = {
+			# Gaffer handles all of these in a renderer-agnostic manner.
+			"Ri:Frame",
+			"Ri:FrameAspectRatio",
+			"Ri:ScreenWindow",
+			"Ri:CropWindow",
+			"Ri:FormatPixelAspectRatio",
+			"Ri:FormatResolution",
+			"Ri:Shutter",
+
+		}
+	)
+	__registerMetadata( rmanTree / "lib" / "defaults" / "PRManAttributes.args", "attribute:ri:", ignore = set() )
