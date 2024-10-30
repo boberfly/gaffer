@@ -34,10 +34,10 @@
 #
 ##########################################################################
 
+from . import _ArgsFileAlgo
+
 __import__( "GafferScene" )
 
 from ._GafferRenderMan import *
-
-from . import _ArgsFileAlgo
 
 __import__( "IECore" ).loadConfig( "GAFFER_STARTUP_PATHS", subdirectory = "GafferRenderMan" )
