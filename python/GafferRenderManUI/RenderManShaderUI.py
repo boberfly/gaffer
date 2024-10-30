@@ -222,7 +222,10 @@ def __shaderMetadata( node ) :
 
 	searchPaths = IECore.SearchPath( os.environ.get( "RMAN_RIXPLUGINPATH", "" ) )
 	argsFile = searchPaths.find( "Args/" + shaderName + ".args" )
-	result = GafferRenderMan._ArgsFileAlgo.parseMetadata( argsFile )
+	if argsFile :
+		result = GafferRenderMan._ArgsFileAlgo.parseMetadata( argsFile )
+	else :
+		result = {}
 
 	__metadataCache[shaderName] = result
 	return result
