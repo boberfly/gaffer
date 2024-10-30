@@ -134,6 +134,10 @@ def __shadersSubMenu( plugins ) :
 
 	for name, plugin in plugins.items() :
 
+		if name in [ "PxrSeExpr" ] :
+			# Deprecated in RenderMan 24 - don't let folks become dependent on it.
+			continue
+
 		if plugin["type"] not in { "bxdf", "pattern", "integrator" } :
 			continue
 
@@ -148,7 +152,6 @@ def __shadersSubMenu( plugins ) :
 		else :
 
 			path = "/".join( [ x.title() for x in plugin["classification"].split( "/" )[2:] ] )
-
 
 		result.append(
 			"/{0}/{1}".format( path, name ),
