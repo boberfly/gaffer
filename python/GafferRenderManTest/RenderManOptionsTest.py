@@ -57,6 +57,7 @@ class RenderManOptionsTest( GafferSceneTest.SceneTestCase ) :
 		self.assertEqual( Gaffer.Metadata.value( "option:ri:hider:adaptivemetric", "defaultValue" ), "variance" )
 		self.assertEqual( Gaffer.Metadata.value( "option:ri:osl:verbose", "presetNames" ), IECore.StringVectorData( [ "0 - Silent", "1 - Severe", "2 - Error", "3 - Message", "4 - Warning", "5 - Info" ] ) )
 		self.assertEqual( Gaffer.Metadata.value( "option:ri:osl:verbose", "presetValues" ), IECore.IntVectorData( [ 0, 1, 2, 3, 4, 5 ] ) )
+		self.assertEqual( Gaffer.Metadata.value( "option:ri:shade:debug", "defaultValue" ), False )
 
 	def testAllOptionMetadataHasDefaultValue( self ) :
 
@@ -82,6 +83,18 @@ class RenderManOptionsTest( GafferSceneTest.SceneTestCase ) :
 		self.assertFalse( Gaffer.Metadata.registeredValues( "option:ri:Ri:Shutter" ) )
 		# Check we're not leaking implementation details of the parser.
 		self.assertIsNone( Gaffer.Metadata.value( "option:ri:hider:adaptivemetric", "__type" ) )
+
+	def testOmittedPresets( self ) :
+
+		adaptiveMetrics = Gaffer.Metadata.value( "option:ri:hider:adaptivemetric", "presetValues" )
+		self.assertNotIn( "contrast-v22", adaptiveMetrics )
+		self.assertNotIn( "variance-v22", adaptiveMetrics )
+
+	def testNodeConstructsWithAllOptions( self ) :
+
+		node = GafferRenderMan.RenderManOptions()
+		for option in Gaffer.Metadata.targetsWithMetadata( "option:ri:*", "defaultValue" ) :
+			self.assertIn( option[7:], node["options"] )
 
 if __name__ == "__main__":
 	unittest.main()

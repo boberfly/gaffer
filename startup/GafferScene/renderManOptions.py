@@ -37,11 +37,15 @@
 import os
 import pathlib
 
+import IECore
+
 import Gaffer
 import GafferRenderMan
 
 # Pull all the option and attribute definitions out of RenderMan's `.args`
 # files and register them using Gaffer's standard metadata conventions.
+# This is then used to populate the RenderManOptions node and the RenderPassEditor
+# etc.
 
 def __registerMetadata( path, prefix, ignore ) :
 
@@ -70,7 +74,49 @@ if "RMANTREE" in os.environ :
 			"Ri:FormatPixelAspectRatio",
 			"Ri:FormatResolution",
 			"Ri:Shutter",
-
+			"hider:samplemotion",
+			# These are for back-compatibility with a time before Gaffer
+			# supported RenderMan, so we don't need them. The fewer settings
+			# people have to wrestle with, the better.
+			"statistics:displace_ratios",
+			"statistics:filename",
+			"statistics:level",
+			"statistics:maxdispwarnings",
+			"statistics:shaderprofile",
+			"statistics:stylesheet",
+			"statistics:texturestatslevel",
+			"statistics:xmlfilename",
+			"trace:incorrectCurveBias",
+			"shade:chiangCompatibilityVersion",
+			"shade:subsurfaceTypeDefaultFromVersion24",
+			# https://rmanwiki-26.pixar.com/space/REN26/19661831/Sampling+Modes#Adaptive-Sampling-Error-Metrics
+			# implies that this is only used by the obsolete adaptive metrics.
+			"hider:darkfalloff",
+			# These are XPU-only, and we don't yet support XPU. They also
+			# sound somewhat fudgy.
+			"interactive:displacementupdatemode",
+			"interactive:displacementupdatedebug",
+			# These just don't make much sense in Gaffer.
+			"ribparse:varsubst",
 		}
 	)
-	__registerMetadata( rmanTree / "lib" / "defaults" / "PRManAttributes.args", "attribute:ri:", ignore = set() )
+
+	# Omit obsolete adaptive metrics.
+
+	for key in [ "presetNames", "presetValues" ] :
+		Gaffer.Metadata.registerValue(
+			"option:ri:hider:adaptivemetric", key,
+			IECore.StringVectorData( [
+				x for x in Gaffer.Metadata.value( "option:ri:hider:adaptivemetric", key )
+				if "v22" not in x
+			] )
+		)
+
+	# Move some stray options into a more logical section of the layout.
+
+	for option in [
+		"shade:debug",
+		"shade:roughnessmollification",
+		"shade:shadowBumpTerminator",
+	] :
+		Gaffer.Metadata.registerValue( f"option:ri:{option}", "layout:section", "Shading" )
