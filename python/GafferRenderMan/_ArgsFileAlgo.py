@@ -130,13 +130,7 @@ def __parsePresets( options, parameter ) :
 
 	if isinstance( options, str ) :
 		for option in options.split( "|" ) :
-			try :
-				value = presetCreator[1]( option )
-			except :
-				# Avoid errors triggered by PxrRamp, which has a float
-				# parameter containing a bogus "options" attribute containing
-				# a string value.
-				continue
+			value = presetCreator[1]( option )
 			presetNames.append( option.title() )
 			presetValues.append( value )
 	else :
