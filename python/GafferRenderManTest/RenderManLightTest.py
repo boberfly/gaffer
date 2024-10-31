@@ -66,5 +66,14 @@ class RenderManLightTest( GafferSceneTest.SceneTestCase ) :
 
 		self.assertEqual( script2["light"]["parameters"]["intensity"].getValue(), 10 )
 
+	def testVisualiserAttributes( self ) :
+
+		light = GafferRenderMan.RenderManLight()
+		light.loadShader( "PxrRectLight" )
+
+		self.assertNotIn( "gl:visualiser:scale", light["out"].attributes( "/light" ) )
+		light["visualiserAttributes"]["scale"]["enabled"].setValue( True )
+		self.assertIn( "gl:visualiser:scale", light["out"].attributes( "/light" ) )
+
 if __name__ == "__main__":
 	unittest.main()

@@ -103,26 +103,13 @@ void RenderManLight::affects( const Gaffer::Plug *input, AffectedPlugsContainer 
 	}
 }
 
-void RenderManLight::hashAttributes( const SceneNode::ScenePath &path, const Gaffer::Context *context, const GafferScene::ScenePlug *parent, IECore::MurmurHash &h ) const
-{
-	ObjectSource::hashAttributes( path, context, parent, h );
-	h.append( shaderInPlug()->attributesHash() );
-}
-
-IECore::ConstCompoundObjectPtr RenderManLight::computeAttributes( const SceneNode::ScenePath &path, const Gaffer::Context *context, const GafferScene::ScenePlug *parent ) const
-{
-	return shaderInPlug()->attributes();
-}
-
 void RenderManLight::hashLight( const Gaffer::Context *context, IECore::MurmurHash &h ) const
 {
-	// Should never be called because we reimplemented hashAttributes() instead.
-	throw IECore::NotImplementedException( "RenderManLight::hashLight" );
+	h.append( shaderInPlug()->attributesHash() );
 }
 
 IECoreScene::ConstShaderNetworkPtr RenderManLight::computeLight( const Gaffer::Context *context ) const
 {
-	/// TODO : WE DON'T WANT TO OVERRIDE COMPUTEATTRIBUTES - WE'RE MISSING OUT ON VISUALISERS ETC.
-	// Should never be called because we reimplemented computeAttributes() instead.
-	throw IECore::NotImplementedException( "RenderManLight::computeLight" );
+	IECore::ConstCompoundObjectPtr shaderAttributes = shaderInPlug()->attributes();
+	return shaderAttributes->member<const IECoreScene::ShaderNetwork>( "ri:light" );
 }
