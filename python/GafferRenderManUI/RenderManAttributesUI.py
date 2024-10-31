@@ -39,15 +39,6 @@ import IECore
 import Gaffer
 import GafferRenderMan
 
-def __visibilitySummary( plug ) :
-
-	info = []
-	for rayType in ( "camera", "indirect", "transmission" ) :
-		if plug[rayType+"Visibility"]["enabled"].getValue() :
-			info.append( rayType.title() + ( " On" if plug[rayType+"Visibility"]["value"].getValue() else " Off" ) )
-
-	return ", ".join( info )
-
 Gaffer.Metadata.registerNode(
 
 	GafferRenderMan.RenderManAttributes,
@@ -56,62 +47,5 @@ Gaffer.Metadata.registerNode(
 	"""
 	Applies RenderMan attributes to objects in the scene.
 	""",
-
-	plugs = {
-
-		# Sections
-
-		"attributes" : [
-
-			"layout:section:Visibility:summary", __visibilitySummary,
-
-		],
-
-		# Visibility
-
-		"attributes.cameraVisibility" : [
-
-			"description",
-			"""
-			Whether or not the object is visible to camera
-			rays. To hide an object completely, use the
-			visibility settings on the StandardAttributes
-			node instead.
-			""",
-
-			"layout:section", "Visibility",
-			"label", "Camera",
-
-		],
-
-		"attributes.indirectVisibility" : [
-
-			"description",
-			"""
-			Whether or not the object is visible to indirect rays.
-			Turning this off hides the object from reflection and
-			refractions.
-			""",
-
-			"layout:section", "Visibility",
-			"label", "Indirect",
-
-		],
-
-		"attributes.transmissionVisibility" : [
-
-			"description",
-			"""
-			Whether or not the object is visible to
-			transmission rays. Turning this off prevents the object
-			from casting shadows.
-			""",
-
-			"layout:section", "Visibility",
-			"label", "Transmission",
-
-		],
-
-	}
 
 )
