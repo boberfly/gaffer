@@ -126,6 +126,11 @@ def __loadShader( shaderName, nodeType ) :
 	node = nodeType( nodeName )
 	node.loadShader( shaderName )
 
+	if isinstance( node, GafferRenderMan.RenderManLight) :
+		node["name"].setValue(
+			shaderName.replace( "Pxr", "pxr" )
+		)
+
 	return node
 
 def __shadersSubMenu( plugins ) :
