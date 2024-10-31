@@ -46,7 +46,7 @@ class RenderManOptionsTest( GafferSceneTest.SceneTestCase ) :
 
 	def testOptionMetadata( self ) :
 
-		# Check a few of the registrations we expect from `startup/GafferScene/renderManOptionsAndAttributes.py`.
+		# Check a few of the registrations we expect from `startup/GafferScene/renderManOptions.py`.
 		self.assertEqual( Gaffer.Metadata.value( "option:ri:hider:bakebboxmin", "label" ), "Baking bbox min" )
 		# Yes, the double-namespacing of `ri:Ri` is absurd, but that's the logical consequence of adhering to the
 		# RenderMan naming, and matches the `PxrOptionsAPI` USD schema.
