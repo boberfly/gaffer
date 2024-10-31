@@ -42,10 +42,9 @@ import IECore
 import Gaffer
 import GafferRenderMan
 
-# Pull all the option and attribute definitions out of RenderMan's `.args`
-# files and register them using Gaffer's standard metadata conventions.
-# This is then used to populate the RenderManOptions node and the RenderPassEditor
-# etc.
+# Pull all the option definitions out of RenderMan's `PRManOptions.args` file
+# and register them using Gaffer's standard metadata conventions. This is then
+# used to populate the RenderManOptions node and the RenderPassEditor etc.
 
 def __registerMetadata( path, prefix, ignore ) :
 
