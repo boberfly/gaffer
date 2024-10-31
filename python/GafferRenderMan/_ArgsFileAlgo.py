@@ -41,6 +41,8 @@ import imath
 
 import IECore
 
+import Gaffer
+
 ## Parses a RenderMan `.args` file, converting it to a dictionary
 # using Gaffer's standard metadata conventions :
 #
@@ -56,7 +58,7 @@ import IECore
 #   }
 # }
 # ```
-def parseMetadata( argsFile, parametersToIgnore = set() ) :
+def parseMetadata( argsFile ) :
 
 	result = { "parameters" : {} }
 
@@ -115,6 +117,20 @@ def parseMetadata( argsFile, parametersToIgnore = set() ) :
 				__parsePresets( element, currentParameter )
 
 	return result
+
+## Parses a RenderMan `.args` file, registering Gaffer metadata for all it's parameters
+# against targets named `{targetPrefix}{parameterName}`.
+def registerMetadata( argsFile, targetPrefix, parametersToIgnore = set() ) :
+
+	metadata = parseMetadata( argsFile )
+	for name, values in metadata["parameters"].items() :
+
+		if name in parametersToIgnore :
+			continue
+
+		target = f"{targetPrefix}{name}"
+		for key, value in values.items() :
+			Gaffer.Metadata.registerValue( target, key, value )
 
 __widgetTypes = {
 	"number" : "GafferUI.NumericPlugValueWidget",

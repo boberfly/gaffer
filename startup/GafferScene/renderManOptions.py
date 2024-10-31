@@ -46,25 +46,13 @@ import GafferRenderMan
 # and register them using Gaffer's standard metadata conventions. This is then
 # used to populate the RenderManOptions node and the RenderPassEditor etc.
 
-def __registerMetadata( path, prefix, ignore ) :
-
-	metadata = GafferRenderMan._ArgsFileAlgo.parseMetadata( path )
-	for name, values in metadata["parameters"].items() :
-
-		if name in ignore :
-			continue
-
-		target = f"{prefix}{name}"
-		for key, value in values.items() :
-			Gaffer.Metadata.registerValue( target, key, value )
-
 if "RMANTREE" in os.environ :
 
 	rmanTree = pathlib.Path( os.environ["RMANTREE"] )
 
-	__registerMetadata(
+	GafferRenderMan._ArgsFileAlgo.registerMetadata(
 		rmanTree / "lib" / "defaults" / "PRManOptions.args", "option:ri:",
-		ignore = {
+		parametersToIgnore = {
 			# Gaffer handles all of these in a renderer-agnostic manner.
 			"Ri:Frame",
 			"Ri:FrameAspectRatio",
