@@ -369,7 +369,7 @@ void Globals::updateRenderView()
 
 		const RtUString accumulationRule( "filter" );
 		const RtUString filter = Rix::k_gaussian;
-		const riley::FilterSize filterSize = { 3.0, 3.0 };
+		const riley::FilterSize filterSize = { 2.0, 2.0 };
 		const float relativePixelVariance = 1.0f;
 
 		m_renderOutputs.push_back(
