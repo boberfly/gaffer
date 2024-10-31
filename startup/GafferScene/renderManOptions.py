@@ -85,6 +85,13 @@ if "RMANTREE" in os.environ :
 			"interactive:displacementupdatedebug",
 			# These just don't make much sense in Gaffer.
 			"ribparse:varsubst",
+			# These aren't documented, and will cause GafferRenderManUITest.DocumentationTest
+			# to fail if we load them. We'll let them back in if we determine they are relevant
+			# and can come up with a sensible documentation string of our own.
+			"limits:gridsize",
+			"limits:proceduralbakingclumpsize",
+			"limits:ptexturemaxfiles",
+			"limits:textureperthreadmemoryratio",
 		}
 	)
 
