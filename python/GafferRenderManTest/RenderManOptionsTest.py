@@ -94,7 +94,14 @@ class RenderManOptionsTest( GafferSceneTest.SceneTestCase ) :
 
 		node = GafferRenderMan.RenderManOptions()
 		for option in Gaffer.Metadata.targetsWithMetadata( "option:ri:*", "defaultValue" ) :
-			self.assertIn( option[7:], node["options"] )
+			option = option[7:]
+			with self.subTest( option = option ) :
+				self.assertIn( option, node["options"] )
+				self.assertEqual( node["options"][option]["name"].getValue(), option )
+				self.assertEqual(
+					node["options"][option]["value"].defaultValue(),
+					Gaffer.Metadata.value( f"option:{option}", "defaultValue" )
+				)
 
 if __name__ == "__main__":
 	unittest.main()
