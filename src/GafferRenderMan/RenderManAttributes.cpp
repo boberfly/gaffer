@@ -42,16 +42,8 @@ using namespace GafferRenderMan;
 IE_CORE_DEFINERUNTIMETYPED( RenderManAttributes );
 
 RenderManAttributes::RenderManAttributes( const std::string &name )
-	:	GafferScene::Attributes( name )
+	:	GafferScene::Attributes( name, "ri:" )
 {
-	Gaffer::CompoundDataPlug *attributes = attributesPlug();
-
-	// Visibility parameters
-
-	attributes->addChild( new Gaffer::NameValuePlug( "ri:visibility:camera", new IECore::BoolData( true ), false, "cameraVisibility" ) );
-	attributes->addChild( new Gaffer::NameValuePlug( "ri:visibility:indirect", new IECore::BoolData( true ), false, "indirectVisibility" ) );
-	attributes->addChild( new Gaffer::NameValuePlug( "ri:visibility:transmission", new IECore::BoolData( true ), false, "transmissionVisibility" ) );
-
 }
 
 RenderManAttributes::~RenderManAttributes()

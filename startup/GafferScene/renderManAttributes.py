@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2018, John Haddon. All rights reserved.
+#  Copyright (c) 2024, Cinesite VFX Ltd. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -34,15 +34,43 @@
 #
 ##########################################################################
 
-from .RenderManShaderTest import RenderManShaderTest
-from .RenderManLightTest import RenderManLightTest
-from .InteractiveRenderManRenderTest import InteractiveRenderManRenderTest
-from .RenderManRenderTest import RenderManRenderTest
-from .RenderManOptionsTest import RenderManOptionsTest
-from .RenderManAttributesTest import RenderManAttributesTest
-from .TagPlugTest import TagPlugTest
-from .ModuleTest import ModuleTest
+import os
+import pathlib
 
-if __name__ == "__main__":
-	import unittest
-	unittest.main()
+import GafferRenderMan
+
+# Pull all the attribute definitions out of RenderMan's `PRManAttributes.args` file
+# and register them using Gaffer's standard metadata conventions. This is then
+# used to populate the RenderManAttributes node and the AttributeEditor etc.
+
+if "RMANTREE" in os.environ :
+
+	rmanTree = pathlib.Path( os.environ["RMANTREE"] )
+
+	GafferRenderMan._ArgsFileAlgo.registerMetadata(
+		rmanTree / "lib" / "defaults" / "PRManAttributes.args", "attribute:ri:",
+		parametersToIgnore = {
+			# Things that Gaffer has renderer-agnostic attributes for already.
+			"Ri:Sides",
+			"lighting:mute",
+			# Things that we might want to use internally in the Renderer class.
+			"identifier:id",
+			"identifier:id2",
+			"identifier:name",
+			"Ri:ReverseOrientation",
+			# Things that we probably want to expose, but which will require
+			# additional plumbing before they will be useful.
+			"lightfilter:subset",
+			"lighting:excludesubset",
+			"lighting:subset",
+			"trace:reflectexcludesubset",
+			"trace:reflectsubset",
+			"trace:shadowexcludesubset",
+			"trace:shadowsubset",
+			"trace:transmitexcludesubset",
+			"trace:transmitsubset",
+			# Might it be better if we populate this automatically based on set
+			# memberships and/or light links? Don't expose it until we know.
+			"grouping:membership",
+		}
+	)
