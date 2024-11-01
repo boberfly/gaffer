@@ -36,35 +36,87 @@
 
 #include "Camera.h"
 
+#include "ParamListAlgo.h"
 #include "Transform.h"
 
 #include "RixPredefinedStrings.hpp"
+
+#include "boost/algorithm/string/predicate.hpp"
+
+#include "fmt/format.h"
 
 using namespace std;
 using namespace Imath;
 using namespace IECoreRenderMan;
 
+namespace
+{
+
+const RtUString g_projectionHandle( "projection" );
+const RtUString g_pxrCamera( "PxrCamera" );
+const RtUString g_pxrOrthographic( "PxrOrthographic" );
+
+} // namespace
+
+/// \todo Overscan, depth of field
 Camera::Camera( const std::string &name, const IECoreScene::Camera *camera, Session *session )
 	:	m_session( session ), m_name( name )
 {
 	// Parameters
 
-	RtParamList paramList;
-	paramList.SetFloat( Rix::k_nearClip, camera->getClippingPlanes()[0] );
-	paramList.SetFloat( Rix::k_farClip, camera->getClippingPlanes()[1] );
+	RtParamList cameraParamList;
+	cameraParamList.SetFloat( Rix::k_nearClip, camera->getClippingPlanes()[0] );
+	cameraParamList.SetFloat( Rix::k_farClip, camera->getClippingPlanes()[1] );
+
+	const Box2f frustum = camera->frustum();
+	array<float, 4> screenWindow = { frustum.min.x, frustum.max.x, frustum.min.y, frustum.max.y };
+	cameraParamList.SetFloatArray( Rix::k_Ri_ScreenWindow, screenWindow.data(), screenWindow.size() );
+
+	// Projection shader
+
+	const string projection = camera->getProjection();
+	RtUString projectionShaderName = g_pxrCamera;
+	if( projection == "perspective" )
+	{
+		projectionShaderName = g_pxrCamera;
+	}
+	else if( projection == "orthographic" )
+	{
+		projectionShaderName = g_pxrOrthographic;
+	}
+	else if( boost::starts_with( projection, "ri:" ) )
+	{
+		projectionShaderName = RtUString( projection.c_str() + 3 );
+	}
+	else
+	{
+		IECore::msg( IECore::Msg::Warning, "Camera", fmt::format( "Unknown projection \"{}\"", projection ) );
+	}
 
 	RtParamList projectionParamList;
-	projectionParamList.SetFloat( Rix::k_fov, 35.0f ); /// TODO : GET FROM CAMERA
+	for( const auto &[name, value] : camera->parameters() )
+	{
+		if( boost::starts_with( name.c_str(), "ri:" ) )
+		{
+			ParamListAlgo::convertParameter( RtUString( name.c_str() + 3 ), value.get(), projectionParamList );
+		}
+	}
+
+	riley::ShadingNode projectionShader = {
+		/* type = */ riley::ShadingNode::Type::k_Projection,
+		/* name = */ projectionShaderName,
+		/* handle = */ g_projectionHandle,
+		/* params = */ projectionParamList
+	};
+
+	// Camera
 
 	m_cameraId = m_session->riley->CreateCamera(
 		riley::UserId(),
 		RtUString( name.c_str() ),
-		{
-			riley::ShadingNode::Type::k_Projection, RtUString( "PxrCamera" ),
-			RtUString( "projection" ), projectionParamList
-		},
+		projectionShader,
 		StaticTransform(),
-		paramList
+		cameraParamList
 	);
 
 	// Options and registration with session.
@@ -76,12 +128,15 @@ Camera::Camera( const std::string &name, const IECoreScene::Camera *camera, Sess
 	options.SetIntegerArray( Rix::k_Ri_FormatResolution, resolution.getValue(), 2 );
 	options.SetFloat( Rix::k_Ri_FormatPixelAspectRatio, camera->getPixelAspectRatio() );
 
-	const Box2f cropWindow = camera->getCropWindow();
-	if( !cropWindow.isEmpty() )
+	Box2f cropWindow = camera->getCropWindow();
+	if( cropWindow.isEmpty() )
 	{
-		float renderManCropWindow[4] = { cropWindow.min.x, cropWindow.max.x, cropWindow.min.y, cropWindow.max.y };
-		options.SetFloatArray( Rix::k_Ri_CropWindow, renderManCropWindow, 4 );
+		/// \todo Would be better if IECoreScene::Camera defaulted to this rather
+		/// than empty box.
+		cropWindow = Box2f( V2f( 0 ), V2f( 1 ) );
 	}
+	float renderManCropWindow[4] = { cropWindow.min.x, cropWindow.max.x, cropWindow.min.y, cropWindow.max.y };
+	options.SetFloatArray( Rix::k_Ri_CropWindow, renderManCropWindow, 4 );
 
 	m_session->addCamera( name, { m_cameraId, options } );
 }
