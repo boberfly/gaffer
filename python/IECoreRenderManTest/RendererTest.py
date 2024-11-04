@@ -271,6 +271,91 @@ class RendererTest( GafferTest.TestCase ) :
 			self.assertAlmostEqual( c[i], 0.5, delta = 0.01 )
 		self.assertEqual( c[3], 1.0 )
 
+	def testEXRLayerNames( self ) :
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+		)
+
+		outputs = [
+			# Data source, layer name, expected EXR channel names.
+			( "rgb", None, ( "R", "G", "B" ) ),
+			( "rgba", None, ( "R", "G", "B", "A" ) ),
+			( "float z", "Z", ( "Z", ) ),
+			( "lpe C<RD>[<L.>O]", None, ( "R", "G", "B" ) ),
+			# Really we want the "rgb" suffixes to be capitalised to match
+			# the EXR specification, but that's not what RenderMan does.
+			# Gaffer's ImageReader will correct for it on loading though.
+			( "lpe C<RD>[<L.>O]", "directDiffuse", ( "directDiffuse.r", "directDiffuse.g", "directDiffuse.b" ) ),
+		]
+
+		for i, output in enumerate( outputs ) :
+
+			parameters = {}
+			if output[1] is not None :
+				parameters["layerName"] = output[1]
+
+			renderer.output(
+				f"test{i}",
+				IECoreScene.Output(
+					str( self.temporaryDirectory() / f"test{i}.exr" ),
+					"exr",
+					output[0],
+					parameters
+				)
+			)
+
+		renderer.render()
+		del renderer
+
+		for i, output in enumerate( outputs ) :
+			with self.subTest( source = output[0], layerName = output[1] ) :
+				image = OpenImageIO.ImageBuf( str( self.temporaryDirectory() / f"test{i}.exr" ) )
+				self.assertEqual( image.spec().channelnames, output[2] )
+
+	def testOutputAccumulationRule( self ) :
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+		)
+
+		renderer.option( "ri:hider:maxsamples", IECore.IntData( 8 ) )
+		renderer.option( "ri:hider:minsamples", IECore.IntData( 8 ) )
+
+		fileName = str( self.temporaryDirectory() / "test.exr" )
+		renderer.output(
+			"test",
+			IECoreScene.Output(
+				fileName,
+				"exr",
+				"float sampleCount",
+				{
+					"ri:accumulationrule" : "sum",
+				},
+			)
+		)
+
+		renderer.object(
+			"sphere",
+			IECoreScene.SpherePrimitive(),
+			renderer.attributes( IECore.CompoundObject( {
+				"ri:surface" : IECoreScene.ShaderNetwork(
+					shaders = {
+						"output" : IECoreScene.Shader( "PxrDiffuse" )
+					},
+					output = "output",
+				)
+			} ) )
+		).transform( imath.M44f().translate( imath.V3f( 0, 0, -3 ) ) )
+
+		renderer.render()
+		del renderer
+
+		image = OpenImageIO.ImageBuf( fileName )
+		self.assertEqual( image.getpixel( 320, 240, 0 ), ( 8.0, ) )
+
 	def __colorAtUV( self, image, uv ) :
 
 		dimensions = image.dataWindow.size() + imath.V2i( 1 )

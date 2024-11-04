@@ -41,6 +41,7 @@
 #include "IECoreScene/ShaderNetwork.h"
 
 #include "IECore/SimpleTypedData.h"
+#include "IECore/StringAlgo.h"
 
 #include "RixPredefinedStrings.hpp"
 
@@ -59,6 +60,7 @@ namespace
 
 const string g_renderManPrefix( "ri:" );
 const IECore::InternedString g_cameraOption( "camera" );
+const IECore::InternedString g_layerName( "layerName" );
 const IECore::InternedString g_sampleMotionOption( "sampleMotion" );
 const IECore::InternedString g_frameOption( "frame" );
 const IECore::InternedString g_integratorOption( "ri:integrator" );
@@ -79,6 +81,25 @@ T *optionCast( const IECore::RunTimeTyped *v, const IECore::InternedString &name
 
 	IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", fmt::format( "Expected {} but got {} for option \"{}\".", T::staticTypeName(), v->typeName(), name.c_str() ) );
 	return nullptr;
+}
+
+template<typename T>
+T parameter( const CompoundDataMap &parameters, const IECore::InternedString &name, const T &defaultValue )
+{
+	auto it = parameters.find( name );
+	if( it == parameters.end() )
+	{
+		return defaultValue;
+	}
+
+	using DataType = IECore::TypedData<T>;
+	if( auto data = runTimeCast<DataType>( it->second.get() ) )
+	{
+		return data->readable();
+	}
+
+	IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", fmt::format( "Expected {} but got {} for parameter \"{}\".", DataType::staticTypeName(), it->second->typeName(), name.c_str() ) );
+	return defaultValue;
 }
 
 } // namespace
@@ -360,6 +381,36 @@ void Globals::updateRenderView()
 			type = riley::RenderOutputType::k_Color;
 			source = RtUString( "Ci" );
 		}
+		else
+		{
+			vector<string> tokens;
+			StringAlgo::tokenize( output->getData(), ' ', tokens );
+			if( tokens.size() == 2 )
+			{
+				source = RtUString( tokens[1].c_str() );
+				if( tokens[0] == "color" )
+				{
+					type = riley::RenderOutputType::k_Color;
+				}
+				else if( tokens[0] == "float" )
+				{
+					type = riley::RenderOutputType::k_Float;
+				}
+				else if( tokens[0] == "int" )
+				{
+					type = riley::RenderOutputType::k_Integer;
+				}
+				else if( tokens[0] == "vector" )
+				{
+					type = riley::RenderOutputType::k_Vector;
+				}
+				else if( tokens[0] == "lpe" )
+				{
+					type = riley::RenderOutputType::k_Color;
+					source = RtUString( ( "lpe:" + tokens[1] ).c_str() );
+				}
+			}
+		}
 
 		if( !type )
 		{
@@ -367,15 +418,26 @@ void Globals::updateRenderView()
 			continue;
 		}
 
-		const RtUString accumulationRule( "filter" );
-		const RtUString filter = Rix::k_gaussian;
-		const riley::FilterSize filterSize = { 2.0, 2.0 };
-		const float relativePixelVariance = 1.0f;
+		// The name that will be passed to the display driver. Note that this
+		// doesn't need to be unique among all render outputs.
+
+		RtUString renderOutputName = source;
+		const string layerName = parameter<string>( output->parameters(), g_layerName, "" );
+		if( !layerName.empty() )
+		{
+			renderOutputName = RtUString( layerName.c_str() );
+		}
+
+		const RtUString accumulationRule( parameter( output->parameters(), "ri:accumulationrule", string( "filter" ) ).c_str() );
+		const float relativePixelVariance = parameter( output->parameters(), "ri:relativepixelvariance", 0.0f );
+
+		const RtUString filter = Rix::k_gaussian; // TODO : GET FROM OPTIONS
+		const riley::FilterSize filterSize = { 2.0, 2.0 }; // TODO : GET FROM OPTIONS
 
 		m_renderOutputs.push_back(
 			m_session->riley->CreateRenderOutput(
 				riley::UserId(),
-				RtUString( name.c_str() ), *type, source,
+				renderOutputName, *type, source,
 				accumulationRule, filter, filterSize, relativePixelVariance,
 				RtParamList()
 			)
@@ -383,11 +445,10 @@ void Globals::updateRenderView()
 
 		if( output->getData() == "rgba" )
 		{
-			const string alphaName = name.string() + "_Alpha";
 			m_renderOutputs.push_back(
 				m_session->riley->CreateRenderOutput(
 					riley::UserId(),
-					RtUString( alphaName.c_str() ), riley::RenderOutputType::k_Float, Rix::k_a,
+					RtUString( "a" ), riley::RenderOutputType::k_Float, Rix::k_a,
 					accumulationRule, filter, filterSize, relativePixelVariance,
 					RtParamList()
 				)
@@ -396,13 +457,18 @@ void Globals::updateRenderView()
 
 		// Display
 
+		RtParamList driverParamList;
+
 		string driver = output->getType();
 		if( driver == "exr" )
 		{
 			driver = "openexr";
+			if( !layerName.empty() )
+			{
+				driverParamList.SetInteger( RtUString( "asrgba" ), 0 );
+			}
 		}
 
-		RtParamList driverParamList;
 		ParamListAlgo::convertParameters( output->parameters(), driverParamList );
 
 		displayDefinitions.push_back( {
@@ -420,7 +486,7 @@ void Globals::updateRenderView()
 		// `k_Ri_FormatResolution` option? Riley only knows.
 		extent,
 		RtUString( "importance" ),
-		0.015f,
+		0.015f, // TODO : GET FROM OPTIONS
 		RtParamList()
 	);
 	m_renderTargetExtent = extent;

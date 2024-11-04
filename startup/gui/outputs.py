@@ -441,6 +441,68 @@ if os.environ.get( "CYCLES_ROOT" ) and os.environ.get( "GAFFERCYCLES_HIDE_UI", "
 		__registerOutputs( lightPasses, True )
 		__registerOutputs( dataPasses )
 
+
+# Add standard RenderMan outputs.
+
+with IECore.IgnoredExceptions( ImportError ) :
+
+	# If RenderMan isn't available for any reason, this will fail
+	# and we won't add any unnecessary output definitions.
+	import GafferArnold
+
+	for name, data, accumulationRule in [
+		( "beauty", "rgba", "filter" ),
+		( "depth", "float z", "zmin" ),
+		( "directDiffuse", "lpe C<RD>[<L.>O]", "filter" ),
+		( "indirectDiffuse", "lpe C<RD>.+[<L.>O]", "filter" ),
+		( "subsurface", "lpe C<TD>.*[<L.>O]", "filter" ),
+		( "directSpecular", "lpe C<RS>[<L.>O]", "filter" ),
+		( "indirectSpecular", "lpe C<RS>.+[<L.>O]", "filter" ),
+		( "transmission", "lpe C<TS>.*[<L.>O]", "filter" ),
+		( "emission", "lpe C[<L.>O]", "filter" ),
+		( "cpuTime", "float cpuTime", "sum" ),
+		( "sampleCount", "float sampleCount", "sum" ),
+	] :
+
+		label = IECore.CamelCase.toSpaced( name )
+		parameters = {
+			"ri:accumulationRule" : accumulationRule,
+			"ri:relativePixelVariance" : 0.0,
+		}
+
+		if data == "float z" :
+			parameters["layerName"] = "Z"
+		elif data != "rgba" :
+			parameters["layerName"] = name
+
+		interactiveParameters = parameters.copy()
+		interactiveParameters.update( {
+				"driverType" : "ClientDisplayDriver",
+				"displayHost" : "localhost",
+				"displayPort" : "${image:catalogue:port}",
+				"remoteDisplayType" : "GafferImage::GafferDisplayDriver",
+		} )
+
+		GafferScene.Outputs.registerOutput(
+			"Interactive/RenderMan/" + label,
+			IECoreScene.Output(
+				name,
+				"ieDisplay",
+				data,
+				interactiveParameters
+			)
+		)
+
+		GafferScene.Outputs.registerOutput(
+			"Batch/RenderMan/" + label,
+			IECoreScene.Output(
+				"${project:rootDirectory}/renders/${script:name}/${renderPass}/%s/%s.####.exr" % ( name, name ),
+				"exr",
+				data,
+				parameters,
+			)
+		)
+
 # Publish the Catalogue port number as a context variable, so we can refer
 # to it easily in output definitions.
 
