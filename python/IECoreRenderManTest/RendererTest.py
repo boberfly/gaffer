@@ -356,6 +356,40 @@ class RendererTest( GafferTest.TestCase ) :
 		image = OpenImageIO.ImageBuf( fileName )
 		self.assertEqual( image.getpixel( 320, 240, 0 ), ( 8.0, ) )
 
+	def testEXRHeaderMetadata( self ) :
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+		)
+
+		fileName = str( self.temporaryDirectory() / "test.exr" )
+		renderer.output(
+			"test",
+			IECoreScene.Output(
+				fileName,
+				"exr",
+				"rgba",
+				{
+					"header:testInt" : 1,
+					"header:testFloat" : 2.0,
+					"header:testString" : "foo",
+					"header:testBool" : True,
+					"header:testV2i" : imath.V2i( 1, 2 ),
+				},
+			)
+		)
+
+		renderer.render()
+		del renderer
+
+		image = OpenImageIO.ImageBuf( fileName )
+		self.assertEqual( image.spec().get_int_attribute( "testInt" ), 1 )
+		self.assertEqual( image.spec().get_float_attribute( "testFloat" ), 2.0 )
+		self.assertEqual( image.spec().get_string_attribute( "testString" ), "foo" )
+		self.assertEqual( image.spec().get_int_attribute( "testBool" ), 1 )
+		self.assertEqual( image.spec().getattribute( "testV2i" ), ( 1, 2 ) )
+
 	def __colorAtUV( self, image, uv ) :
 
 		dimensions = image.dataWindow.size() + imath.V2i( 1 )

@@ -467,8 +467,18 @@ void Globals::updateRenderView()
 			{
 				driverParamList.SetInteger( RtUString( "asrgba" ), 0 );
 			}
+
+			for( const auto &[parameterName, parameterValue] : output->parameters() )
+			{
+				if( boost::starts_with( parameterName.c_str(), "header:" ) )
+				{
+					const string exrName = "exrheader_" + parameterName.string().substr( 7 );
+					ParamListAlgo::convertParameter( RtUString( exrName.c_str() ), parameterValue.get(), driverParamList );
+				}
+			}
 		}
 
+		/// TODO : USE A PREFIX TO IDENTIFY DRIVER PARAMETERS.
 		ParamListAlgo::convertParameters( output->parameters(), driverParamList );
 
 		displayDefinitions.push_back( {
