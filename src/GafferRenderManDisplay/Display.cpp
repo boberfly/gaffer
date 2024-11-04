@@ -114,8 +114,10 @@ PtDspyError DspyImageOpen( PtDspyImageHandle *image, const char *driverName, con
 			origin.x = static_cast<const int *>(parameters[p].value)[0];
 			origin.y = static_cast<const int *>(parameters[p].value)[1];
 		}
-		else if( 0 == strcmp( parameters[p].name, "layername" ) && parameters[p].vtype == 's' )
+		else if( 0 == strcmp( parameters[p].name, "layerName" ) && parameters[p].vtype == 's' )
 		{
+			/// TODO : WE'RE USING OUR OWN PARAMETER HERE, WHEN TECHNICALLY WE SHOULD
+			/// BE PARSING THE NAMES FROM RENDERMAN'S FORMAT NAMES.
 			const string layerName = *(const char **)(parameters[p].value);
 			if( !layerName.empty() )
 			{
