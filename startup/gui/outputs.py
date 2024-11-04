@@ -503,6 +503,14 @@ with IECore.IgnoredExceptions( ImportError ) :
 			)
 		)
 
+	# Add presets for accumulation rule
+
+	Gaffer.Metadata.registerValue( GafferScene.Outputs, "outputs.*.parameters.ri_accumulationRule.value", "plugValueWidget:type", "GafferUI.PresetsPlugValueWidget" )
+	for rule in [
+		"filter", "average", "min", "max", "zmin", "zmax", "sum", "variance", "mse", "even", "odd"
+	] :
+		Gaffer.Metadata.registerValue( GafferScene.Outputs, "outputs.*.parameters.ri_accumulationRule.value", f"preset:{rule}", rule )
+
 # Publish the Catalogue port number as a context variable, so we can refer
 # to it easily in output definitions.
 
