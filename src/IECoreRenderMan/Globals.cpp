@@ -428,11 +428,19 @@ void Globals::updateRenderView()
 			renderOutputName = RtUString( layerName.c_str() );
 		}
 
-		const RtUString accumulationRule( parameter( output->parameters(), "ri:accumulationrule", string( "filter" ) ).c_str() );
-		const float relativePixelVariance = parameter( output->parameters(), "ri:relativepixelvariance", 0.0f );
+		// if( layerName == "normal" )
+		// {
+		// 	type = riley::RenderOutputType::k_Normal;
+		// }
+
+
+		const RtUString accumulationRule( parameter( output->parameters(), "ri:accumulationRule", string( "filter" ) ).c_str() );
+		const float relativePixelVariance = parameter( output->parameters(), "ri:relativePixelVariance", 0.0f );
 
 		const RtUString filter = Rix::k_gaussian; // TODO : GET FROM OPTIONS
 		const riley::FilterSize filterSize = { 2.0, 2.0 }; // TODO : GET FROM OPTIONS
+
+		std::cerr << name << " " << accumulationRule.CStr() << std::endl;
 
 		m_renderOutputs.push_back(
 			m_session->riley->CreateRenderOutput(

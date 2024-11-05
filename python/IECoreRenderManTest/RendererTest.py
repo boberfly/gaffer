@@ -332,7 +332,7 @@ class RendererTest( GafferTest.TestCase ) :
 				"exr",
 				"float sampleCount",
 				{
-					"ri:accumulationrule" : "sum",
+					"ri:accumulationRule" : "sum",
 				},
 			)
 		)

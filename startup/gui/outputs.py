@@ -451,17 +451,26 @@ with IECore.IgnoredExceptions( ImportError ) :
 	import GafferArnold
 
 	for name, data, accumulationRule in [
+		( "albedo", "lpe nothruput;noinfinitecheck;noclamp;unoccluded;overwrite;C<.S'passthru'>*((U2L)|O)", "filter" ),
+		( "albedo_mse", "lpe nothruput;noinfinitecheck;noclamp;unoccluded;overwrite;C<.S'passthru'>*((U2L)|O)", "mse" ),
 		( "beauty", "rgba", "filter" ),
-		( "depth", "float z", "zmin" ),
-		( "directDiffuse", "lpe C<RD>[<L.>O]", "filter" ),
-		( "indirectDiffuse", "lpe C<RD>.+[<L.>O]", "filter" ),
-		( "subsurface", "lpe C<TD>.*[<L.>O]", "filter" ),
-		( "directSpecular", "lpe C<RS>[<L.>O]", "filter" ),
-		( "indirectSpecular", "lpe C<RS>.+[<L.>O]", "filter" ),
-		( "transmission", "lpe C<TS>.*[<L.>O]", "filter" ),
-		( "emission", "lpe C[<L.>O]", "filter" ),
+		( "mse", "rgb", "mse" ),
 		( "cpuTime", "float cpuTime", "sum" ),
+		( "depth", "float z", "zmin" ),
+		( "emission", "lpe C[<L.>O]", "filter" ),
+		( "diffuse", "lpe C(D[DS]*[LO])|[LO]", "filter" ),
+		( "diffuse_mse", "lpe C(D[DS]*[LO])|[LO]", "mse" ),
+		( "directDiffuse", "lpe C<RD>[<L.>O]", "filter" ),
+		( "directSpecular", "lpe C<RS>[<L.>O]", "filter" ),
+		( "indirectDiffuse", "lpe C<RD>.+[<L.>O]", "filter" ),
+		( "indirectSpecular", "lpe C<RS>.+[<L.>O]", "filter" ),
+		( "normal", "lpe nothruput;noinfinitecheck;noclamp;unoccluded;overwrite;CU6L", "filter" ),
+		( "normal_mse", "lpe nothruput;noinfinitecheck;noclamp;unoccluded;overwrite;CU6L", "mse" ),
 		( "sampleCount", "float sampleCount", "sum" ),
+		( "specular", "lpe CS[DS]*[LO]", "filter" ),
+		( "specular_mse", "lpe CS[DS]*[LO]", "mse" ),
+		( "subsurface", "lpe C<TD>.*[<L.>O]", "filter" ),
+		( "transmission", "lpe C<TS>.*[<L.>O]", "filter" ),
 	] :
 
 		label = IECore.CamelCase.toSpaced( name )
