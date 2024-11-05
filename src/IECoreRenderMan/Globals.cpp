@@ -128,6 +128,17 @@ Globals::Globals( IECoreScenePreview::Renderer::RenderType renderType, const IEC
 		m_options.SetInteger( Rix::k_hider_incremental, 1 );
 		m_options.SetString( Rix::k_bucket_order, RtUString( "circle" ) );
 	}
+
+	// The RenderMan documentation tells you to use "CU6L" as the normal AOV
+	// for the denoiser, but that doesn't actually work unless the right user
+	// lobe has been defined. So we define it here.
+	/// \todo What if people want to define the lobes differently themselves?
+	/// Should we be hardcoding this at all? Should we use `normal Nn` for the
+	/// denoiser instead?
+	m_options.SetString(
+		RtUString( "lpe:user6" ),
+		RtUString( "Normal,DiffuseNormal,HairTangent,SubsurfaceNormal,SpecularNormal,RoughSpecularNormal,SingleScatterNormal,FuzzNormal,IridescenceNormal,GlassNormal" )
+	);
 }
 
 Globals::~Globals()
