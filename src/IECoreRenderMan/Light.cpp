@@ -45,12 +45,36 @@ using namespace IECoreRenderMan;
 namespace
 {
 
+M44f correctiveTransform( const Attributes *attributes )
+{
+	if( !attributes->lightShader() )
+	{
+		return M44f();
+	}
+
+	const IECoreScene::Shader *lightShader = attributes->lightShader()->outputShader();
+	if( !lightShader )
+	{
+		return M44f();
+	}
+
+	if( lightShader->getName() == "PxrDomeLight" )
+	{
+		return M44f().rotate( V3f( -M_PI_2, M_PI_2, 0.0f ) );
+	}
+	else
+	{
+		return M44f().scale( V3f( 1, 1, -1 ) );
+	}
+}
+
 static riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
 
 } // namespace
 
 Light::Light( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, const Session *session )
-	:	m_session( session ), m_lightShader( riley::LightShaderId::InvalidId() ), m_lightInstance( riley::LightInstanceId::InvalidId() )
+	:	m_session( session ), m_lightShader( riley::LightShaderId::InvalidId() ),
+		m_lightInstance( riley::LightInstanceId::InvalidId() ), m_correctiveTransform( correctiveTransform( attributes ) )
 {
 	updateLightShader( attributes );
 	if( m_lightShader == riley::LightShaderId::InvalidId() )
@@ -94,8 +118,8 @@ void Light::transform( const Imath::M44f &transform )
 		return;
 	}
 
-	const M44f flippedTransform = M44f().scale( V3f( 1, 1, -1 ) ) * transform;
-	StaticTransform staticTransform( flippedTransform );
+	const M44f correctedTransform = m_correctiveTransform * transform;
+	StaticTransform staticTransform( correctedTransform );
 
 	const riley::LightInstanceResult result = m_session->riley->ModifyLightInstance(
 		/* group = */ riley::GeometryPrototypeId::InvalidId(),
@@ -120,12 +144,12 @@ void Light::transform( const std::vector<Imath::M44f> &samples, const std::vecto
 		return;
 	}
 
-	vector<Imath::M44f> flippedSamples = samples;
-	for( auto &m : flippedSamples )
+	vector<Imath::M44f> correctedSamples = samples;
+	for( auto &m : correctedSamples )
 	{
-		m = M44f().scale( V3f( 1, 1, -1 ) ) * m;
+		m = m_correctiveTransform * m;
 	}
-	AnimatedTransform animatedTransform( flippedSamples, times );
+	AnimatedTransform animatedTransform( correctedSamples, times );
 
 	const riley::LightInstanceResult result = m_session->riley->ModifyLightInstance(
 		/* group = */ riley::GeometryPrototypeId::InvalidId(),
@@ -146,6 +170,13 @@ void Light::transform( const std::vector<Imath::M44f> &samples, const std::vecto
 bool Light::attributes( const IECoreScenePreview::Renderer::AttributesInterface *attributes )
 {
 	auto renderManAttributes = static_cast<const Attributes *>( attributes );
+	if( correctiveTransform( renderManAttributes ) != m_correctiveTransform )
+	{
+		// This can only happen when the light type changes, which is pretty unlikely.
+		// We don't know the light's transform, so just request that it be recreated.
+		return false;
+	}
+
 	updateLightShader( renderManAttributes );
 
 	if( m_lightInstance == riley::LightInstanceId::InvalidId() )

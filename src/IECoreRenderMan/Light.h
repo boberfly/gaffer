@@ -67,6 +67,7 @@ class Light : public IECoreScenePreview::Renderer::ObjectInterface
 		const Session *m_session;
 		riley::LightShaderId m_lightShader;
 		riley::LightInstanceId m_lightInstance;
+		Imath::M44f m_correctiveTransform;
 
 };
 
