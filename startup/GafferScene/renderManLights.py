@@ -50,8 +50,11 @@ for type in [
 	Gaffer.Metadata.registerValue( "ri:light:" + type, "colorParameter", "lightColor" )
 
 Gaffer.Metadata.registerValue( "ri:light:PxrCylinderLight", "type", "cylinder" )
+Gaffer.Metadata.registerValue( "ri:light:PxrDomeLight", "type", "environment" )
 Gaffer.Metadata.registerValue( "ri:light:PxrDiskLight", "type", "disk" )
 Gaffer.Metadata.registerValue( "ri:light:PxrDistantLight", "type", "distant" )
 Gaffer.Metadata.registerValue( "ri:light:PxrPortalLight", "type", "portal" )
 Gaffer.Metadata.registerValue( "ri:light:PxrRectLight", "type", "quad" )
 Gaffer.Metadata.registerValue( "ri:light:PxrSphereLight", "type", "sphere" )
+
+Gaffer.Metadata.registerValue( "ri:light:PxrDomeLight", "textureNameParameter", "lightColorMap" )
