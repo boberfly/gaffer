@@ -451,8 +451,6 @@ void Globals::updateRenderView()
 		const RtUString filter = Rix::k_gaussian; // TODO : GET FROM OPTIONS
 		const riley::FilterSize filterSize = { 2.0, 2.0 }; // TODO : GET FROM OPTIONS
 
-		std::cerr << name << " " << accumulationRule.CStr() << std::endl;
-
 		m_renderOutputs.push_back(
 			m_session->riley->CreateRenderOutput(
 				riley::UserId(),
