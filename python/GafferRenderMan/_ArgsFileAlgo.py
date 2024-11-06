@@ -91,7 +91,10 @@ def parseMetadata( argsFile ) :
 				currentParameter["description"] = element.attrib.get( "help" )
 				currentParameter["layout:section"] = ".".join( pageStack )
 				currentParameter["plugValueWidget:type"] = __widgetTypes.get( element.attrib.get( "widget" ) )
-				currentParameter["nodule:type"] = "" if element.attrib.get( "connectable", "true" ).lower() == "false" else None
+				currentParameter["nodule:type"] = (
+					"" if element.attrib.get( "connectable", "true" ).lower() == "false" or currentParameter["plugValueWidget:type"] == ""
+					else None
+				)
 
 				defaultValue = __parseValue( element.attrib.get( "default" ), currentParameter["__type"] )
 				if defaultValue is not None :
