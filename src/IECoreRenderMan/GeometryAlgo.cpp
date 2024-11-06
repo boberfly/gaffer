@@ -180,6 +180,24 @@ struct PrimitiveVariableConverter
 
 	// Vector data
 
+	void operator()( const IntVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	{
+		emit(
+			data,
+			{
+				name,
+				RtDataType::k_integer,
+				detail( primitiveVariable.interpolation ),
+				/* length = */ 1,
+				/* array = */ false,
+				/* motion = */ false,
+				/* deduplicated = */ false
+			},
+			primitiveVariable,
+			paramList
+		);
+	}
+
 	void operator()( const FloatVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
 	{
 		emit(
