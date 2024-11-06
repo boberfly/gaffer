@@ -595,8 +595,8 @@ Visualisations StandardLightVisualiser::visualise( const IECore::InternedString 
 	else if( type == "portal" )
 	{
 		const V2f size(
-			parameter<float>( metadataTarget, shaderParameters, g_widthParameterString, 2.0f ),
-			parameter<float>( metadataTarget, shaderParameters, g_heightParameterString, 2.0f )
+			parameter<float>( metadataTarget, shaderParameters, g_widthParameterString, 1.0f ),
+			parameter<float>( metadataTarget, shaderParameters, g_heightParameterString, 1.0f )
 		);
 		result.push_back( Visualisation::createGeometry( quadPortal( size, /* hatchingScale = */ 1.0f, muted ) ) );
 		addRay( V3f( 0 ), V3f( 0, 0, -1 ), ornamentWireframeVertsPerCurve->writable(), ornamentWireframePoints->writable() );
