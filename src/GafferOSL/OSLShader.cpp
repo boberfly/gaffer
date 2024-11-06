@@ -1264,7 +1264,7 @@ void OSLShader::loadShader( const std::string &shaderName, bool keepExistingValu
 
 	m_metadata = nullptr;
 	namePlug->source<StringPlug>()->setValue( shaderName );
-	auto typeIt = g_typeOverrides.find( std::filesystem::path( shaderName ).stem() );
+	auto typeIt = g_typeOverrides.find( std::filesystem::path( shaderName ).stem().generic_string() );
 	typePlug->source<StringPlug>()->setValue(
 		typeIt != g_typeOverrides.end() ?
 		typeIt->second :

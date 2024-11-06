@@ -44,7 +44,7 @@
 namespace GafferRenderMan
 {
 
-class GAFFERSCENE_API RenderManIntegrator : public GafferScene::GlobalShader
+class GAFFERRENDERMAN_API RenderManIntegrator : public GafferScene::GlobalShader
 {
 
 	public :

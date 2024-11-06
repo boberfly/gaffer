@@ -1383,7 +1383,7 @@ libraries = {
 			# but which nonetheless emit compilation warnings. We turn them off so we
 			# can continue to compile with warnings as errors.
 			"CPPDEFINES" : [ "RMAN_RIX_NO_WARN_DEPRECATED" ],
-			"LIBS" : [ "GafferScene", "IECoreScene", "prman", "pxrcore" ],
+			"LIBS" : [ "GafferScene", "IECoreScene" ],
 			"LIBPATH" : [ "$RENDERMAN_ROOT/lib" ],
 		},
 		"pythonEnvAppends" : {
@@ -1403,7 +1403,7 @@ libraries = {
 			# but which nonetheless emit compilation warnings. We turn them off so we
 			# can continue to compile with warnings as errors.
 			"CPPDEFINES" : [ "RMAN_RIX_NO_WARN_DEPRECATED" ],
-			"LIBS" : [ "Iex$OPENEXR_LIB_SUFFIX", "Gaffer", "GafferDispatch", "GafferScene", "IECoreScene", "prman", "pxrcore" ],
+			"LIBS" : [ "Iex$IMATH_LIB_SUFFIX", "Gaffer", "GafferDispatch", "GafferScene", "IECoreScene" ],
 			"LIBPATH" : [ "$RENDERMAN_ROOT/lib" ],
 		},
 		"pythonEnvAppends" : {
@@ -1571,6 +1571,14 @@ if env["PLATFORM"] == "win32" :
 else :
 
 	libraries["GafferCycles"]["envAppends"]["LIBS"].extend( [ "zstd", "dl" ] )
+
+for library in ( "IECoreRenderMan", "GafferRenderMan" ) :
+
+	libraries[library].setdefault( "envAppends", {} )
+	if env["PLATFORM"] == "win32" :
+		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "libprman", "libpxrcore" ] )
+	else:
+		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "prman", "pxrcore" ] )
 
 # Optionally add vTune requirements
 

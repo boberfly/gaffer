@@ -34,4 +34,21 @@
 #
 ##########################################################################
 
+import os
+import pathlib
+import ctypes
+
+if hasattr( os, "add_dll_directory" ) :
+	os.add_dll_directory( ( pathlib.Path( os.environ["RMANTREE"] ) / "bin" ).resolve() )
+	os.add_dll_directory( ( pathlib.Path( os.environ["RMANTREE"] ) / "lib" ).resolve() )
+
+if os.name == "nt" :
+	# Because `_IECoreRenderMan.pyd` currently doesn't require any symbols
+	# from `IECoreRenderMan.dll`, the Windows linker omits the latter. Load
+	# it explicitly, because it contains a custom visualiser registration
+	# that we need.
+	ctypes.CDLL( "IECoreRenderMan.dll" )
+
+del os, pathlib, ctypes # Don't pollute the namespace
+
 from ._IECoreRenderMan import *
