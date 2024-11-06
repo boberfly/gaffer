@@ -52,6 +52,17 @@ class RenderManLightTest( GafferSceneTest.SceneTestCase ) :
 		self.assertIsInstance( light["parameters"]["intensity"], Gaffer.FloatPlug )
 		self.assertIsInstance( light["parameters"]["lightColor"], Gaffer.Color3fPlug )
 
+	def testLoadAllLightTypes( self ) :
+
+		for name in [
+			"PxrAovLight", "PxrDistantLight", "PxrMeshLight", "PxrSphereLight",
+			"PxrCylinderLight", "PxrDomeLight", "PxrPortalLight",
+			"PxrDiskLight", "PxrEnvDayLight", "PxrRectLight",
+		] :
+			with self.subTest( name = name ) :
+				light = GafferRenderMan.RenderManLight()
+				light.loadShader( name )
+
 	def testSerialisation( self ) :
 
 		script = Gaffer.ScriptNode()

@@ -233,6 +233,28 @@ Plug *loadTagParameter( const boost::property_tree::ptree &parameter, IECore::In
 	return loadTagParameter( tags, name, parent );
 }
 
+Plug *loadMatrixParameter( const boost::property_tree::ptree &parameter, IECore::InternedString name, Plug *parent )
+{
+	auto existingPlug = parent->getChild<M44fPlug>( name );
+	if( existingPlug )
+	{
+		return existingPlug;
+	}
+
+	PlugPtr plug = new M44fPlug( name, parent->direction() );
+
+	if( existingPlug )
+	{
+		PlugAlgo::replacePlug( parent, plug );
+	}
+	else
+	{
+		parent->setChild( name, plug );
+	}
+
+	return plug.get();
+}
+
 Gaffer::Plug *loadParameter( const boost::property_tree::ptree &parameter, Plug *parent )
 {
 	if( parameter.get<string>( "<xmlattr>.omitFromRender", "False" ) == "True" )
@@ -284,6 +306,10 @@ Gaffer::Plug *loadParameter( const boost::property_tree::ptree &parameter, Plug 
 	else if( type == "struct" )
 	{
 		return loadTagParameter( parameter, name, parent );
+	}
+	else if( type == "matrix" )
+	{
+		return loadMatrixParameter( parameter, name, parent );
 	}
 	else
 	{
