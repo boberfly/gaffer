@@ -241,10 +241,10 @@ riley::LightInstanceId Session::createLightInstance( riley::LightShaderId lightS
 
 	if( m_domeAndPortalShaders.count( lightShaderId.AsUInt32() ) )
 	{
-		RtMatrix4x4 transform; transform.Identity();
+		RtMatrix4x4 _transform; _transform.Identity();
 		m_domeAndPortalLights[result.AsUInt32()] = {
 			lightShaderId,
-			transform,
+			_transform,
 			attributes
 		};
 		m_portalsDirty = true;

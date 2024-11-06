@@ -45,6 +45,8 @@
 
 #include "fmt/format.h"
 
+#include <array>
+
 using namespace std;
 using namespace Imath;
 using namespace IECoreRenderMan;
@@ -94,11 +96,11 @@ Camera::Camera( const std::string &name, const IECoreScene::Camera *camera, Sess
 	}
 
 	RtParamList projectionParamList;
-	for( const auto &[name, value] : camera->parameters() )
+	for( const auto &[_name, value] : camera->parameters() )
 	{
-		if( boost::starts_with( name.c_str(), "ri:" ) )
+		if( boost::starts_with( _name.c_str(), "ri:" ) )
 		{
-			ParamListAlgo::convertParameter( RtUString( name.c_str() + 3 ), value.get(), projectionParamList );
+			ParamListAlgo::convertParameter( RtUString( _name.c_str() + 3 ), value.get(), projectionParamList );
 		}
 	}
 
