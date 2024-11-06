@@ -103,6 +103,11 @@ struct ParameterConverter
 		}
 	}
 
+	void operator()( const M44fData *data, RtUString name, RtParamList &paramList ) const
+	{
+		paramList.SetMatrix( name, reinterpret_cast<const pxrcore::Matrix4x4 &>( data->readable() ) );
+	}
+
 	void operator()( const IntVectorData *data, RtUString name, RtParamList &paramList ) const
 	{
 		paramList.SetIntegerArray( name, data->readable().data(), data->readable().size() );
