@@ -90,7 +90,7 @@ Plug *loadNumericParameter( const boost::property_tree::ptree &parameter, IECore
 	typedef typename PlugType::ValueType ValueType;
 
 	const ValueType defaultValue = parameter.get( "<xmlattr>.default", ValueType( 0 ) );
-	const ValueType minValue = parameter.get( "<xmlattr>.min", numeric_limits<ValueType>::min() );
+	const ValueType minValue = parameter.get( "<xmlattr>.min", numeric_limits<ValueType>::lowest() );
 	const ValueType maxValue = parameter.get( "<xmlattr>.max", numeric_limits<ValueType>::max() );
 
 	PlugType *existingPlug = parent->template getChild<PlugType>( name );

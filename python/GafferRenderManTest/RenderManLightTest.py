@@ -86,5 +86,14 @@ class RenderManLightTest( GafferSceneTest.SceneTestCase ) :
 		light["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 		self.assertIn( "gl:visualiser:scale", light["out"].attributes( "/light" ) )
 
+	def testMinMax( self ) :
+
+		light = GafferRenderMan.RenderManLight()
+		light.loadShader( "PxrDomeLight" )
+
+		self.assertFalse( light["parameters"]["exposure"].hasMinValue() )
+		self.assertTrue( light["parameters"]["intensity"].hasMinValue() )
+		self.assertEqual( light["parameters"]["intensity"].minValue(), 0 )
+
 if __name__ == "__main__":
 	unittest.main()
