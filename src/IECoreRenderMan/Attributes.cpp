@@ -55,8 +55,11 @@ namespace
 
 const string g_renderManPrefix( "ri:" );
 const InternedString g_surfaceShaderAttributeName( "ri:surface" );
+const InternedString g_lightMuteAttributeName( "light:mute" );
 const InternedString g_lightShaderAttributeName( "light" );
 const InternedString g_renderManLightShaderAttributeName( "ri:light" );
+
+const RtUString g_lightingMuteUStr( "lighting:mute" );
 
 template<typename T>
 T *reportedCast( const IECore::RunTimeTyped *v, const char *type, const IECore::InternedString &name )
@@ -91,21 +94,25 @@ Attributes::Attributes( const IECore::CompoundObject *attributes, MaterialCache 
 	m_lightShader = parameter<ShaderNetwork>( attributes->members(), g_renderManLightShaderAttributeName );
 	m_lightShader = m_lightShader ? m_lightShader : parameter<ShaderNetwork>( attributes->members(), g_lightShaderAttributeName );
 
-	for( const auto &attribute : attributes->members() )
+	for( const auto &[name, value] : attributes->members() )
 	{
-		if( boost::starts_with( attribute.first.c_str(), g_renderManPrefix.c_str() ) )
+		auto data = runTimeCast<const Data>( value.get() );
+		if( !data )
 		{
-			if( auto data = runTimeCast<const Data>( attribute.second.get() ) )
-			{
-				ParamListAlgo::convertParameter( RtUString( attribute.first.c_str() + g_renderManPrefix.size() ), data, m_paramList );
-			}
+			continue;
 		}
-		else if( boost::starts_with( attribute.first.c_str(), "user:" ) )
+
+		if( name == g_lightMuteAttributeName )
 		{
-			if( auto data = runTimeCast<const Data>( attribute.second.get() ) )
-			{
-				ParamListAlgo::convertParameter( RtUString( attribute.first.c_str() ), data, m_paramList );
-			}
+			ParamListAlgo::convertParameter( g_lightingMuteUStr, data, m_paramList );
+		}
+		else if( boost::starts_with( name.c_str(), g_renderManPrefix.c_str() ) )
+		{
+			ParamListAlgo::convertParameter( RtUString( name.c_str() + g_renderManPrefix.size() ), data, m_paramList );
+		}
+		else if( boost::starts_with( name.c_str(), "user:" ) )
+		{
+			ParamListAlgo::convertParameter( RtUString( name.c_str() ), data, m_paramList );
 		}
 	}
 }
