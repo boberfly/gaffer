@@ -38,11 +38,20 @@
 
 #include "GafferRenderMan/RenderManShader.h"
 
+using namespace std;
 using namespace Imath;
 using namespace IECore;
 using namespace Gaffer;
 using namespace GafferScene;
 using namespace GafferRenderMan;
+
+namespace
+{
+
+const InternedString g_domeLightSet( "ri:domeLights" );
+const InternedString g_portalLightSet( "ri:portalLights" );
+
+} // namespace
 
 IE_CORE_DEFINERUNTIMETYPED( RenderManLight );
 
@@ -55,11 +64,13 @@ RenderManLight::RenderManLight( const std::string &name )
 
 	addChild( new RenderManShader( "__shader" ) );
 	addChild( new ShaderPlug( "__shaderIn", Plug::In, Plug::Default & ~Plug::Serialisable ) );
+	addChild( new StringPlug( "__shaderNameIn", Plug::In, "", Plug::Default & ~Plug::Serialisable ) );
 
 	shaderNode()->parametersPlug()->setFlags( Plug::AcceptsInputs, true );
 	shaderNode()->parametersPlug()->setInput( parametersPlug() );
 
 	shaderInPlug()->setInput( shaderNode()->outPlug() );
+	shaderNameInPlug()->setInput( shaderNode()->namePlug() );
 }
 
 RenderManLight::~RenderManLight()
@@ -86,6 +97,16 @@ const GafferScene::ShaderPlug *RenderManLight::shaderInPlug() const
 	return getChild<ShaderPlug>( g_firstPlugIndex + 1 );
 }
 
+Gaffer::StringPlug *RenderManLight::shaderNameInPlug()
+{
+	return getChild<StringPlug>( g_firstPlugIndex + 2 );
+}
+
+const Gaffer::StringPlug *RenderManLight::shaderNameInPlug() const
+{
+	return getChild<StringPlug>( g_firstPlugIndex + 2 );
+}
+
 void RenderManLight::loadShader( const std::string &shaderName )
 {
 	shaderNode()->loadShader( shaderName );
@@ -95,11 +116,14 @@ void RenderManLight::affects( const Gaffer::Plug *input, AffectedPlugsContainer 
 {
 	Light::affects( input, outputs );
 
-	if(
-		input == shaderInPlug()
-	)
+	if( input == shaderInPlug() )
 	{
 		outputs.push_back( outPlug()->attributesPlug() );
+	}
+
+	if( input == shaderNameInPlug() )
+	{
+		outputs.push_back( outPlug()->setNamesPlug() );
 	}
 }
 
@@ -112,4 +136,35 @@ IECoreScene::ConstShaderNetworkPtr RenderManLight::computeLight( const Gaffer::C
 {
 	IECore::ConstCompoundObjectPtr shaderAttributes = shaderInPlug()->attributes();
 	return shaderAttributes->member<const IECoreScene::ShaderNetwork>( "ri:light" );
+}
+
+void RenderManLight::hashStandardSetNames( const Gaffer::Context *context, IECore::MurmurHash &h ) const
+{
+	Light::hashStandardSetNames( context, h );
+	shaderNameInPlug()->hash( h );
+}
+
+IECore::ConstInternedStringVectorDataPtr RenderManLight::computeStandardSetNames() const
+{
+	ConstInternedStringVectorDataPtr lightNames = Light::computeStandardSetNames();
+	const string shaderName = shaderNameInPlug()->getValue();
+
+	InternedString setName;
+	if( shaderName == "PxrDomeLight" )
+	{
+		setName = g_domeLightSet;
+	}
+	else if( shaderName == "PxrPortalLight" )
+	{
+		setName = g_portalLightSet;
+	}
+
+	if( setName.string().empty() )
+	{
+		return lightNames;
+	}
+
+	InternedStringVectorDataPtr result = new InternedStringVectorData( lightNames->readable() );
+	result->writable().push_back( setName );
+	return result;
 }
