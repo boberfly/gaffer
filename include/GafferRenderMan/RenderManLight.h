@@ -65,9 +65,6 @@ class GAFFERRENDERMAN_API RenderManLight : public GafferScene::Light
 		void hashLight( const Gaffer::Context *context, IECore::MurmurHash &h ) const override;
 		IECoreScene::ConstShaderNetworkPtr computeLight( const Gaffer::Context *context ) const override;
 
-		void hashStandardSetNames( const Gaffer::Context *context, IECore::MurmurHash &h ) const override;
-		IECore::ConstInternedStringVectorDataPtr computeStandardSetNames() const override;
-
 	private :
 
 		GafferScene::Shader *shaderNode();
@@ -75,9 +72,6 @@ class GAFFERRENDERMAN_API RenderManLight : public GafferScene::Light
 
 		GafferScene::ShaderPlug *shaderInPlug();
 		const GafferScene::ShaderPlug *shaderInPlug() const;
-
-		Gaffer::StringPlug *shaderNameInPlug();
-		const Gaffer::StringPlug *shaderNameInPlug() const;
 
 		static size_t g_firstPlugIndex;
 

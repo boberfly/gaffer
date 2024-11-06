@@ -36,10 +36,9 @@
 
 import unittest
 
-import IECore
+import imath
 
 import Gaffer
-import GafferTest
 import GafferSceneTest
 import GafferRenderMan
 
@@ -86,24 +85,6 @@ class RenderManLightTest( GafferSceneTest.SceneTestCase ) :
 		self.assertNotIn( "gl:visualiser:scale", light["out"].attributes( "/light" ) )
 		light["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 		self.assertIn( "gl:visualiser:scale", light["out"].attributes( "/light" ) )
-
-	def testPortalAndDomeSets( self ) :
-
-		light = GafferRenderMan.RenderManLight()
-		light.loadShader( "PxrRectLight" )
-		self.assertEqual( light["out"].setNames(), IECore.InternedStringVectorData( [ "__lights", "defaultLights" ] ) )
-
-		light.loadShader( "PxrPortalLight" )
-		self.assertEqual( light["out"].setNames(), IECore.InternedStringVectorData( [ "__lights", "defaultLights", "ri:portalLights" ] ) )
-
-		light.loadShader( "PxrDomeLight" )
-		self.assertEqual( light["out"].setNames(), IECore.InternedStringVectorData( [ "__lights", "defaultLights", "ri:domeLights" ] ) )
-
-		cs = GafferTest.CapturingSlot( light.plugDirtiedSignal() )
-		h = light["out"].setNamesHash()
-		light["parameters"]["exposure"].setValue( 10 )
-		self.assertEqual( light["out"].setNamesHash(), h )
-		self.assertNotIn( light["out"]["setNames"], { x[0] for x in cs } )
 
 if __name__ == "__main__":
 	unittest.main()
