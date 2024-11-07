@@ -40,6 +40,10 @@
 
 #include "IECoreScene/ShaderNetwork.h"
 
+#include "IECore/SimpleTypedData.h"
+
+#include "RixPredefinedStrings.hpp"
+
 #include "boost/algorithm/string.hpp"
 #include "boost/algorithm/string/predicate.hpp"
 
@@ -54,6 +58,7 @@ namespace
 {
 
 const string g_renderManPrefix( "ri:" );
+const InternedString g_doubleSidedAttributeName( "doubleSided" );
 const InternedString g_surfaceShaderAttributeName( "ri:surface" );
 const InternedString g_lightMuteAttributeName( "light:mute" );
 const InternedString g_lightShaderAttributeName( "light" );
@@ -62,37 +67,50 @@ const InternedString g_renderManLightShaderAttributeName( "ri:light" );
 const RtUString g_lightingMuteUStr( "lighting:mute" );
 
 template<typename T>
-T *reportedCast( const IECore::RunTimeTyped *v, const char *type, const IECore::InternedString &name )
+T *attributeCast( const IECore::RunTimeTyped *v, const IECore::InternedString &name )
 {
+	if( !v )
+	{
+		return nullptr;
+	}
+
 	T *t = IECore::runTimeCast<T>( v );
 	if( t )
 	{
 		return t;
 	}
 
-	IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", fmt::format( "Expected {} but got {} for {} \"{}\".", T::staticTypeName(), v->typeName(), type, name.c_str() ) );
+	IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", fmt::format( "Expected {} but got {} for attribute \"{}\".", T::staticTypeName(), v->typeName(), name.c_str() ) );
 	return nullptr;
 }
 
-template<typename T, typename MapType>
-const T *parameter( const MapType &parameters, const IECore::InternedString &name )
+template<typename T>
+T attributeCast( const IECore::RunTimeTyped *v, const IECore::InternedString &name, const T &defaultValue )
 {
-	auto it = parameters.find( name );
-	if( it == parameters.end() )
+	using DataType = IECore::TypedData<T>;
+	auto d = attributeCast<const DataType>( v, name );
+	return d ? d->readable() : defaultValue;
+}
+
+template<typename T>
+const T *attribute( const CompoundObject::ObjectMap &attributes, const IECore::InternedString &name )
+{
+	auto it = attributes.find( name );
+	if( it == attributes.end() )
 	{
 		return nullptr;
 	}
 
-	return reportedCast<const T>( it->second.get(), "parameter", name );
+	return attributeCast<const T>( it->second.get(), name );
 }
 
 } // namespace
 
 Attributes::Attributes( const IECore::CompoundObject *attributes, MaterialCache *materialCache )
 {
-	m_material = materialCache->get( parameter<ShaderNetwork>( attributes->members(), g_surfaceShaderAttributeName ) );
-	m_lightShader = parameter<ShaderNetwork>( attributes->members(), g_renderManLightShaderAttributeName );
-	m_lightShader = m_lightShader ? m_lightShader : parameter<ShaderNetwork>( attributes->members(), g_lightShaderAttributeName );
+	m_material = materialCache->get( attribute<ShaderNetwork>( attributes->members(), g_surfaceShaderAttributeName ) );
+	m_lightShader = attribute<ShaderNetwork>( attributes->members(), g_renderManLightShaderAttributeName );
+	m_lightShader = m_lightShader ? m_lightShader : attribute<ShaderNetwork>( attributes->members(), g_lightShaderAttributeName );
 
 	for( const auto &[name, value] : attributes->members() )
 	{
@@ -105,6 +123,11 @@ Attributes::Attributes( const IECore::CompoundObject *attributes, MaterialCache 
 		if( name == g_lightMuteAttributeName )
 		{
 			ParamListAlgo::convertParameter( g_lightingMuteUStr, data, m_paramList );
+		}
+		else if( name == g_doubleSidedAttributeName )
+		{
+			int sides = attributeCast<bool>( value.get(), name, true ) ? 2 : 1;
+			m_paramList.SetInteger( Rix::k_Ri_Sides, sides );
 		}
 		else if( boost::starts_with( name.c_str(), g_renderManPrefix.c_str() ) )
 		{
