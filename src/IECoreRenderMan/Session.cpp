@@ -46,6 +46,8 @@ using namespace IECoreRenderMan;
 namespace
 {
 
+const RtUString g_pxrDomeLightUStr( "PxrDomeLight" );
+const RtUString g_pxrPortalLightUStr( "PxrPortalLight" );
 const riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
 
 } // namespace
@@ -155,21 +157,44 @@ void Session::removeCamera( const std::string &name )
 
 riley::LightShaderId Session::createLightShader( const riley::ShadingNetwork &light )
 {
-	return riley->CreateLightShader( riley::UserId(), light, { 0, nullptr } );
+	riley::LightShaderId result = riley->CreateLightShader( riley::UserId(), light, { 0, nullptr } );
+	RtUString type = light.nodeCount ? light.nodes[light.nodeCount-1].name : RtUString();
+	if( type == g_pxrDomeLightUStr || type == g_pxrPortalLightUStr )
+	{
+		LightShaderMap::accessor a;
+		[[maybe_unused]] bool inserted = m_domeAndPortalShaders.insert( a, result.AsUInt32() );
+		assert( inserted ); // ID should be unique.
+		a->second.shaders.insert( a->second.shaders.end(), light.nodes, light.nodes + light.nodeCount );
+	}
+
+	return result;
 }
 
 void Session::deleteLightShader( riley::LightShaderId lightShaderId )
 {
 	riley->DeleteLightShader( lightShaderId );
+	m_domeAndPortalShaders.erase( lightShaderId.AsUInt32() );
 }
 
 riley::LightInstanceId Session::createLightInstance( riley::LightShaderId lightShaderId, const riley::Transform &transform, const RtParamList &attributes )
 {
-	return riley->CreateLightInstance(
+	riley::LightInstanceId result = riley->CreateLightInstance(
 		riley::UserId(), riley::GeometryPrototypeId(), riley::GeometryPrototypeId(),
 		riley::MaterialId(), lightShaderId,
 		g_emptyCoordinateSystems, transform, attributes
 	);
+
+	if( m_domeAndPortalShaders.count( lightShaderId.AsUInt32() ) )
+	{
+		LightInstanceMap::accessor a;
+		[[maybe_unused]] bool inserted = m_domeAndPortalLights.insert( a, result.AsUInt32() );
+		assert( inserted ); // ID should be unique.
+		a->second.lightShader = lightShaderId;
+		a->second.transform.Identity();
+		a->second.attributes = attributes;
+	}
+
+	return result;
 }
 
 riley::LightInstanceResult Session::modifyLightInstance(
@@ -177,13 +202,38 @@ riley::LightInstanceResult Session::modifyLightInstance(
 	const RtParamList *attributes
 )
 {
-	return riley->ModifyLightInstance(
+	riley::LightInstanceResult result = riley->ModifyLightInstance(
 		riley::GeometryPrototypeId(), lightInstanceId,
 		nullptr, lightShaderId, nullptr, transform, attributes
 	);
+
+	/// \todo Consider the possibility of a non-portal/dome turning
+	/// into a portal/dome. We'll have incomplete information, so
+	/// perhaps should fail the edit, and cause the controller to
+	/// re-send.
+
+	LightInstanceMap::accessor a;
+	if( m_domeAndPortalLights.find( a, lightInstanceId.AsUInt32() ) )
+	{
+		if( lightShaderId )
+		{
+			a->second.lightShader = *lightShaderId;
+		}
+		if( transform )
+		{
+			a->second.transform = *(transform->matrix);
+		}
+		if( attributes )
+		{
+			a->second.attributes = *attributes;
+		}
+	}
+
+	return result;
 }
 
 void Session::deleteLightInstance( riley::LightInstanceId lightInstanceId )
 {
 	riley->DeleteLightInstance( riley::GeometryPrototypeId(), lightInstanceId );
+	m_domeAndPortalLights.erase( lightInstanceId.AsUInt32() );
 }

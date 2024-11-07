@@ -91,6 +91,25 @@ struct Session
 		using CameraMap = tbb::concurrent_hash_map<std::string, CameraInfo>;
 		CameraMap m_cameras;
 
+		struct LightShaderInfo
+		{
+			std::vector<riley::ShadingNode> shaders;
+		};
+
+		// Keys are `riley::LightShaderId`.
+		using LightShaderMap = tbb::concurrent_hash_map<uint32_t, LightShaderInfo>;
+		LightShaderMap m_domeAndPortalShaders;
+
+		struct LightInfo
+		{
+			riley::LightShaderId lightShader;
+			RtMatrix4x4 transform;
+			RtParamList attributes;
+		};
+		// Keys are `riley::LightInstanceId`.
+		using LightInstanceMap = tbb::concurrent_hash_map<uint32_t, LightInfo>;
+		LightInstanceMap m_domeAndPortalLights;
+
 };
 
 IE_CORE_DECLAREPTR( Session );
