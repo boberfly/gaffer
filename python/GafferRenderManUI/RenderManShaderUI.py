@@ -272,3 +272,4 @@ for nodeType in ( GafferRenderMan.RenderManShader, GafferRenderMan.RenderManLigh
 		)
 
 Gaffer.Metadata.registerValue( GafferRenderMan.RenderManShader, "out", "nodule:type", lambda plug : "GafferUI::CompoundNodule" if len( plug ) else "GafferUI::StandardNodule" )
+Gaffer.Metadata.registerValue( GafferRenderMan.RenderManLight, "parameters", "layout:section:Basic:collapsed", False )
