@@ -237,3 +237,54 @@ void Session::deleteLightInstance( riley::LightInstanceId lightInstanceId )
 	riley->DeleteLightInstance( riley::GeometryPrototypeId(), lightInstanceId );
 	m_domeAndPortalLights.erase( lightInstanceId.AsUInt32() );
 }
+
+void Session::linkPortals()
+{
+	auto isPortal = [&] ( uint32_t lightShader ) {
+		LightShaderMap::const_accessor a;
+		if( m_domeAndPortalShaders.find( a, lightShader ) )
+		{
+			return a->second.shaders.back().name == g_pxrPortalLightUStr;
+		}
+	};
+
+	// Find the dome light.
+
+	const LightInfo *domeLight = nullptr;
+	bool havePortals = false;
+	for( const auto &[id, info] : m_domeAndPortalLights )
+	{
+		if( isPortal( id ) )
+		{
+			havePortals = true;
+		}
+		else
+		{
+			if( !domeLight )
+			{
+				domeLight = &info;
+			}
+			else
+			{
+				// To support multiple domes, we need to add a mechanism for
+				// linking them to portals. Perhaps this can be achieved via
+				// `ObjectInterface::link()`?
+				IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", "Multiple PxrDomeLights are not yet supported" );
+			}
+		}
+	}
+
+	// Link the lights appropriately.
+
+	for( const auto &[id, info] : m_domeAndPortalLights )
+	{
+		if( isPortal( id ) )
+		{
+
+		}
+		else
+		{
+
+		}
+	}
+}

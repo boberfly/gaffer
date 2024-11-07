@@ -80,6 +80,8 @@ struct Session
 	);
 	void deleteLightInstance( riley::LightInstanceId lightInstanceId );
 
+	void linkPortals();
+
 	riley::Riley *riley;
 	const IECoreScenePreview::Renderer::RenderType renderType;
 
