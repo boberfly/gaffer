@@ -439,12 +439,6 @@ void Globals::updateRenderView()
 			renderOutputName = RtUString( layerName.c_str() );
 		}
 
-		// if( layerName == "normal" )
-		// {
-		// 	type = riley::RenderOutputType::k_Normal;
-		// }
-
-
 		const RtUString accumulationRule( parameter( output->parameters(), "ri:accumulationRule", string( "filter" ) ).c_str() );
 		const float relativePixelVariance = parameter( output->parameters(), "ri:relativePixelVariance", 0.0f );
 
