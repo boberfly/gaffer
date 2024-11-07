@@ -390,6 +390,54 @@ class RendererTest( GafferTest.TestCase ) :
 		self.assertEqual( image.spec().get_int_attribute( "testBool" ), 1 )
 		self.assertEqual( image.spec().getattribute( "testV2i" ), ( 1, 2 ) )
 
+	def testUserAttribute( self ) :
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+		)
+
+		fileName = str( self.temporaryDirectory() / "test.exr" )
+		renderer.output(
+			"test",
+			IECoreScene.Output(
+				fileName,
+				"exr",
+				"rgba",
+				{
+				},
+			)
+		)
+
+		renderer.object(
+			"sphere",
+			IECoreScene.SpherePrimitive(),
+			renderer.attributes( IECore.CompoundObject( {
+				"ri:surface" : IECoreScene.ShaderNetwork(
+					shaders = {
+						"attribute" : IECoreScene.Shader(
+							"PxrAttribute", "osl:shader", {
+								"varname" : "user:myColor",
+								"type" : "color",
+							}
+						),
+						"output" : IECoreScene.Shader( "PxrConstant" ),
+					},
+					connections = [
+						( ( "attribute", "resultRGB" ), ( "output", "emitColor" ) )
+					],
+					output = "output",
+				),
+				"user:myColor" : IECore.Color3fData( imath.Color3f( 1, 0.5, 0.25 ) ),
+			} ) )
+		).transform( imath.M44f().translate( imath.V3f( 0, 0, -3 ) ) )
+
+		renderer.render()
+		del renderer
+
+		image = OpenImageIO.ImageBuf( fileName )
+		self.assertEqual( image.getpixel( 320, 240, 0 ), ( 1.0, 0.5, 0.25, 1.0 ) )
+
 	def __colorAtUV( self, image, uv ) :
 
 		dimensions = image.dataWindow.size() + imath.V2i( 1 )
