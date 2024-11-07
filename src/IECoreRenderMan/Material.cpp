@@ -299,7 +299,7 @@ const riley::MaterialId &Material::id() const
 	return m_id;
 }
 
-riley::LightShaderId IECoreRenderMan::convertLightShaderNetwork( const IECoreScene::ShaderNetwork *network, riley::Riley *riley )
+riley::LightShaderId IECoreRenderMan::convertLightShaderNetwork( const IECoreScene::ShaderNetwork *network, Session *session )
 {
 	vector<riley::ShadingNode> shadingNodes;
 	shadingNodes.reserve( network->size() );
@@ -307,10 +307,7 @@ riley::LightShaderId IECoreRenderMan::convertLightShaderNetwork( const IECoreSce
 	HandleSet visited;
 	convertShaderNetworkWalk( network->getOutput(), network, shadingNodes, visited );
 
-	return riley->CreateLightShader(
-		riley::UserId(), { (uint32_t)shadingNodes.size(), shadingNodes.data() },
-		/* lightFilter = */ { 0, nullptr }
-	);
+	return session->createLightShader( { (uint32_t)shadingNodes.size(), shadingNodes.data() } );
 }
 
 //////////////////////////////////////////////////////////////////////////

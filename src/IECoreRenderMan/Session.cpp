@@ -43,6 +43,13 @@
 using namespace std;
 using namespace IECoreRenderMan;
 
+namespace
+{
+
+const riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
+
+} // namespace
+
 struct Session::ExceptionHandler : public RixXcpt::XcptHandler
 {
 
@@ -144,4 +151,39 @@ Session::CameraInfo Session::getCamera( const std::string &name ) const
 void Session::removeCamera( const std::string &name )
 {
 	m_cameras.erase( name );
+}
+
+riley::LightShaderId Session::createLightShader( const riley::ShadingNetwork &light )
+{
+	return riley->CreateLightShader( riley::UserId(), light, { 0, nullptr } );
+}
+
+void Session::deleteLightShader( riley::LightShaderId lightShaderId )
+{
+	riley->DeleteLightShader( lightShaderId );
+}
+
+riley::LightInstanceId Session::createLightInstance( riley::LightShaderId lightShaderId, const riley::Transform &transform, const RtParamList &attributes )
+{
+	return riley->CreateLightInstance(
+		riley::UserId(), riley::GeometryPrototypeId(), riley::GeometryPrototypeId(),
+		riley::MaterialId(), lightShaderId,
+		g_emptyCoordinateSystems, transform, attributes
+	);
+}
+
+riley::LightInstanceResult Session::modifyLightInstance(
+	riley::LightInstanceId lightInstanceId, const riley::LightShaderId *lightShaderId, const riley::Transform *transform,
+	const RtParamList *attributes
+)
+{
+	return riley->ModifyLightInstance(
+		riley::GeometryPrototypeId(), lightInstanceId,
+		nullptr, lightShaderId, nullptr, transform, attributes
+	);
+}
+
+void Session::deleteLightInstance( riley::LightInstanceId lightInstanceId )
+{
+	riley->DeleteLightInstance( riley::GeometryPrototypeId(), lightInstanceId );
 }

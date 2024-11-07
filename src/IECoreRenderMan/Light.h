@@ -51,7 +51,7 @@ class Light : public IECoreScenePreview::Renderer::ObjectInterface
 
 	public :
 
-		Light( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, const Session *session );
+		Light( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, Session *session );
 		~Light();
 
 		void transform( const Imath::M44f &transform ) override;
@@ -64,7 +64,7 @@ class Light : public IECoreScenePreview::Renderer::ObjectInterface
 
 		void updateLightShader( const Attributes *attributes );
 
-		const Session *m_session;
+		Session *m_session;
 		riley::LightShaderId m_lightShader;
 		riley::LightInstanceId m_lightInstance;
 		Imath::M44f m_correctiveTransform;

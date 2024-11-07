@@ -90,6 +90,6 @@ class MaterialCache
 };
 
 /// \todo Is there a better home for this? Should we have a LightShader class like the Material class?
-riley::LightShaderId convertLightShaderNetwork( const IECoreScene::ShaderNetwork *network, riley::Riley *riley );
+riley::LightShaderId convertLightShaderNetwork( const IECoreScene::ShaderNetwork *network, Session *session );
 
 } // namespace IECoreRenderMan

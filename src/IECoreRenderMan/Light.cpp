@@ -68,11 +68,9 @@ M44f correctiveTransform( const Attributes *attributes )
 	}
 }
 
-static riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
-
 } // namespace
 
-Light::Light( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, const Session *session )
+Light::Light( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, Session *session )
 	:	m_session( session ), m_lightShader( riley::LightShaderId::InvalidId() ),
 		m_lightInstance( riley::LightInstanceId::InvalidId() ), m_correctiveTransform( correctiveTransform( attributes ) )
 {
@@ -84,16 +82,7 @@ Light::Light( riley::GeometryPrototypeId geometryPrototype, const Attributes *at
 		return;
 	}
 
-	m_lightInstance = m_session->riley->CreateLightInstance(
-		riley::UserId(),
-		/* group = */ riley::GeometryPrototypeId::InvalidId(),
-		geometryPrototype,
-		riley::MaterialId::InvalidId(), /// \todo Use `attributes->material()`?
-		m_lightShader,
-		g_emptyCoordinateSystems,
-		StaticTransform(),
-		attributes->paramList()
-	);
+	m_lightInstance = m_session->createLightInstance( m_lightShader, StaticTransform(), attributes->paramList() );
 }
 
 Light::~Light()
@@ -102,7 +91,7 @@ Light::~Light()
 	{
 		if( m_lightInstance != riley::LightInstanceId::InvalidId() )
 		{
-			m_session->riley->DeleteLightInstance( riley::GeometryPrototypeId::InvalidId(), m_lightInstance );
+			m_session->deleteLightInstance( m_lightInstance );
 		}
 		if( m_lightShader != riley::LightShaderId::InvalidId() )
 		{
@@ -121,12 +110,9 @@ void Light::transform( const Imath::M44f &transform )
 	const M44f correctedTransform = m_correctiveTransform * transform;
 	StaticTransform staticTransform( correctedTransform );
 
-	const riley::LightInstanceResult result = m_session->riley->ModifyLightInstance(
-		/* group = */ riley::GeometryPrototypeId::InvalidId(),
+	const riley::LightInstanceResult result = m_session->modifyLightInstance(
 		m_lightInstance,
-		/* material = */ nullptr,
 		/* light shader = */ nullptr,
-		/* coordsys = */ nullptr,
 		&staticTransform,
 		/* attributes = */ nullptr
 	);
@@ -151,12 +137,9 @@ void Light::transform( const std::vector<Imath::M44f> &samples, const std::vecto
 	}
 	AnimatedTransform animatedTransform( correctedSamples, times );
 
-	const riley::LightInstanceResult result = m_session->riley->ModifyLightInstance(
-		/* group = */ riley::GeometryPrototypeId::InvalidId(),
+	const riley::LightInstanceResult result = m_session->modifyLightInstance(
 		m_lightInstance,
-		/* material = */ nullptr,
 		/* light shader = */ nullptr,
-		/* coordsys = */ nullptr,
 		&animatedTransform,
 		/* attributes = */ nullptr
 	);
@@ -193,17 +176,14 @@ bool Light::attributes( const IECoreScenePreview::Renderer::AttributesInterface 
 	{
 		// Riley crashes when a light doesn't have a valid shader, so we delete the light.
 		// If we get a valid shader from a later attribute edit, we'll handle that above.
-		m_session->riley->DeleteLightInstance( riley::GeometryPrototypeId::InvalidId(), m_lightInstance );
+		m_session->deleteLightInstance( m_lightInstance );
 		m_lightInstance = riley::LightInstanceId::InvalidId();
 		return true;
 	}
 
-	const riley::LightInstanceResult result = m_session->riley->ModifyLightInstance(
-		/* group = */ riley::GeometryPrototypeId::InvalidId(),
+	const riley::LightInstanceResult result = m_session->modifyLightInstance(
 		m_lightInstance,
-		/* material = */ nullptr,
 		/* light shader = */ &m_lightShader,
-		/* coordsys = */ nullptr,
 		/* xform = */ nullptr,
 		&renderManAttributes->paramList()
 	);
@@ -228,12 +208,12 @@ void Light::updateLightShader( const Attributes *attributes )
 {
 	if( m_lightShader != riley::LightShaderId::InvalidId() )
 	{
-		m_session->riley->DeleteLightShader( m_lightShader );
+		m_session->deleteLightShader( m_lightShader );
 		m_lightShader = riley::LightShaderId::InvalidId();
 	}
 
 	if( attributes->lightShader() )
 	{
-		m_lightShader = convertLightShaderNetwork( attributes->lightShader(), m_session->riley );
+		m_lightShader = convertLightShaderNetwork( attributes->lightShader(), m_session );
 	}
 }

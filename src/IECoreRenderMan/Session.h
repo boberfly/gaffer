@@ -62,12 +62,23 @@ struct Session
 		RtParamList options;
 	};
 
+	/// \todo Do this by wrapping `CreateCamera()` and `DestroyCamera()` instead.
 	/// `Camera` collaborates with `Session` to maintain a map of cameras currently
 	/// in existence. This is used by `Globals` when creating the `riley::RenderView`.
 	void addCamera( const std::string &name, const CameraInfo &camera );
 	/// \todo Should we return `const &`?
 	CameraInfo getCamera( const std::string &name ) const;
 	void removeCamera( const std::string &name );
+
+	riley::LightShaderId createLightShader( const riley::ShadingNetwork &light );
+	void deleteLightShader( riley::LightShaderId lightShaderId );
+
+	riley::LightInstanceId createLightInstance( riley::LightShaderId lightShaderId, const riley::Transform &transform, const RtParamList &attributes );
+	riley::LightInstanceResult modifyLightInstance(
+		riley::LightInstanceId lightInstanceId, const riley::LightShaderId *lightShaderId, const riley::Transform *transform,
+		const RtParamList *attributes
+	);
+	void deleteLightInstance( riley::LightInstanceId lightInstanceId );
 
 	riley::Riley *riley;
 	const IECoreScenePreview::Renderer::RenderType renderType;
