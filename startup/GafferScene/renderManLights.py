@@ -55,5 +55,6 @@ Gaffer.Metadata.registerValue( "ri:light:PxrDiskLight", "type", "disk" )
 Gaffer.Metadata.registerValue( "ri:light:PxrDistantLight", "type", "distant" )
 Gaffer.Metadata.registerValue( "ri:light:PxrPortalLight", "type", "portal" )
 Gaffer.Metadata.registerValue( "ri:light:PxrRectLight", "type", "quad" )
+Gaffer.Metadata.registerValue( "ri:light:PxrSphereLight", "type", "point" )
 
 Gaffer.Metadata.registerValue( "ri:light:PxrDomeLight", "textureNameParameter", "lightColorMap" )
