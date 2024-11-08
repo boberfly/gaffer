@@ -167,10 +167,7 @@ riley::LightShaderId Session::createLightShader( const riley::ShadingNetwork &li
 		LightShaderMap::accessor a;
 		[[maybe_unused]] bool inserted = m_domeAndPortalShaders.insert( a, result.AsUInt32() );
 		assert( inserted ); // ID should be unique.
-		if( type == g_pxrDomeLightUStr )
-		{
-			a->second.domeParams = light.nodes[light.nodeCount-1].params;
-		}
+		a->second.shaders.insert( a->second.shaders.end(), light.nodes, light.nodes + light.nodeCount );
 	}
 
 	return result;
@@ -190,13 +187,12 @@ riley::LightInstanceId Session::createLightInstance( riley::LightShaderId lightS
 		g_emptyCoordinateSystems, transform, attributes
 	);
 
-	LightShaderMap::const_accessor shaderAccessor;
-	if( m_domeAndPortalShaders.find( shaderAccessor, lightShaderId.AsUInt32() ) )
+	if( m_domeAndPortalShaders.count( lightShaderId.AsUInt32() ) )
 	{
 		LightInstanceMap::accessor a;
 		[[maybe_unused]] bool inserted = m_domeAndPortalLights.insert( a, result.AsUInt32() );
 		assert( inserted ); // ID should be unique.
-		a->second.domeParams = shaderAccessor->second.domeParams;
+		a->second.lightShader = lightShaderId;
 		a->second.transform.Identity();
 		a->second.attributes = attributes;
 	}
@@ -214,28 +210,17 @@ riley::LightInstanceResult Session::modifyLightInstance(
 		nullptr, lightShaderId, nullptr, transform, attributes
 	);
 
-	std::optional<RtParamList> domeParams;
-	if( lightShaderId )
-	{
-		LightShaderMap::const_accessor shaderAccessor;
-		if( m_domeAndPortalShaders.find( shaderAccessor, lightShaderId->AsUInt32() ) )
-		{
-			domeParams = shaderAccessor->second.domeParams;
-		}
-		else
-		{
-			shaderAccessor.release();
-			m_domeAndPortalLights.erase( lightInstanceId.AsUInt32() );
-			return result;
-		}
-	}
+	/// \todo Consider the possibility of a non-portal/dome turning
+	/// into a portal/dome. We'll have incomplete information, so
+	/// perhaps should fail the edit, and cause the controller to
+	/// re-send.
 
 	LightInstanceMap::accessor a;
 	if( m_domeAndPortalLights.find( a, lightInstanceId.AsUInt32() ) )
 	{
 		if( lightShaderId )
 		{
-			a->second.domeParams = domeParams;
+			a->second.lightShader = *lightShaderId;
 		}
 		if( transform )
 		{
@@ -245,12 +230,6 @@ riley::LightInstanceResult Session::modifyLightInstance(
 		{
 			a->second.attributes = *attributes;
 		}
-	}
-	else
-	{
-		/// \todo We switched from not being a dome/portal to being one.
-		/// We may not have an up-to-date transform. Should we fail the
-		/// edit and request the light to be recreated?
 	}
 
 	return result;
@@ -264,34 +243,41 @@ void Session::deleteLightInstance( riley::LightInstanceId lightInstanceId )
 
 void Session::linkPortals()
 {
+	/// TODO : ONLY DO THINGS WHEN ACTUALLY DIRTY
+
+	auto isPortal = [&] ( riley::LightShaderId lightShader ) {
+		LightShaderMap::const_accessor a;
+		if( m_domeAndPortalShaders.find( a, lightShader.AsUInt32() ) )
+		{
+			return a->second.shaders.back().name == g_pxrPortalLightUStr;
+		}
+		return false;
+	};
 
 	// Find the dome light.
 
 	const LightInfo *domeLight = nullptr;
 	bool havePortals = false;
-	size_t numDomes = 0;
 	for( const auto &[id, info] : m_domeAndPortalLights )
 	{
-		if( info.domeParams )
+		if( isPortal( info.lightShader ) )
 		{
-			numDomes++;
+			havePortals = true;
+		}
+		else
+		{
 			if( !domeLight )
 			{
 				domeLight = &info;
 			}
+			else
+			{
+				/// \todo To support multiple domes, we need to add a mechanism
+				/// for linking them to portals. Perhaps this can be achieved
+				/// via `ObjectInterface::link()`?
+				IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", "Multiple PxrDomeLights are not yet supported" );
+			}
 		}
-		else
-		{
-			havePortals = true;
-		}
-	}
-
-	if( numDomes > 1 && havePortals )
-	{
-		/// \todo To support multiple domes, we need to add a mechanism for
-		/// linking them to portals. Perhaps this can be achieved via
-		/// `ObjectInterface::link()`?
-		IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", "PxrPortalLights combined with multiple PxrDomeLights are not yet supported" );
 	}
 
 	// Link the lights appropriately.
@@ -301,18 +287,10 @@ void Session::linkPortals()
 
 	for( const auto &[id, info] : m_domeAndPortalLights )
 	{
-		if( info.domeParams )
+		if( isPortal( info.lightShader ) )
 		{
-			// Dome light. Mute domes if no portals, otherwise
-			// use original attributes.
-			riley->ModifyLightInstance(
-				riley::GeometryPrototypeId(), riley::LightInstanceId( id ),
-				nullptr, nullptr, nullptr, nullptr, havePortals ? &mutedAttributes : &info.attributes
-			);
-		}
-		else
-		{
-			// Portal light. Connect to dome if we have one, otherwise mute.
+			// Connect portals to dome if we have one,
+			// otherwise mute them.
 			if( domeLight )
 			{
 
@@ -324,6 +302,14 @@ void Session::linkPortals()
 					nullptr, nullptr, nullptr, nullptr, &mutedAttributes
 				);
 			}
+		}
+		else
+		{
+			// Mute domes if there are portals.
+			riley->ModifyLightInstance(
+				riley::GeometryPrototypeId(), riley::LightInstanceId( id ),
+				nullptr, nullptr, nullptr, nullptr, havePortals ? &mutedAttributes : &info.attributes
+			);
 		}
 	}
 }

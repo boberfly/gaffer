@@ -95,8 +95,7 @@ struct Session
 
 		struct LightShaderInfo
 		{
-			// Empty if light is a portal.
-			std::optional<RtParamList> domeParams;
+			std::vector<riley::ShadingNode> shaders;
 		};
 
 		// Keys are `riley::LightShaderId`.
@@ -105,8 +104,7 @@ struct Session
 
 		struct LightInfo
 		{
-			// Empty if a portal.
-			std::optional<RtParamList> domeParams;
+			riley::LightShaderId lightShader;
 			RtMatrix4x4 transform;
 			RtParamList attributes;
 		};
