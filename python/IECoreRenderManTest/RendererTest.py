@@ -34,8 +34,9 @@
 #
 ##########################################################################
 
-import unittest
+import math
 import time
+import unittest
 
 import imath
 
@@ -437,6 +438,145 @@ class RendererTest( GafferTest.TestCase ) :
 
 		image = OpenImageIO.ImageBuf( fileName )
 		self.assertEqual( image.getpixel( 320, 240, 0 ), ( 1.0, 0.5, 0.25, 1.0 ) )
+
+	def testPortalLight( self ) :
+
+		# Render with a dome light on its own.
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Interactive
+		)
+
+		renderer.output(
+			"test",
+			IECoreScene.Output(
+				"test",
+				"ieDisplay",
+				"rgba",
+				{
+					"driverType" : "ImageDisplayDriver",
+					"handle" : "myLovelySphere",
+				}
+			)
+		)
+
+		sphere = renderer.object(
+			"sphere",
+			IECoreScene.SpherePrimitive(),
+			renderer.attributes( IECore.CompoundObject( {
+				"ri:surface" : IECoreScene.ShaderNetwork(
+					shaders = {
+						"output" : IECoreScene.Shader( "PxrDiffuse" )
+					},
+					output = "output",
+				)
+			} ) )
+		)
+		sphere.transform( imath.M44f().translate( imath.V3f( 0, 0, -2 ) ) )
+
+		dome = renderer.light(
+			"dome",
+			None,
+			renderer.attributes( IECore.CompoundObject( {
+				"ri:light" : IECoreScene.ShaderNetwork(
+					shaders = {
+						"output" : IECoreScene.Shader( "PxrDomeLight", "ri:light", { "exposure" : 2.0 } ),
+					},
+					output = "output",
+				),
+				"ri:visibility:camera" : IECore.BoolData( False ),
+			} ) )
+		)
+
+		renderer.render()
+		time.sleep( 1 )
+		renderer.pause()
+
+		# We should be illuminating the whole sphere.
+
+		image = IECoreImage.ImageDisplayDriver.storedImage( "myLovelySphere" )
+		self.assertGreater( self.__colorAtUV( image, imath.V2f( 0.3, 0.5 ) )[0], 0.5 )
+		self.assertGreater( self.__colorAtUV( image, imath.V2f( 0.6, 0.5 ) )[0], 0.5 )
+
+		# Add a portal light.
+
+		portal = renderer.light(
+			"portal",
+			None,
+			renderer.attributes( IECore.CompoundObject( {
+				"ri:light" : IECoreScene.ShaderNetwork(
+					shaders = {
+						"output" : IECoreScene.Shader( "PxrPortalLight", "ri:light", { "exposure" : 4.0 } ),
+					},
+					output = "output",
+				),
+				"ri:visibility:camera" : IECore.BoolData( False ),
+			} ) )
+		)
+		portal.transform( imath.M44f().translate( imath.V3f( 1, 0, -1 ) ).rotate( imath.V3f( 0, math.pi / 2, 0 ) ) )
+
+		renderer.render()
+		time.sleep( 1 )
+		renderer.pause()
+
+		# We should only be illuminating the side the portal is on.
+
+		image = IECoreImage.ImageDisplayDriver.storedImage( "myLovelySphere" )
+		self.assertEqual( self.__colorAtUV( image, imath.V2f( 0.3, 0.5 ) )[0], 0 )
+		self.assertGreater( self.__colorAtUV( image, imath.V2f( 0.6, 0.5 ) )[0], 0.5 )
+
+		# Delete the portal light. We should be back to illuminating
+		# on both sides.
+
+		del portal
+		renderer.render()
+		time.sleep( 1 )
+		renderer.pause()
+
+		image = IECoreImage.ImageDisplayDriver.storedImage( "myLovelySphere" )
+		self.assertGreater( self.__colorAtUV( image, imath.V2f( 0.4, 0.5 ) )[0], 0.5 )
+		self.assertGreater( self.__colorAtUV( image, imath.V2f( 0.6, 0.5 ) )[0], 0.5 )
+
+		# Recreate the portal light. We should only be illuminating on
+		# one side again.
+
+		portal = renderer.light(
+			"portal",
+			None,
+			renderer.attributes( IECore.CompoundObject( {
+				"ri:light" : IECoreScene.ShaderNetwork(
+					shaders = {
+						"output" : IECoreScene.Shader( "PxrPortalLight", "ri:light", { "exposure" : 4.0 } ),
+					},
+					output = "output",
+				),
+				"ri:visibility:camera" : IECore.BoolData( False ),
+			} ) )
+		)
+		portal.transform( imath.M44f().translate( imath.V3f( 1, 0, -1 ) ).rotate( imath.V3f( 0, math.pi / 2, 0 ) ) )
+
+		renderer.render()
+		time.sleep( 1 )
+		renderer.pause()
+
+		image = IECoreImage.ImageDisplayDriver.storedImage( "myLovelySphere" )
+		self.assertEqual( self.__colorAtUV( image, imath.V2f( 0.3, 0.5 ) )[0], 0 )
+		self.assertGreater( self.__colorAtUV( image, imath.V2f( 0.6, 0.5 ) )[0], 0.5 )
+
+		# Now delete the dome light. We should get no illumination at all.
+
+		del dome
+		renderer.render()
+		time.sleep( 1 )
+		renderer.pause()
+
+		image = IECoreImage.ImageDisplayDriver.storedImage( "myLovelySphere" )
+		self.assertEqual( self.__colorAtUV( image, imath.V2f( 0.3, 0.5 ) )[0], 0 )
+		self.assertEqual( self.__colorAtUV( image, imath.V2f( 0.6, 0.5 ) )[0], 0 )
+
+		del sphere, portal
+		del renderer
 
 	def __colorAtUV( self, image, uv ) :
 

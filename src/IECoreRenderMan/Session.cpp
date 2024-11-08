@@ -36,6 +36,7 @@
 
 #include "Session.h"
 
+#include "RixPredefinedStrings.hpp"
 #include "XcptErrorCodes.h"
 
 #include "fmt/format.h"
@@ -49,6 +50,8 @@ namespace
 const RtUString g_pxrDomeLightUStr( "PxrDomeLight" );
 const RtUString g_pxrPortalLightUStr( "PxrPortalLight" );
 const riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
+
+const RtUString g_lightingMuteUStr( "lighting:mute" );
 
 } // namespace
 
@@ -240,12 +243,15 @@ void Session::deleteLightInstance( riley::LightInstanceId lightInstanceId )
 
 void Session::linkPortals()
 {
-	auto isPortal = [&] ( uint32_t lightShader ) {
+	/// TODO : ONLY DO THINGS WHEN ACTUALLY DIRTY
+
+	auto isPortal = [&] ( riley::LightShaderId lightShader ) {
 		LightShaderMap::const_accessor a;
-		if( m_domeAndPortalShaders.find( a, lightShader ) )
+		if( m_domeAndPortalShaders.find( a, lightShader.AsUInt32() ) )
 		{
 			return a->second.shaders.back().name == g_pxrPortalLightUStr;
 		}
+		return false;
 	};
 
 	// Find the dome light.
@@ -254,7 +260,7 @@ void Session::linkPortals()
 	bool havePortals = false;
 	for( const auto &[id, info] : m_domeAndPortalLights )
 	{
-		if( isPortal( id ) )
+		if( isPortal( info.lightShader ) )
 		{
 			havePortals = true;
 		}
@@ -266,9 +272,9 @@ void Session::linkPortals()
 			}
 			else
 			{
-				// To support multiple domes, we need to add a mechanism for
-				// linking them to portals. Perhaps this can be achieved via
-				// `ObjectInterface::link()`?
+				/// \todo To support multiple domes, we need to add a mechanism
+				/// for linking them to portals. Perhaps this can be achieved
+				/// via `ObjectInterface::link()`?
 				IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", "Multiple PxrDomeLights are not yet supported" );
 			}
 		}
@@ -276,15 +282,34 @@ void Session::linkPortals()
 
 	// Link the lights appropriately.
 
+	RtParamList mutedAttributes;
+	mutedAttributes.SetInteger( Rix::k_lighting_mute, 1 );
+
 	for( const auto &[id, info] : m_domeAndPortalLights )
 	{
-		if( isPortal( id ) )
+		if( isPortal( info.lightShader ) )
 		{
+			// Connect portals to dome if we have one,
+			// otherwise mute them.
+			if( domeLight )
+			{
 
+			}
+			else
+			{
+				riley->ModifyLightInstance(
+					riley::GeometryPrototypeId(), riley::LightInstanceId( id ),
+					nullptr, nullptr, nullptr, nullptr, &mutedAttributes
+				);
+			}
 		}
 		else
 		{
-
+			// Mute domes if there are portals.
+			riley->ModifyLightInstance(
+				riley::GeometryPrototypeId(), riley::LightInstanceId( id ),
+				nullptr, nullptr, nullptr, nullptr, havePortals ? &mutedAttributes : &info.attributes
+			);
 		}
 	}
 }
