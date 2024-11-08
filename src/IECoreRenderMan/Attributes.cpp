@@ -64,8 +64,6 @@ const InternedString g_lightMuteAttributeName( "light:mute" );
 const InternedString g_lightShaderAttributeName( "light" );
 const InternedString g_renderManLightShaderAttributeName( "ri:light" );
 
-const RtUString g_lightingMuteUStr( "lighting:mute" );
-
 template<typename T>
 T *attributeCast( const IECore::RunTimeTyped *v, const IECore::InternedString &name )
 {
@@ -122,7 +120,7 @@ Attributes::Attributes( const IECore::CompoundObject *attributes, MaterialCache 
 
 		if( name == g_lightMuteAttributeName )
 		{
-			ParamListAlgo::convertParameter( g_lightingMuteUStr, data, m_paramList );
+			ParamListAlgo::convertParameter( Rix::k_lighting_mute, data, m_paramList );
 		}
 		else if( name == g_doubleSidedAttributeName )
 		{
