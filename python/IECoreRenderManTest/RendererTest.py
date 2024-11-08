@@ -481,7 +481,7 @@ class RendererTest( GafferTest.TestCase ) :
 			renderer.attributes( IECore.CompoundObject( {
 				"ri:light" : IECoreScene.ShaderNetwork(
 					shaders = {
-						"output" : IECoreScene.Shader( "PxrDomeLight", "ri:light", { "exposure" : 2.0 } ),
+						"output" : IECoreScene.Shader( "PxrDomeLight", "ri:light", { "exposure" : 4.0 } ),
 					},
 					output = "output",
 				),
@@ -507,7 +507,7 @@ class RendererTest( GafferTest.TestCase ) :
 			renderer.attributes( IECore.CompoundObject( {
 				"ri:light" : IECoreScene.ShaderNetwork(
 					shaders = {
-						"output" : IECoreScene.Shader( "PxrPortalLight", "ri:light", { "exposure" : 4.0 } ),
+						"output" : IECoreScene.Shader( "PxrPortalLight", "ri:light", {} ),
 					},
 					output = "output",
 				),

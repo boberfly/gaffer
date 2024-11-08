@@ -41,6 +41,7 @@
 #include "Riley.h"
 
 #include "tbb/concurrent_hash_map.h"
+#include "tbb/concurrent_unordered_map.h"
 
 namespace IECoreRenderMan
 {
@@ -99,7 +100,7 @@ struct Session
 		};
 
 		// Keys are `riley::LightShaderId`.
-		using LightShaderMap = tbb::concurrent_hash_map<uint32_t, LightShaderInfo>;
+		using LightShaderMap = tbb::concurrent_unordered_map<uint32_t, LightShaderInfo>;
 		LightShaderMap m_domeAndPortalShaders;
 
 		struct LightInfo

@@ -47,11 +47,12 @@ using namespace IECoreRenderMan;
 namespace
 {
 
+const RtUString g_lightingMuteUStr( "lighting:mute" );
+const RtUString g_portalToDomeUStr( "portalToDome" );
 const RtUString g_pxrDomeLightUStr( "PxrDomeLight" );
 const RtUString g_pxrPortalLightUStr( "PxrPortalLight" );
-const riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
 
-const RtUString g_lightingMuteUStr( "lighting:mute" );
+const riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
 
 } // namespace
 
@@ -164,10 +165,9 @@ riley::LightShaderId Session::createLightShader( const riley::ShadingNetwork &li
 	RtUString type = light.nodeCount ? light.nodes[light.nodeCount-1].name : RtUString();
 	if( type == g_pxrDomeLightUStr || type == g_pxrPortalLightUStr )
 	{
-		LightShaderMap::accessor a;
-		[[maybe_unused]] bool inserted = m_domeAndPortalShaders.insert( a, result.AsUInt32() );
-		assert( inserted ); // ID should be unique.
-		a->second.shaders.insert( a->second.shaders.end(), light.nodes, light.nodes + light.nodeCount );
+		LightShaderInfo &lightShaderInfo = m_domeAndPortalShaders[result.AsUInt32()];
+		assert( lightShaderInfo.shaders.empty() ); // ID should be unique.
+		lightShaderInfo.shaders.insert( lightShaderInfo.shaders.end(), light.nodes, light.nodes + light.nodeCount );
 	}
 
 	return result;
@@ -176,7 +176,8 @@ riley::LightShaderId Session::createLightShader( const riley::ShadingNetwork &li
 void Session::deleteLightShader( riley::LightShaderId lightShaderId )
 {
 	riley->DeleteLightShader( lightShaderId );
-	m_domeAndPortalShaders.erase( lightShaderId.AsUInt32() );
+	/// TODO : ERASE IN `linkPortals()`.
+	m_domeAndPortalShaders.at( lightShaderId.AsUInt32() ).shaders.clear();
 }
 
 riley::LightInstanceId Session::createLightInstance( riley::LightShaderId lightShaderId, const riley::Transform &transform, const RtParamList &attributes )
@@ -246,10 +247,10 @@ void Session::linkPortals()
 	/// TODO : ONLY DO THINGS WHEN ACTUALLY DIRTY
 
 	auto isPortal = [&] ( riley::LightShaderId lightShader ) {
-		LightShaderMap::const_accessor a;
-		if( m_domeAndPortalShaders.find( a, lightShader.AsUInt32() ) )
+		auto it = m_domeAndPortalShaders.find( lightShader.AsUInt32() );
+		if( it != m_domeAndPortalShaders.end() )
 		{
-			return a->second.shaders.back().name == g_pxrPortalLightUStr;
+			return it->second.shaders.back().name == g_pxrPortalLightUStr;
 		}
 		return false;
 	};
@@ -258,6 +259,7 @@ void Session::linkPortals()
 
 	const LightInfo *domeLight = nullptr;
 	bool havePortals = false;
+	size_t numDomes = 0;
 	for( const auto &[id, info] : m_domeAndPortalLights )
 	{
 		if( isPortal( info.lightShader ) )
@@ -266,18 +268,20 @@ void Session::linkPortals()
 		}
 		else
 		{
+			numDomes++;
 			if( !domeLight )
 			{
 				domeLight = &info;
 			}
-			else
-			{
-				/// \todo To support multiple domes, we need to add a mechanism
-				/// for linking them to portals. Perhaps this can be achieved
-				/// via `ObjectInterface::link()`?
-				IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", "Multiple PxrDomeLights are not yet supported" );
-			}
 		}
+	}
+
+	if( havePortals && numDomes > 1 )
+	{
+		/// \todo To support multiple domes, we need to add a mechanism for
+		/// linking them to portals. Perhaps this can be achieved via
+		/// `ObjectInterface::link()`?
+		IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", "PxrPortalLights combined with multiple PxrDomeLights are not yet supported" );
 	}
 
 	// Link the lights appropriately.
@@ -293,7 +297,26 @@ void Session::linkPortals()
 			// otherwise mute them.
 			if( domeLight )
 			{
+				// Copy parameters from dome to portal.
+				const RtParamList &domeParams = m_domeAndPortalShaders.at( domeLight->lightShader.AsUInt32() ).shaders.back().params;
+				LightShaderInfo &portalShader = m_domeAndPortalShaders.at( info.lightShader.AsUInt32() );
+				RtParamList &portalParams = portalShader.shaders.back().params;
+				portalParams.Update( domeParams );
+				//  Those all helpfully line up exactly apart from
+				// `lightColorMap` which is unhelpfully renamed to
+				// `domeColorMap`. So sort that out.
+				//porta
 
+				// Add parameter providing the transform between the portal and the dome.
+				RtMatrix4x4 domeInverse; domeInverse.Identity();
+				domeLight->transform.Inverse( &domeInverse );
+				const RtMatrix4x4 portalToDome = info.transform * domeInverse;
+				portalShader.shaders.back().params.SetMatrix( g_portalToDomeUStr, portalToDome );
+
+				// Update the light shader. We can modify the existing one in
+				// place because we know we're only using it on this one light.
+				riley::ShadingNetwork shaders = { (uint32_t)portalShader.shaders.size(), portalShader.shaders.data() };
+				riley->ModifyLightShader( info.lightShader, &shaders, /* lightFilter = */ nullptr );
 			}
 			else
 			{
