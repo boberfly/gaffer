@@ -47,10 +47,16 @@ using namespace IECoreRenderMan;
 namespace
 {
 
+const RtUString g_domeColorMapUStr( "domeColorMap" );
+const RtUString g_intensityUStr( "intensity" );
+const RtUString g_intensityMultUStr( "intensityMult" );
 const RtUString g_lightingMuteUStr( "lighting:mute" );
+const RtUString g_lightColorUStr( "lightColor" );
+const RtUString g_lightColorMapUStr( "lightColorMap" );
 const RtUString g_portalToDomeUStr( "portalToDome" );
 const RtUString g_pxrDomeLightUStr( "PxrDomeLight" );
 const RtUString g_pxrPortalLightUStr( "PxrPortalLight" );
+const RtUString g_tintUStr( "tint" );
 
 const riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
 
@@ -297,17 +303,37 @@ void Session::linkPortals()
 			// otherwise mute them.
 			if( domeLight )
 			{
-				// Copy parameters from dome to portal.
+				// Copy parameters from dome to portal, since we want users
+				// to control them all in one place, not on each individual portal.
+				// Portal lights have all the same parameters as dome lights, so this
+				// is easy.
 				const RtParamList &domeParams = m_domeAndPortalShaders.at( domeLight->lightShader.AsUInt32() ).shaders.back().params;
 				LightShaderInfo &portalShader = m_domeAndPortalShaders.at( info.lightShader.AsUInt32() );
 				RtParamList &portalParams = portalShader.shaders.back().params;
 				portalParams.Update( domeParams );
-				//  Those all helpfully line up exactly apart from
-				// `lightColorMap` which is unhelpfully renamed to
-				// `domeColorMap`. So sort that out.
-				//porta
+				//  Except that `lightColorMap` is unhelpfully renamed to
+				// `domeColorMap`, so sort that out.
+				portalParams.Remove( g_lightColorMapUStr );
+				RtUString colorMap; domeParams.GetString( g_lightColorMapUStr, colorMap );
+				portalParams.SetString( g_domeColorMapUStr, colorMap );
+				// And of course the portal shader couldn't possibly apply tint
+				// etc itself. That is obviously the responsibility of every
+				// single bridge project.
+				float intensity = 1;
+				portalParams.GetFloat( g_intensityUStr, intensity );
+				float intensityMult = 1;
+				portalParams.GetFloat( g_intensityMultUStr, intensityMult );
+				pxrcore::ColorRGB lightColor( 1, 1, 1 );
+				portalParams.GetColor( g_lightColorUStr, lightColor );
+				pxrcore::ColorRGB tint( 1, 1, 1 );
+				portalParams.GetColor( g_tintUStr, tint );
+				intensity = intensity * intensityMult;
+				portalParams.SetFloat( g_intensityUStr, intensity );
+				lightColor = lightColor * tint;
+				portalParams.SetColor( g_lightColorUStr, lightColor );
 
-				// Add parameter providing the transform between the portal and the dome.
+				// We are also responsible for adding a parameter providing the
+				// transform between the portal and the dome.
 				RtMatrix4x4 domeInverse; domeInverse.Identity();
 				domeLight->transform.Inverse( &domeInverse );
 				const RtMatrix4x4 portalToDome = info.transform * domeInverse;
