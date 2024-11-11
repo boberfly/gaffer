@@ -207,12 +207,12 @@ riley::LightInstanceId Session::createLightInstance( riley::LightShaderId lightS
 
 	if( m_domeAndPortalShaders.count( lightShaderId.AsUInt32() ) )
 	{
-		LightInstanceMap::accessor a;
-		[[maybe_unused]] bool inserted = m_domeAndPortalLights.insert( a, result.AsUInt32() );
-		assert( inserted ); // ID should be unique.
-		a->second.lightShader = lightShaderId;
-		a->second.transform.Identity();
-		a->second.attributes = attributes;
+		RtMatrix4x4 transform; transform.Identity();
+		m_domeAndPortalLights[result.AsUInt32()] = {
+			lightShaderId,
+			transform,
+			attributes
+		};
 		m_portalsDirty = true;
 	}
 
@@ -234,20 +234,20 @@ riley::LightInstanceResult Session::modifyLightInstance(
 	/// perhaps should fail the edit, and cause the controller to
 	/// re-send.
 
-	LightInstanceMap::accessor a;
-	if( m_domeAndPortalLights.find( a, lightInstanceId.AsUInt32() ) )
+	auto it = m_domeAndPortalLights.find( lightInstanceId.AsUInt32() );
+	if( it != m_domeAndPortalLights.end() )
 	{
 		if( lightShaderId )
 		{
-			a->second.lightShader = *lightShaderId;
+			it->second.lightShader = *lightShaderId;
 		}
 		if( transform )
 		{
-			a->second.transform = *(transform->matrix);
+			it->second.transform = *(transform->matrix);
 		}
 		if( attributes )
 		{
-			a->second.attributes = *attributes;
+			it->second.attributes = *attributes;
 		}
 		m_portalsDirty = true;
 	}
@@ -258,9 +258,13 @@ riley::LightInstanceResult Session::modifyLightInstance(
 void Session::deleteLightInstance( riley::LightInstanceId lightInstanceId )
 {
 	riley->DeleteLightInstance( riley::GeometryPrototypeId(), lightInstanceId );
-	m_domeAndPortalLights.erase( lightInstanceId.AsUInt32() );
-	m_portalsDirty = true;
-	/// TODO : SMARTER DIRTY PLEASE.
+	auto it = m_domeAndPortalLights.find( lightInstanceId.AsUInt32() );
+	if( it != m_domeAndPortalLights.end() )
+	{
+		// Can't erase now - mark for removal in `updatePortals()`.
+		it->second.lightShader = riley::LightShaderId::InvalidId();
+		m_portalsDirty = true;
+	}
 }
 
 void Session::updatePortals()
@@ -284,7 +288,8 @@ void Session::updatePortals()
 		}
 	}
 
-	// Find the dome light.
+	// Find the dome light, while cleaning up any zombies created
+	// by `deleteLightInstance()`.
 
 	auto isPortal = [&] ( riley::LightShaderId lightShader ) {
 		auto it = m_domeAndPortalShaders.find( lightShader.AsUInt32() );
@@ -298,9 +303,15 @@ void Session::updatePortals()
 	const LightInfo *domeLight = nullptr;
 	bool havePortals = false;
 	size_t numDomes = 0;
-	for( const auto &[id, info] : m_domeAndPortalLights )
+	for( auto it = m_domeAndPortalLights.begin(); it != m_domeAndPortalLights.end(); )
 	{
-		if( isPortal( info.lightShader ) )
+		if( it->second.lightShader == riley::LightShaderId::InvalidId() )
+		{
+			it = m_domeAndPortalLights.unsafe_erase( it );
+			continue;
+		}
+
+		if( isPortal( it->second.lightShader ) )
 		{
 			havePortals = true;
 		}
@@ -309,9 +320,10 @@ void Session::updatePortals()
 			numDomes++;
 			if( !domeLight )
 			{
-				domeLight = &info;
+				domeLight = &it->second;
 			}
 		}
+		++it;
 	}
 
 	if( havePortals && numDomes > 1 )

@@ -101,7 +101,11 @@ struct Session
 			std::vector<riley::ShadingNode> shaders;
 		};
 
-		// Keys are `riley::LightShaderId`.
+		// Keys are `riley::LightShaderId`. The `concurrent_unordered_map` gives
+		// us thread-safety for the map data structure itself, but not for the
+		// values within. This is exactly what we need, as we may be editing shaders
+		// from many threads, but any particular shader will only be modified by
+		// a single thread at a time.
 		using LightShaderMap = tbb::concurrent_unordered_map<uint32_t, LightShaderInfo>;
 		LightShaderMap m_domeAndPortalShaders;
 
@@ -112,7 +116,7 @@ struct Session
 			RtParamList attributes;
 		};
 		// Keys are `riley::LightInstanceId`.
-		using LightInstanceMap = tbb::concurrent_hash_map<uint32_t, LightInfo>;
+		using LightInstanceMap = tbb::concurrent_unordered_map<uint32_t, LightInfo>;
 		LightInstanceMap m_domeAndPortalLights;
 		std::atomic_bool m_portalsDirty;
 
