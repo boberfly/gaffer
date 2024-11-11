@@ -95,5 +95,14 @@ class RenderManLightTest( GafferSceneTest.SceneTestCase ) :
 		self.assertTrue( light["parameters"]["intensity"].hasMinValue() )
 		self.assertEqual( light["parameters"]["intensity"].minValue(), 0 )
 
+	def testPortalLight( self ) :
+
+		light = GafferRenderMan.RenderManLight()
+		light.loadShader( "PxrPortalLight" )
+		self.assertEqual(
+			set( light["out"].attributes( "/light" )["ri:light"].outputShader().parameters.keys() ),
+			{ "intensityMult", "tint" }
+		)
+
 if __name__ == "__main__":
 	unittest.main()

@@ -78,6 +78,40 @@ RenderManShader::~RenderManShader()
 }
 
 //////////////////////////////////////////////////////////////////////////
+// Shader-specific overrides
+//////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+
+using ParameterSet = unordered_set<string>;
+static const unordered_map<string, ParameterSet> g_omittedParameters = {
+	{
+		"PxrPortalLight",
+		{
+			// These shouldn't be exposed because we are going to
+			// derive the values from the dome light and other parameters
+			// like `intensityMult`.
+			"domeColorMap", "lightColor", "intensity", "exposure", "portalToDome",
+			"portalName",
+			// These shouldn't be exposed because we are going to inherit the
+			// values from the dome light.
+			/// \todo We could instead load these as `OptionalValuePlugs` to
+			/// allow a portal to override a value from the dome.
+			"colorMapGamma", "colorMapSaturation", "enableTemperature",
+			"temperature", "specular", "diffuse", "enableShadows",
+			"shadowColor", "shadowDistance", "shadowFalloff", "shadowFalloffGamma",
+			"shadowSubset", "shadowExcludeSubset", "traceLightPaths", "thinShadow",
+			"visibleInRefractionPath", "cheapCaustics", "cheapCausticsExcludeGroup",
+			"fixedSampleCount", "lightGroup", "importanceMultiplier", "msApprox",
+			"msApproxBleed", "msApproxContribution"
+		},
+	}
+};
+
+} // namespace
+
+//////////////////////////////////////////////////////////////////////////
 // Shader loading code
 //////////////////////////////////////////////////////////////////////////
 
@@ -330,12 +364,16 @@ Gaffer::Plug *loadParameter( const boost::property_tree::ptree &parameter, Plug 
 	}
 }
 
-void loadParameters( const boost::property_tree::ptree &tree, Plug *parent, std::unordered_set<const Plug *> &validPlugs )
+void loadParameters( const boost::property_tree::ptree &tree, Plug *parent, const ParameterSet *omit, std::unordered_set<const Plug *> &validPlugs )
 {
 	for( const auto &child : tree )
 	{
 		if( child.first == "param" )
 		{
+			if( omit && omit->count( child.second.get<string>( "<xmlattr>.name" ) ) )
+			{
+				continue;
+			}
 			if( Plug *p = loadParameter( child.second, parent ) )
 			{
 				validPlugs.insert( p );
@@ -343,17 +381,17 @@ void loadParameters( const boost::property_tree::ptree &tree, Plug *parent, std:
 		}
 		else if( child.first == "page" )
 		{
-			loadParameters( child.second, parent, validPlugs );
+			loadParameters( child.second, parent, omit, validPlugs );
 		}
 	}
 }
 
-void loadParameters( const boost::property_tree::ptree &tree, Plug *parent )
+void loadParameters( const boost::property_tree::ptree &tree, Plug *parent, const ParameterSet *omit )
 {
 	// Load all the parameters
 
 	std::unordered_set<const Plug *> validPlugs;
-	loadParameters( tree, parent, validPlugs );
+	loadParameters( tree, parent, omit, validPlugs );
 
 	// Remove any old plugs which it turned out we didn't need.
 
@@ -481,7 +519,11 @@ void RenderManShader::loadShader( const std::string &shaderName, bool keepExisti
 		parametersPlug->clearChildren();
 	}
 
-	loadParameters( tree.get_child( "args" ), parametersPlug );
+	auto omit = g_omittedParameters.find( shaderName );
+	loadParameters(
+		tree.get_child( "args" ), parametersPlug,
+		omit != g_omittedParameters.end() ? &omit->second : nullptr
+	);
 
 	if( !keepExistingValues )
 	{
