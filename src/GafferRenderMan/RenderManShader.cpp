@@ -267,8 +267,17 @@ Gaffer::Plug *loadParameter( const boost::property_tree::ptree &parameter, Plug 
 
 	if( parameter.get<string>( "<xmlattr>.isDynamicArray", "0" ) == "1" )
 	{
+		/// \todo Support array parameters. This is non-trivial, because
+		/// they seem to fall into a couple of different categories that
+		/// don't fit well with the obvious choice of VectorDataPlugs.
+		///
+		/// - Spline knots and values. We would need to convert these to
+		///   SplinePlugs, or build a custom UI to make them useable.
+		/// - Things like `PxrSurface.utilityPattern` which seem to be
+		///   expected to allow connections to array elements (which
+		///   implies ArrayPlug rather than *VectorDataPlug).
 		msg(
-			IECore::Msg::Warning, "RenderManShader::loadShader",
+			IECore::Msg::Debug, "RenderManShader::loadShader",
 			fmt::format( "Array parameter \"{}\" not supported", name )
 		);
 		return nullptr;
