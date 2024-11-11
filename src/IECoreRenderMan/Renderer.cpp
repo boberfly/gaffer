@@ -75,12 +75,19 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 				throw IECore::Exception( "SceneDescription mode not supported by RenderMan" );
 			}
 
+			bool haveInstance = false;
+			if( !g_haveInstance.compare_exchange_strong( haveInstance, true ) )
+			{
+				throw IECore::Exception( "RenderMan doesn't allow multiple active sessions" );
+			}
+
 			m_globals = std::make_unique<Globals>( renderType, messageHandler );
 		}
 
 		~RenderManRenderer() override
 		{
 			m_globals.reset();
+			g_haveInstance = false;
 		}
 
 		IECore::InternedString name() const override
@@ -188,9 +195,11 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 		std::unique_ptr<MaterialCache> m_materialCache;
 
 		static Renderer::TypeDescription<RenderManRenderer> g_typeDescription;
+		static std::atomic_bool g_haveInstance;
 
 };
 
 IECoreScenePreview::Renderer::TypeDescription<RenderManRenderer> RenderManRenderer::g_typeDescription( "RenderMan" );
+std::atomic_bool RenderManRenderer::g_haveInstance = false;
 
 } // namespace

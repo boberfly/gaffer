@@ -58,6 +58,19 @@ class RendererTest( GafferTest.TestCase ) :
 		r = GafferScene.Private.IECoreScenePreview.Renderer.create( "RenderMan" )
 		self.assertTrue( isinstance( r, GafferScene.Private.IECoreScenePreview.Renderer ) )
 
+	def testTwoRenderers( self ) :
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create( "RenderMan" )
+		# This looks unused, but is needed to trigger the deferred creation of
+		# the Riley session.
+		attributes = renderer.attributes( IECore.CompoundObject() )
+
+		with self.assertRaisesRegex( RuntimeError, "RenderMan doesn't allow multiple active sessions" ) as handler :
+			# RenderMan only allows there to be one renderer at a time.
+			GafferScene.Private.IECoreScenePreview.Renderer.create( "RenderMan" )
+
+		handler.exception.__traceback__ = None
+
 	def testSceneDescription( self ) :
 
 		with self.assertRaisesRegex( RuntimeError, "SceneDescription mode not supported" ) :
