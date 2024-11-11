@@ -81,7 +81,9 @@ struct Session
 	);
 	void deleteLightInstance( riley::LightInstanceId lightInstanceId );
 
-	void linkPortals();
+	/// Should be called before rendering to update the links between
+	/// portal lights and the associated dome light.
+	void updatePortals();
 
 	riley::Riley *riley;
 	const IECoreScenePreview::Renderer::RenderType renderType;
@@ -112,6 +114,7 @@ struct Session
 		// Keys are `riley::LightInstanceId`.
 		using LightInstanceMap = tbb::concurrent_hash_map<uint32_t, LightInfo>;
 		LightInstanceMap m_domeAndPortalLights;
+		std::atomic_bool m_portalsDirty;
 
 };
 

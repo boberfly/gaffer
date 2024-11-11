@@ -104,7 +104,7 @@ struct Session::ExceptionHandler : public RixXcpt::XcptHandler
 
 
 Session::Session( IECoreScenePreview::Renderer::RenderType renderType, const RtParamList &options, const IECore::MessageHandlerPtr &messageHandler )
-	:	riley( nullptr ), renderType( renderType )
+	:	riley( nullptr ), renderType( renderType ), m_portalsDirty( false )
 {
 	// `argv[0]==""` prevents RenderMan doing its own signal handling.
 	vector<const char *> args = { "" };
@@ -174,6 +174,7 @@ riley::LightShaderId Session::createLightShader( const riley::ShadingNetwork &li
 		LightShaderInfo &lightShaderInfo = m_domeAndPortalShaders[result.AsUInt32()];
 		assert( lightShaderInfo.shaders.empty() ); // ID should be unique.
 		lightShaderInfo.shaders.insert( lightShaderInfo.shaders.end(), light.nodes, light.nodes + light.nodeCount );
+		m_portalsDirty = true;
 	}
 
 	return result;
@@ -182,8 +183,18 @@ riley::LightShaderId Session::createLightShader( const riley::ShadingNetwork &li
 void Session::deleteLightShader( riley::LightShaderId lightShaderId )
 {
 	riley->DeleteLightShader( lightShaderId );
-	/// TODO : ERASE IN `linkPortals()`.
-	m_domeAndPortalShaders.at( lightShaderId.AsUInt32() ).shaders.clear();
+	auto it = m_domeAndPortalShaders.find( lightShaderId.AsUInt32() );
+	if( it != m_domeAndPortalShaders.end() )
+	{
+		// We can't erase from the map immediately because that isn't
+		// thread-safe. Instead just clear the shaders and erase in
+		// `updatePortals()`. We can safely call `clear()` because
+		// there will be no concurrent access to this _particular_ map
+		// entry - the light shader is being deleted, so it would be
+		// a coding error to try to use it in another thread anyway.
+		it->second.shaders.clear();
+		m_portalsDirty = true;
+	}
 }
 
 riley::LightInstanceId Session::createLightInstance( riley::LightShaderId lightShaderId, const riley::Transform &transform, const RtParamList &attributes )
@@ -202,6 +213,7 @@ riley::LightInstanceId Session::createLightInstance( riley::LightShaderId lightS
 		a->second.lightShader = lightShaderId;
 		a->second.transform.Identity();
 		a->second.attributes = attributes;
+		m_portalsDirty = true;
 	}
 
 	return result;
@@ -237,6 +249,7 @@ riley::LightInstanceResult Session::modifyLightInstance(
 		{
 			a->second.attributes = *attributes;
 		}
+		m_portalsDirty = true;
 	}
 
 	return result;
@@ -246,11 +259,32 @@ void Session::deleteLightInstance( riley::LightInstanceId lightInstanceId )
 {
 	riley->DeleteLightInstance( riley::GeometryPrototypeId(), lightInstanceId );
 	m_domeAndPortalLights.erase( lightInstanceId.AsUInt32() );
+	m_portalsDirty = true;
+	/// TODO : SMARTER DIRTY PLEASE.
 }
 
-void Session::linkPortals()
+void Session::updatePortals()
 {
-	/// TODO : ONLY DO THINGS WHEN ACTUALLY DIRTY
+	if( !m_portalsDirty )
+	{
+		return;
+	}
+
+	// Clean up any zombies created by `deleteLightShader()`.
+
+	for( auto it = m_domeAndPortalShaders.begin(); it != m_domeAndPortalShaders.end(); )
+	{
+		if( it->second.shaders.empty() )
+		{
+			it = m_domeAndPortalShaders.unsafe_erase( it );
+		}
+		else
+		{
+			++it;
+		}
+	}
+
+	// Find the dome light.
 
 	auto isPortal = [&] ( riley::LightShaderId lightShader ) {
 		auto it = m_domeAndPortalShaders.find( lightShader.AsUInt32() );
@@ -260,8 +294,6 @@ void Session::linkPortals()
 		}
 		return false;
 	};
-
-	// Find the dome light.
 
 	const LightInfo *domeLight = nullptr;
 	bool havePortals = false;
@@ -343,6 +375,12 @@ void Session::linkPortals()
 				// place because we know we're only using it on this one light.
 				riley::ShadingNetwork shaders = { (uint32_t)portalShader.shaders.size(), portalShader.shaders.data() };
 				riley->ModifyLightShader( info.lightShader, &shaders, /* lightFilter = */ nullptr );
+
+				// Unmute, in case we muted previously due to lack of a dome.
+				riley->ModifyLightInstance(
+					riley::GeometryPrototypeId(), riley::LightInstanceId( id ),
+					nullptr, nullptr, nullptr, nullptr, &info.attributes
+				);
 			}
 			else
 			{
@@ -361,4 +399,6 @@ void Session::linkPortals()
 			);
 		}
 	}
+
+	m_portalsDirty = false;
 }

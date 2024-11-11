@@ -575,7 +575,31 @@ class RendererTest( GafferTest.TestCase ) :
 		self.assertEqual( self.__colorAtUV( image, imath.V2f( 0.3, 0.5 ) )[0], 0 )
 		self.assertEqual( self.__colorAtUV( image, imath.V2f( 0.6, 0.5 ) )[0], 0 )
 
-		del sphere, portal
+		# Recreate the dome light. We should again be illuminating only on one side.
+
+		dome = renderer.light(
+			"dome",
+			None,
+			renderer.attributes( IECore.CompoundObject( {
+				"ri:light" : IECoreScene.ShaderNetwork(
+					shaders = {
+						"output" : IECoreScene.Shader( "PxrDomeLight", "ri:light", { "exposure" : 4.0 } ),
+					},
+					output = "output",
+				),
+				"ri:visibility:camera" : IECore.BoolData( False ),
+			} ) )
+		)
+
+		renderer.render()
+		time.sleep( 1 )
+		renderer.pause()
+
+		image = IECoreImage.ImageDisplayDriver.storedImage( "myLovelySphere" )
+		self.assertEqual( self.__colorAtUV( image, imath.V2f( 0.3, 0.5 ) )[0], 0 )
+		self.assertGreater( self.__colorAtUV( image, imath.V2f( 0.6, 0.5 ) )[0], 0.5 )
+
+		del sphere, portal, dome
 		del renderer
 
 	def __colorAtUV( self, image, uv ) :

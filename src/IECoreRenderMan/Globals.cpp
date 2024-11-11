@@ -273,7 +273,7 @@ void Globals::render()
 	acquireSession();
 	updateIntegrator();
 	updateRenderView();
-	m_session->linkPortals();
+	m_session->updatePortals();
 
 	/// \todo Is it worth avoiding this work when nothing has changed?
 	Session::CameraInfo camera = m_session->getCamera( m_cameraOption );
