@@ -39,7 +39,9 @@ import unittest
 import imath
 
 import Gaffer
+import GafferScene
 import GafferSceneTest
+import GafferOSL
 import GafferRenderMan
 
 class RenderManShaderTest( GafferSceneTest.SceneTestCase ) :
@@ -98,6 +100,38 @@ class RenderManShaderTest( GafferSceneTest.SceneTestCase ) :
 
 		self.assertIn( "resultB", shader["out"] )
 		self.assertIsInstance( shader["out"]["resultB"], Gaffer.FloatPlug )
+
+	## IECoreUSD isn't round-tripping the shader type correctly yet.
+	@unittest.expectedFailure
+	def testUSDRoundTrip( self ) :
+
+		texture = GafferOSL.OSLShader( "PxrTexture" )
+		texture.loadShader( "PxrTexture" )
+		texture["parameters"]["filename"].setValue( "test.tx" )
+
+		surface = GafferRenderMan.RenderManShader( "PxrSurface" )
+		surface.loadShader( "PxrSurface" )
+		surface["parameters"]["diffuseColor"].setInput( texture["out"]["resultRGB"] )
+		surface["parameters"]["diffuseGain"].setValue( 0.5 )
+
+		plane = GafferScene.Plane()
+
+		shaderAssignment = GafferScene.ShaderAssignment()
+		shaderAssignment["in"].setInput( plane["out"] )
+		shaderAssignment["shader"].setInput( surface["out"] )
+
+		sceneWriter = GafferScene.SceneWriter()
+		sceneWriter["in"].setInput( shaderAssignment["out"] )
+		sceneWriter["fileName"].setValue( self.temporaryDirectory() / "test.usda" )
+		sceneWriter["task"].execute()
+
+		sceneReader = GafferScene.SceneReader()
+		sceneReader["fileName"].setInput( sceneWriter["fileName"] )
+
+		self.assertShaderNetworksEqual(
+			sceneReader["out"].attributes( "/plane" )["ri:surface"],
+			sceneWriter["in"].attributes( "/plane" )["ri:surface"]
+		)
 
 if __name__ == "__main__":
 	unittest.main()
