@@ -37,6 +37,7 @@
 
 #include "IECore/MessageHandler.h"
 #include "IECore/SimpleTypedData.h"
+#include "IECore/StringAlgo.h"
 #include "IECore/VectorTypedData.h"
 
 #include "ndspy.h"
@@ -62,34 +63,57 @@ PtDspyError DspyImageOpen( PtDspyImageHandle *image, const char *driverName, con
 {
 	*image = nullptr;
 
-	// get channel names
+	// Get channel names.
 
 	vector<string> channels;
 
-	if( formatCount == 1 )
-	{
-		channels.push_back( "R" );
-	}
-	else if( formatCount == 3 )
-	{
-		channels.push_back( "R" );
-		channels.push_back( "G" );
-		channels.push_back( "B" );
-	}
-	else if( formatCount == 4 )
-	{
-		channels.push_back( "R" );
-		channels.push_back( "G" );
-		channels.push_back( "B" );
-		channels.push_back( "A" );
-	}
-	else
-	{
-		msg( Msg::Error, "Dspy::imageOpen", "Invalid number of channels!" );
-		return PkDspyErrorBadParams;
-	}
 	for( int i = 0; i < formatCount; i++ )
 	{
+		// RenderMan gives us names in the following format :
+		//
+		// `<outputName>.<annoyingInteger>[.<channeName>]`
+		//
+		// Where `channelName` is always lowercase, and is omitted for
+		// single-channel outputs. Parse this into a channel name conformant
+		// with the EXR/Gaffer specification.
+		vector<string> tokens;
+		StringAlgo::tokenize( format[i].name, '.', tokens );
+		string layerName;
+		string baseName;
+
+		if( tokens.size() == 2 )
+		{
+			baseName = tokens[0];
+		}
+		else if( tokens.size() == 3 )
+		{
+			if( tokens[0] != "Ci" )
+			{
+				layerName = tokens[0];
+			}
+			baseName = tokens[2];
+		}
+		else
+		{
+			msg( Msg::Error, "Dspy::imageOpen",  fmt::format( "Unexpected format name \"{}\"", format[i].name ) );
+			return PkDspyErrorBadParams;
+		}
+
+		if( baseName == "r" ) baseName = "R";
+		if( baseName == "g" ) baseName = "G";
+		if( baseName == "b" ) baseName = "B";
+		if( baseName == "a" ) baseName = "A";
+		if( baseName == "z" ) baseName = "Z";
+
+		if( layerName.empty() )
+		{
+			channels.push_back( baseName );
+		}
+		else
+		{
+			channels.push_back( layerName + "." + baseName );
+		}
+
 		format[i].type = PkDspyFloat32 | PkDspyByteOrderNative;
 	}
 
@@ -113,33 +137,6 @@ PtDspyError DspyImageOpen( PtDspyImageHandle *image, const char *driverName, con
 		{
 			origin.x = static_cast<const int *>(parameters[p].value)[0];
 			origin.y = static_cast<const int *>(parameters[p].value)[1];
-		}
-		else if( 0 == strcmp( parameters[p].name, "layerName" ) && parameters[p].vtype == 's' )
-		{
-			/// TODO : WE'RE USING OUR OWN PARAMETER HERE, WHEN TECHNICALLY WE SHOULD
-			/// BE PARSING THE NAMES FROM RENDERMAN'S FORMAT NAMES.
-			const string layerName = *(const char **)(parameters[p].value);
-			if( !layerName.empty() )
-			{
-				if( channels.size() == 1 )
-				{
-					// I'm not sure what the semantics of 3Delight's `layername`
-					// actually are, but this gets the naming matching Arnold
-					// for our all-important OutputBuffer outputs used in the
-					// Viewer.
-					/// \todo We're overdue a reckoning were we define our own
-					/// standard semantics for all the little details of outputs,
-					/// and implement them to match across all renderers.
-					channels[0] = layerName;
-				}
-				else
-				{
-					for( auto &channel : channels )
-					{
-						channel = layerName + "." + channel;
-					}
-				}
-			}
 		}
 		else
 		{

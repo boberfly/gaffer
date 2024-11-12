@@ -372,19 +372,16 @@ void Globals::updateRenderView()
 
 	struct DisplayDefinition
 	{
-		RtUString name;
 		RtUString driver;
 		vector<riley::RenderOutputId> outputs;
 		RtParamList driverParamList;
 	};
 
-	std::vector<DisplayDefinition> displayDefinitions;
+	std::unordered_map<std::string, DisplayDefinition> displayDefinitions;
 
 	for( const auto &[name, output] : m_outputs )
 	{
-		// Render outputs
-
-		const size_t firstRenderOutputIndex = m_renderOutputs.size();
+		// Identify type and source.
 
 		std::optional<riley::RenderOutputType> type;
 		RtUString source;
@@ -440,65 +437,68 @@ void Globals::updateRenderView()
 			renderOutputName = RtUString( layerName.c_str() );
 		}
 
-		const RtUString accumulationRule( parameter( output->parameters(), "ri:accumulationRule", string( "filter" ) ).c_str() );
-		const float relativePixelVariance = parameter( output->parameters(), "ri:relativePixelVariance", 0.0f );
+		// Display driver. We allow multiple outputs to write to the same driver
+		// if their output (file)name matches.
 
-		const RtUString filter = Rix::k_gaussian; // TODO : GET FROM OPTIONS
-		const riley::FilterSize filterSize = { 2.0, 2.0 }; // TODO : GET FROM OPTIONS
-
-		m_renderOutputs.push_back(
-			m_session->riley->CreateRenderOutput(
-				riley::UserId(),
-				renderOutputName, *type, source,
-				accumulationRule, filter, filterSize, relativePixelVariance,
-				RtParamList()
-			)
-		);
-
-		if( output->getData() == "rgba" )
-		{
-			m_renderOutputs.push_back(
-				m_session->riley->CreateRenderOutput(
-					riley::UserId(),
-					RtUString( "a" ), riley::RenderOutputType::k_Float, Rix::k_a,
-					accumulationRule, filter, filterSize, relativePixelVariance,
-					RtParamList()
-				)
-			);
-		}
-
-		// Display
-
-		RtParamList driverParamList;
+		DisplayDefinition &display = displayDefinitions[output->getName()];
 
 		string driver = output->getType();
 		if( driver == "exr" )
 		{
 			driver = "openexr";
-			if( !layerName.empty() )
+
+			int asRGBA = 0;
+			display.driverParamList.GetInteger( RtUString( "asrgba" ), asRGBA );
+			if( layerName.empty() || source == RtUString( "Ci" ) )
 			{
-				driverParamList.SetInteger( RtUString( "asrgba" ), 0 );
+				asRGBA = 1;
 			}
+			display.driverParamList.SetInteger( RtUString( "asrgba" ), asRGBA );
 
 			for( const auto &[parameterName, parameterValue] : output->parameters() )
 			{
 				if( boost::starts_with( parameterName.c_str(), "header:" ) )
 				{
 					const string exrName = "exrheader_" + parameterName.string().substr( 7 );
-					ParamListAlgo::convertParameter( RtUString( exrName.c_str() ), parameterValue.get(), driverParamList );
+					ParamListAlgo::convertParameter( RtUString( exrName.c_str() ), parameterValue.get(), display.driverParamList );
 				}
 			}
 		}
 
-		/// TODO : USE A PREFIX TO IDENTIFY DRIVER PARAMETERS.
-		ParamListAlgo::convertParameters( output->parameters(), driverParamList );
+		display.driver = RtUString( driver.c_str() ); /// TODO CHECK FOR CONFLICTS, IN DRIVER PARAMS TOO.
 
-		displayDefinitions.push_back( {
-			RtUString( output->getName().c_str() ),
-			RtUString( driver.c_str() ),
-			{ m_renderOutputs.begin() + firstRenderOutputIndex, m_renderOutputs.end() },
-			driverParamList
-		} );
+		/// TODO : USE A PREFIX TO IDENTIFY DRIVER PARAMETERS.
+		ParamListAlgo::convertParameters( output->parameters(), display.driverParamList );
+
+		// Render outputs
+
+		const RtUString accumulationRule( parameter( output->parameters(), "ri:accumulationRule", string( "filter" ) ).c_str() );
+		const float relativePixelVariance = parameter( output->parameters(), "ri:relativePixelVariance", 0.0f );
+
+		const RtUString filter = Rix::k_gaussian; // TODO : GET FROM OPTIONS
+		const riley::FilterSize filterSize = { 2.0, 2.0 }; // TODO : GET FROM OPTIONS
+
+		riley::RenderOutputId renderOutput = m_session->riley->CreateRenderOutput(
+			riley::UserId(),
+			renderOutputName, *type, source,
+			accumulationRule, filter, filterSize, relativePixelVariance,
+			RtParamList()
+		);
+		m_renderOutputs.push_back( renderOutput );
+		display.outputs.push_back( renderOutput );
+
+		if( output->getData() == "rgba" )
+		{
+			riley::RenderOutputId alphaRenderOutput =
+			m_session->riley->CreateRenderOutput(
+				riley::UserId(),
+				RtUString( "a" ), riley::RenderOutputType::k_Float, Rix::k_a,
+				accumulationRule, filter, filterSize, relativePixelVariance,
+				RtParamList()
+			);
+			m_renderOutputs.push_back( alphaRenderOutput );
+			display.outputs.push_back( alphaRenderOutput );
+		}
 	}
 
 	m_renderTarget = m_session->riley->CreateRenderTarget(
@@ -513,13 +513,13 @@ void Globals::updateRenderView()
 	);
 	m_renderTargetExtent = extent;
 
-	for( const auto &definition : displayDefinitions )
+	for( const auto &[name, definition] : displayDefinitions )
 	{
 		m_displays.push_back(
 			m_session->riley->CreateDisplay(
 				riley::UserId(),
 				m_renderTarget,
-				definition.name,
+				RtUString( name.c_str() ),
 				definition.driver,
 				{ (uint32_t)definition.outputs.size(), definition.outputs.data() },
 				definition.driverParamList

@@ -338,13 +338,13 @@ class RendererTest( GafferTest.TestCase ) :
 		)
 
 		outputs = [
-			# Data source, layer name, expected EXR channel names.
-			( "rgba", None, ( "R", "G", "B", "A" ) ),
-			( "float z", "Z", ( "Z", ) ),
+			# Data source, layer name.
+			( "rgba", None ),
+			( "float z", "Z" ),
 			# Really we want the "rgb" suffixes to be capitalised to match
 			# the EXR specification, but that's not what RenderMan does.
 			# Gaffer's ImageReader will correct for it on loading though.
-			( "lpe C<RD>[<L.>O]", "directDiffuse", ( "directDiffuse.r", "directDiffuse.g", "directDiffuse.b" ) ),
+			( "lpe C<RD>[<L.>O]", "directDiffuse" ),
 		]
 
 		for i, output in enumerate( outputs ) :
@@ -368,6 +368,48 @@ class RendererTest( GafferTest.TestCase ) :
 
 		image = OpenImageIO.ImageBuf( fileName )
 		self.assertEqual( set( image.spec().channelnames ), { "R", "G", "B", "A", "Z", "directDiffuse.r", "directDiffuse.g", "directDiffuse.b" } )
+
+	def testMultiLayerIEDisplay( self ) :
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+		)
+
+		outputs = [
+			# Data source, layer name.
+			( "rgba", None ),
+			( "float z", "Z" ),
+			# Really we want the "rgb" suffixes to be capitalised to match
+			# the EXR specification, but that's not what RenderMan does.
+			# Gaffer's ImageReader will correct for it on loading though.
+			( "lpe C<RD>[<L.>O]", "directDiffuse" ),
+		]
+
+		for i, output in enumerate( outputs ) :
+
+			parameters = {
+				"driverType" : "ImageDisplayDriver",
+				"handle" : "multiLayerTest",
+			}
+			if output[1] is not None :
+				parameters["layerName"] = output[1]
+
+			renderer.output(
+				f"test{i}",
+				IECoreScene.Output(
+					"test",
+					"ieDisplay",
+					output[0],
+					parameters
+				)
+			)
+
+		renderer.render()
+		del renderer
+
+		image = IECoreImage.ImageDisplayDriver.storedImage( "multiLayerTest" )
+		self.assertEqual( set( image.keys() ), { "R", "G", "B", "A", "Z", "directDiffuse.R", "directDiffuse.G", "directDiffuse.B" } )
 
 	def testOutputAccumulationRule( self ) :
 
