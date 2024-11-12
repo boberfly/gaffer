@@ -227,6 +227,15 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 	{
 		node.type = riley::ShadingNode::Type::k_Bxdf;
 	}
+	else if( shader->getType() == "ri:shader" && visited.size() == 1 )
+	{
+		// Work around failure of IECoreUSD to round-trip surface shader type.
+		/// \todo Either fix the round-trip in IECoreUSD, or derive `node.type`
+		/// from the `.args` file instead. The latter might be preferable in the
+		/// long term, because we're trying to phase out the concept of shader
+		/// type.
+		node.type = riley::ShadingNode::Type::k_Bxdf;
+	}
 
 	ParamListAlgo::convertParameters( shader->parameters(), node.params );
 
