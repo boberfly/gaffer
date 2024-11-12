@@ -328,6 +328,47 @@ class RendererTest( GafferTest.TestCase ) :
 				image = OpenImageIO.ImageBuf( str( self.temporaryDirectory() / f"test{i}.exr" ) )
 				self.assertEqual( image.spec().channelnames, output[2] )
 
+	def testMultiLayerEXR( self ) :
+
+		fileName = str( self.temporaryDirectory() / "test.exr" )
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+		)
+
+		outputs = [
+			# Data source, layer name, expected EXR channel names.
+			( "rgba", None, ( "R", "G", "B", "A" ) ),
+			( "float z", "Z", ( "Z", ) ),
+			# Really we want the "rgb" suffixes to be capitalised to match
+			# the EXR specification, but that's not what RenderMan does.
+			# Gaffer's ImageReader will correct for it on loading though.
+			( "lpe C<RD>[<L.>O]", "directDiffuse", ( "directDiffuse.r", "directDiffuse.g", "directDiffuse.b" ) ),
+		]
+
+		for i, output in enumerate( outputs ) :
+
+			parameters = {}
+			if output[1] is not None :
+				parameters["layerName"] = output[1]
+
+			renderer.output(
+				f"test{i}",
+				IECoreScene.Output(
+					fileName,
+					"exr",
+					output[0],
+					parameters
+				)
+			)
+
+		renderer.render()
+		del renderer
+
+		image = OpenImageIO.ImageBuf( fileName )
+		self.assertEqual( set( image.spec().channelnames ), { "R", "G", "B", "A", "Z", "directDiffuse.r", "directDiffuse.g", "directDiffuse.b" } )
+
 	def testOutputAccumulationRule( self ) :
 
 		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
