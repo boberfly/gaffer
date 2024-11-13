@@ -368,7 +368,7 @@ void Globals::updateRenderView()
 		return;
 	}
 
-	// Otherwise we need to build the render view from out list of outputs.
+	// Otherwise we need to build the render view from our list of outputs.
 
 	struct DisplayDefinition
 	{
@@ -382,6 +382,8 @@ void Globals::updateRenderView()
 	for( const auto &[name, output] : m_outputs )
 	{
 		// Identify type and source.
+
+		const string layerName = parameter<string>( output->parameters(), g_layerName, "" );
 
 		std::optional<riley::RenderOutputType> type;
 		RtUString source;
@@ -415,7 +417,14 @@ void Globals::updateRenderView()
 				}
 				else if( tokens[0] == "lpe" )
 				{
-					type = riley::RenderOutputType::k_Color;
+					if( layerName == "normal" )
+					{
+						type = riley::RenderOutputType::k_Vector;
+					}
+					else
+					{
+						type = riley::RenderOutputType::k_Color;
+					}
 					source = RtUString( ( "lpe:" + tokens[1] ).c_str() );
 				}
 			}
@@ -431,7 +440,6 @@ void Globals::updateRenderView()
 		// doesn't need to be unique among all render outputs.
 
 		RtUString renderOutputName = source;
-		const string layerName = parameter<string>( output->parameters(), g_layerName, "" );
 		if( !layerName.empty() )
 		{
 			renderOutputName = RtUString( layerName.c_str() );
@@ -478,27 +486,48 @@ void Globals::updateRenderView()
 		const RtUString filter = Rix::k_gaussian; // TODO : GET FROM OPTIONS
 		const riley::FilterSize filterSize = { 2.0, 2.0 }; // TODO : GET FROM OPTIONS
 
-		riley::RenderOutputId renderOutput = m_session->riley->CreateRenderOutput(
-			riley::UserId(),
-			renderOutputName, *type, source,
-			accumulationRule, filter, filterSize, relativePixelVariance,
-			RtParamList()
+		vector<riley::RenderOutputId> renderOutputs;
+		renderOutputs.push_back(
+			m_session->riley->CreateRenderOutput(
+				riley::UserId(),
+				renderOutputName, *type, source,
+				accumulationRule, filter, filterSize, relativePixelVariance,
+				RtParamList()
+			)
 		);
-		m_renderOutputs.push_back( renderOutput );
-		display.outputs.push_back( renderOutput );
 
 		if( output->getData() == "rgba" )
 		{
-			riley::RenderOutputId alphaRenderOutput =
-			m_session->riley->CreateRenderOutput(
-				riley::UserId(),
-				RtUString( "a" ), riley::RenderOutputType::k_Float, Rix::k_a,
-				accumulationRule, filter, filterSize, relativePixelVariance,
-				RtParamList()
+			renderOutputs.push_back(
+				m_session->riley->CreateRenderOutput(
+					riley::UserId(),
+					RtUString( "a" ), riley::RenderOutputType::k_Float, Rix::k_a,
+					accumulationRule, filter, filterSize, relativePixelVariance,
+					RtParamList()
+				)
 			);
-			m_renderOutputs.push_back( alphaRenderOutput );
-			display.outputs.push_back( alphaRenderOutput );
 		}
+
+		// For the most part it doesn't seem to matter what order we put the outputs
+		// in. But the `quicklyNoiseless` driver assumes that the first 4 channels are
+		// the ones to be passed through before denoising happens. So make sure we insert
+		// the beauty first.
+
+		const bool firstOutput = ( output->getData() == "rgb" || output->getData() == "rgba";
+		std::cerr << name << " " << source.CStr() << " " << firstOutput << std::endl;
+
+		DON'T PUT MSE FIRST!!!!!!!!!!!!!!!!!!!!!
+		AND TEST AGAINST CI!!!!!!!!!!!!!!!!!!!!!
+		AND MAKE USTRINGS STATIC!!!!!!!!!!!!!!!!
+
+		m_renderOutputs.insert(
+			firstOutput ? m_renderOutputs.begin() : m_renderOutputs.end(),
+			renderOutputs.begin(), renderOutputs.end()
+		);
+		display.outputs.insert(
+			firstOutput ? display.outputs.begin() : display.outputs.end(),
+			renderOutputs.begin(), renderOutputs.end()
+		);
 	}
 
 	m_renderTarget = m_session->riley->CreateRenderTarget(

@@ -73,25 +73,35 @@ PtDspyError DspyImageOpen( PtDspyImageHandle *image, const char *driverName, con
 		//
 		// `<outputName>.<annoyingInteger>[.<channeName>]`
 		//
-		// Where `channelName` is always lowercase, and is omitted for
-		// single-channel outputs. Parse this into a channel name conformant
-		// with the EXR/Gaffer specification.
+		// Where `channelName` is lower case, or is omitted for single-channel
+		// outputs. The `quicklyNoiseless` man-in-the-middle driver gives us
+		// similar names but without the annoying integer in the middle.
+		//
+		// Parse this mess into a channel name conformant with the EXR/Gaffer
+		// specification.
+
 		vector<string> tokens;
 		StringAlgo::tokenize( format[i].name, '.', tokens );
+		if( tokens.size() > 1 && std::all_of( tokens[1].begin(), tokens[1].end(), [] ( unsigned char c ) { return std::isdigit( c ); } ) )
+		{
+			tokens.erase( tokens.begin() + 1 );
+		}
+
 		string layerName;
 		string baseName;
-
-		if( tokens.size() == 2 )
+		if( tokens.size() == 1 )
 		{
 			baseName = tokens[0];
 		}
-		else if( tokens.size() == 3 )
+		else if( tokens.size() == 2 )
 		{
-			if( tokens[0] != "Ci" )
+			// The `quicklyNoiseless` driver seems to be hardcoded to use
+			// "denoised" as the name, but we'd rather it just render to "RGBA".
+			if( tokens[0] != "Ci" && tokens[0] != "denoised" )
 			{
 				layerName = tokens[0];
 			}
-			baseName = tokens[2];
+			baseName = tokens[1];
 		}
 		else
 		{
@@ -103,7 +113,7 @@ PtDspyError DspyImageOpen( PtDspyImageHandle *image, const char *driverName, con
 		if( baseName == "g" ) baseName = "G";
 		if( baseName == "b" ) baseName = "B";
 		if( baseName == "a" ) baseName = "A";
-		if( baseName == "z" ) baseName = "Z";
+		if( baseName == "z" && layerName.empty() ) baseName = "Z";
 
 		if( layerName.empty() )
 		{
