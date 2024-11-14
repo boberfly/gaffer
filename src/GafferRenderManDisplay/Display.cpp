@@ -95,9 +95,7 @@ PtDspyError DspyImageOpen( PtDspyImageHandle *image, const char *driverName, con
 		}
 		else if( tokens.size() == 2 )
 		{
-			// The `quicklyNoiseless` driver seems to be hardcoded to use
-			// "denoised" as the name, but we'd rather it just render to "RGBA".
-			if( tokens[0] != "Ci" && tokens[0] != "denoised" )
+			if( tokens[0] != "Ci" )
 			{
 				layerName = tokens[0];
 			}
