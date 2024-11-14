@@ -378,71 +378,17 @@ void Globals::updateRenderView()
 	};
 
 	std::unordered_map<std::string, DisplayDefinition> displayDefinitions;
+	vector<riley::RenderOutputId> renderTargetOutputs;
 
 	for( const auto &[name, output] : m_outputs )
 	{
-		// Identify type and source.
+		// Render outputs.
 
-		const string layerName = parameter<string>( output->parameters(), g_layerName, "" );
-
-		std::optional<riley::RenderOutputType> type;
-		RtUString source;
-		if( output->getData() == "rgb" || output->getData() == "rgba" )
-		{
-			type = riley::RenderOutputType::k_Color;
-			source = RtUString( "Ci" );
-		}
-		else
-		{
-			vector<string> tokens;
-			StringAlgo::tokenize( output->getData(), ' ', tokens );
-			if( tokens.size() == 2 )
-			{
-				source = RtUString( tokens[1].c_str() );
-				if( tokens[0] == "color" )
-				{
-					type = riley::RenderOutputType::k_Color;
-				}
-				else if( tokens[0] == "float" )
-				{
-					type = riley::RenderOutputType::k_Float;
-				}
-				else if( tokens[0] == "int" )
-				{
-					type = riley::RenderOutputType::k_Integer;
-				}
-				else if( tokens[0] == "vector" )
-				{
-					type = riley::RenderOutputType::k_Vector;
-				}
-				else if( tokens[0] == "lpe" )
-				{
-					if( layerName == "normal" )
-					{
-						type = riley::RenderOutputType::k_Vector;
-					}
-					else
-					{
-						type = riley::RenderOutputType::k_Color;
-					}
-					source = RtUString( ( "lpe:" + tokens[1] ).c_str() );
-				}
-			}
-		}
-
-		if( !type )
+		const vector<riley::RenderOutputId> &renderOutputs = acquireRenderOutputs( output.get());
+		if( renderOutputs.empty() )
 		{
 			IECore::msg( IECore::Msg::Warning, "RenderManRenderer", fmt::format( "Ignoring unsupported output {}", name.c_str() ) );
 			continue;
-		}
-
-		// The name that will be passed to the display driver. Note that this
-		// doesn't need to be unique among all render outputs.
-
-		RtUString renderOutputName = source;
-		if( !layerName.empty() )
-		{
-			renderOutputName = RtUString( layerName.c_str() );
 		}
 
 		// Display driver. We allow multiple outputs to write to the same driver
@@ -457,7 +403,8 @@ void Globals::updateRenderView()
 
 			int asRGBA = 0;
 			display.driverParamList.GetInteger( RtUString( "asrgba" ), asRGBA );
-			if( layerName.empty() || source == RtUString( "Ci" ) )
+			const string layerName = parameter<string>( output->parameters(), g_layerName, "" );
+			if( layerName.empty() || output->getData() == "rgb" || output->getData() == "rgba" )
 			{
 				asRGBA = 1;
 			}
@@ -478,61 +425,28 @@ void Globals::updateRenderView()
 		/// TODO : USE A PREFIX TO IDENTIFY DRIVER PARAMETERS.
 		ParamListAlgo::convertParameters( output->parameters(), display.driverParamList );
 
-		// Render outputs
-
-		const RtUString accumulationRule( parameter( output->parameters(), "ri:accumulationRule", string( "filter" ) ).c_str() );
-		const float relativePixelVariance = parameter( output->parameters(), "ri:relativePixelVariance", 0.0f );
-
-		const RtUString filter = Rix::k_gaussian; // TODO : GET FROM OPTIONS
-		const riley::FilterSize filterSize = { 2.0, 2.0 }; // TODO : GET FROM OPTIONS
-
-		vector<riley::RenderOutputId> renderOutputs;
-		renderOutputs.push_back(
-			m_session->riley->CreateRenderOutput(
-				riley::UserId(),
-				renderOutputName, *type, source,
-				accumulationRule, filter, filterSize, relativePixelVariance,
-				RtParamList()
-			)
-		);
-
-		if( output->getData() == "rgba" )
-		{
-			renderOutputs.push_back(
-				m_session->riley->CreateRenderOutput(
-					riley::UserId(),
-					RtUString( "a" ), riley::RenderOutputType::k_Float, Rix::k_a,
-					accumulationRule, filter, filterSize, relativePixelVariance,
-					RtParamList()
-				)
-			);
-		}
-
 		// For the most part it doesn't seem to matter what order we put the outputs
 		// in. But the `quicklyNoiseless` driver assumes that the first 4 channels are
 		// the ones to be passed through before denoising happens. So make sure we insert
-		// the beauty first.
+		// the beauty first - it is the only one to have two render outputs (the second
+		// one being for alpha).
 
-		const bool firstOutput = ( output->getData() == "rgb" || output->getData() == "rgba";
-		std::cerr << name << " " << source.CStr() << " " << firstOutput << std::endl;
+		const bool beauty = renderOutputs.size() == 2;
 
-		DON'T PUT MSE FIRST!!!!!!!!!!!!!!!!!!!!!
-		AND TEST AGAINST CI!!!!!!!!!!!!!!!!!!!!!
-		AND MAKE USTRINGS STATIC!!!!!!!!!!!!!!!!
-
-		m_renderOutputs.insert(
-			firstOutput ? m_renderOutputs.begin() : m_renderOutputs.end(),
+		display.outputs.insert(
+			beauty ? display.outputs.begin() : display.outputs.end(),
 			renderOutputs.begin(), renderOutputs.end()
 		);
-		display.outputs.insert(
-			firstOutput ? display.outputs.begin() : display.outputs.end(),
+
+		renderTargetOutputs.insert(
+			beauty ? renderTargetOutputs.begin() : renderTargetOutputs.end(),
 			renderOutputs.begin(), renderOutputs.end()
 		);
 	}
 
 	m_renderTarget = m_session->riley->CreateRenderTarget(
 		riley::UserId(),
-		{ (uint32_t)m_renderOutputs.size(), m_renderOutputs.data() },
+		{ (uint32_t)renderTargetOutputs.size(), renderTargetOutputs.data() },
 		// Why must the resolution be specified both here _and_ via the
 		// `k_Ri_FormatResolution` option? Riley only knows.
 		extent,
@@ -586,10 +500,124 @@ void Globals::deleteRenderView()
 
 	m_session->riley->DeleteRenderTarget( m_renderTarget );
 	m_renderTarget = riley::RenderTargetId::InvalidId();
+}
 
-	for( const auto &renderOutput : m_renderOutputs )
+const std::vector<riley::RenderOutputId> &Globals::acquireRenderOutputs( const IECoreScene::Output *output )
+{
+	// Identify type and source.
+
+	const string layerName = parameter<string>( output->parameters(), g_layerName, "" );
+
+	std::optional<riley::RenderOutputType> type;
+	RtUString source;
+	if( output->getData() == "rgb" || output->getData() == "rgba" )
 	{
-		m_session->riley->DeleteRenderOutput( renderOutput );
+		type = riley::RenderOutputType::k_Color;
+		source = RtUString( "Ci" );
 	}
-	m_renderOutputs.clear();
+	else
+	{
+		vector<string> tokens;
+		StringAlgo::tokenize( output->getData(), ' ', tokens );
+		if( tokens.size() == 2 )
+		{
+			source = RtUString( tokens[1].c_str() );
+			if( tokens[0] == "color" )
+			{
+				type = riley::RenderOutputType::k_Color;
+			}
+			else if( tokens[0] == "float" )
+			{
+				type = riley::RenderOutputType::k_Float;
+			}
+			else if( tokens[0] == "int" )
+			{
+				type = riley::RenderOutputType::k_Integer;
+			}
+			else if( tokens[0] == "vector" )
+			{
+				type = riley::RenderOutputType::k_Vector;
+			}
+			else if( tokens[0] == "lpe" )
+			{
+				if( layerName == "normal" )
+				{
+					type = riley::RenderOutputType::k_Vector;
+				}
+				else
+				{
+					type = riley::RenderOutputType::k_Color;
+				}
+				source = RtUString( ( "lpe:" + tokens[1] ).c_str() );
+			}
+		}
+	}
+
+	if( !type )
+	{
+		static const vector<riley::RenderOutputId> g_emptyOutputs;
+		return g_emptyOutputs;
+	}
+
+	// The name that will be passed to the display driver. Note that this
+	// doesn't need to be unique among all render outputs.
+
+	RtUString renderOutputName = source;
+	if( !layerName.empty() )
+	{
+		renderOutputName = RtUString( layerName.c_str() );
+	}
+
+	// Additional parameters.
+
+	const RtUString accumulationRule( parameter( output->parameters(), "ri:accumulationRule", string( "filter" ) ).c_str() );
+	const float relativePixelVariance = parameter( output->parameters(), "ri:relativePixelVariance", 0.0f );
+
+	const RtUString filter = Rix::k_gaussian; // TODO : GET FROM OPTIONS
+	const riley::FilterSize filterSize = { 2.0, 2.0 }; // TODO : GET FROM OPTIONS
+
+	// Hash.
+
+	MurmurHash hash;
+	hash.append( renderOutputName.CStr() );
+	hash.append( *type );
+	hash.append( source.CStr() );
+	hash.append( accumulationRule.CStr() );
+	hash.append( filter.CStr() );
+	hash.append( filterSize.width );
+	hash.append( filterSize.height );
+	hash.append( output->getData() == "rgba" );
+
+	// Return previously created result if we have one.
+
+	vector<riley::RenderOutputId> &result = m_renderOutputs[hash];
+	if( result.size() )
+	{
+		return result;
+	}
+
+	// Otherwise create and return.
+
+	result.push_back(
+		m_session->riley->CreateRenderOutput(
+			riley::UserId(),
+			renderOutputName, *type, source,
+			accumulationRule, filter, filterSize, relativePixelVariance,
+			RtParamList()
+		)
+	);
+
+	if( output->getData() == "rgba" )
+	{
+		result.push_back(
+			m_session->riley->CreateRenderOutput(
+				riley::UserId(),
+				RtUString( "a" ), riley::RenderOutputType::k_Float, Rix::k_a,
+				accumulationRule, filter, filterSize, relativePixelVariance,
+				RtParamList()
+			)
+		);
+	}
+
+	return result;
 }

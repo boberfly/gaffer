@@ -101,7 +101,12 @@ class Globals : public boost::noncopyable
 		riley::IntegratorId m_integratorId;
 		riley::CameraId m_defaultCamera;
 
-		std::vector<riley::RenderOutputId> m_renderOutputs;
+		// We assume RenderOutputs to be lightweight, and equivalent to
+		// an RiDisplayChannel. So we just make them on demand, and never
+		// destroy them in case we might reuse them later.
+		const std::vector<riley::RenderOutputId> &acquireRenderOutputs( const IECoreScene::Output *output );
+		std::unordered_map<IECore::MurmurHash, std::vector<riley::RenderOutputId>> m_renderOutputs;
+
 		std::vector<riley::DisplayId> m_displays;
 		riley::RenderTargetId m_renderTarget;
 		riley::Extent m_renderTargetExtent;

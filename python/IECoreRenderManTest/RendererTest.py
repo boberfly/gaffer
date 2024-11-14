@@ -487,6 +487,47 @@ class RendererTest( GafferTest.TestCase ) :
 		self.assertEqual( image.spec().get_int_attribute( "testBool" ), 1 )
 		self.assertEqual( image.spec().getattribute( "testV2i" ), ( 1, 2 ) )
 
+	def testOneRenderOutputTwoDrivers( self ) :
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+		)
+
+		renderer.output(
+			"test1",
+			IECoreScene.Output(
+				str( self.temporaryDirectory() / "test1.exr" ),
+				"exr",
+				"rgba",
+				{}
+			)
+		)
+
+		renderer.output(
+			"test2",
+			IECoreScene.Output(
+				str( self.temporaryDirectory() / "test2.exr" ),
+				"exr",
+				"rgba",
+				{}
+			)
+		)
+
+		renderer.object(
+			"sphere",
+			IECoreScene.SpherePrimitive(),
+			renderer.attributes( IECore.CompoundObject() )
+		).transform( imath.M44f().translate( imath.V3f( 0, 0, -3 ) ) )
+
+		renderer.render()
+		del renderer
+
+		image1 = OpenImageIO.ImageBuf( str( self.temporaryDirectory() / "test1.exr" ) )
+		image2 = OpenImageIO.ImageBuf( str( self.temporaryDirectory() / "test2.exr" ) )
+
+		self.assertFalse( OpenImageIO.ImageBufAlgo.compare( image1, image2, failthresh = 0, warnthresh=0 ).error )
+
 	def testUserAttribute( self ) :
 
 		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
