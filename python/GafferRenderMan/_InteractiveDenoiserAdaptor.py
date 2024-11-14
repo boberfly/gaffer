@@ -41,6 +41,10 @@ import IECore
 import Gaffer
 import GafferScene
 
+# RenderMan's interactive denoiser is not trivial for a user to set up. It requires
+# the insertion of a "man in the middle" driver called `quicklyNoiseless`, and this
+# must be fed with a specific set of AOVs. Rather than make folks do this manually,
+# this adaptor does it automatically, controlled by some custom options in the scene.
 class _InteractiveDenoiserAdaptor( GafferScene.SceneProcessor ) :
 
 	def __init__( self, name = "_InteractiveDenoiserAdaptor" ) :
@@ -60,17 +64,46 @@ class _InteractiveDenoiserAdaptor( GafferScene.SceneProcessor ) :
 	@staticmethod
 	def _adaptedGlobals( inputGlobals ) :
 
+		# Early out if we don't want to enable the denoiser.
+
 		enabled = inputGlobals.get( "option:ri:interactiveDenoiser:enabled" )
 		if enabled is None or not enabled.value :
 			return inputGlobals
 
+		# Find an output we can base all the denoising AOVs on. We need to know
+		# the right values for `displayPort` and other parameters, which we can
+		# get this from the beauty output.
+
+		templateOutput = None
+		for key, value in inputGlobals.items() :
+			if not key.startswith( "output:" ) :
+				continue
+			if value.getType() != "ieDisplay" :
+				continue
+			if value.getData() in { "rgb", "rgba" } :
+				templateOutput = value.copy()
+				break
+
+		if templateOutput is None :
+			IECore.msg( IECore.Msg.Warning, "_InteractiveDenoiserAdaptor", "No beauty output found" )
+			return inputGlobals
+
+		# Set up the template for the `quicklyNoiseless` driver.
+
+		templateOutput.setName( "denoiser" )
+		templateOutput.setType( "quicklyNoiseless" )
+		templateOutput.parameters()["dspyDSOPath"] = IECore.StringData(
+			str( Gaffer.rootPath() / "renderManPlugins" / "d_ieDisplay.so" )
+		)
+
 		qnParameterPrefix = "option:ri:interactiveDenoiser:"
-		qnParameters = {}
 		for name, value in inputGlobals.items() :
 			if name.startswith( qnParameterPrefix ) :
 				name = name[len(qnParameterPrefix):]
 				if name != "enabled" :
-					qnParameters[name] = value
+					templateOutput.parameters()[name] = value
+
+		# Set the driver up with all the required outputs.
 
 		requiredOutputs = [
 			( "beauty", "rgba", "filter" ),
@@ -86,44 +119,8 @@ class _InteractiveDenoiserAdaptor( GafferScene.SceneProcessor ) :
 			( "sampleCount", "float sampleCount", "sum" ),
 		]
 
-		dataFound = set()
-		templateOutput = None
-
 		outputGlobals = inputGlobals.copy()
-		for key, value in inputGlobals.items() :
-
-			if not key.startswith( "output:" ) :
-				continue
-
-			if value.getType() != "ieDisplay" :
-				continue
-
-			output = value.copy()
-			# Give everything the same name, so that all outputs go to a single driver.
-			output.setName( "interactiveOutputs" )
-			# Redirect output to `quicklyNoiseless` driver, which will do the denoising.
-			output.setType( "quicklyNoiseless" )
-			# And redirect the output of `quicklyNoiseless` back to our regular driver.
-			output.parameters()["dspyDSOPath"] = IECore.StringData(
-				str( Gaffer.rootPath() / "renderManPlugins" / "d_ieDisplay.so" )
-			)
-			# Add parameters for `quicklyNoiseless`.
-			output.parameters().update( qnParameters )
-
-			if output.getData() in { "rgb", "rgba" } :
-				templateOutput = output.copy()
-
-			dataFound.add( output.getData() ) # TODO : WORRY ABOUT LAYER NAME?
-			outputGlobals[key] = output
-
-		if templateOutput is None :
-			IECore.msg( IECore.Msg.Warning, "_InteractiveDenoiserAdaptor", "No beauty output found" )
-			return inputGlobals
-
 		for layerName, data, accumulationRule in requiredOutputs :
-
-			if data in dataFound :
-				continue
 
 			output = templateOutput.copy()
 			output.setData( data )
