@@ -38,11 +38,9 @@
 
 #include "ParamListAlgo.h"
 
-#include "IECore/LRUCache.h"
-#include "IECore/SearchPath.h"
+#include "IECore/DataAlgo.h"
 
 #include "boost/container/flat_map.hpp"
-#include "boost/property_tree/xml_parser.hpp"
 
 #include "fmt/format.h"
 
@@ -60,110 +58,54 @@ using namespace IECoreRenderMan;
 namespace
 {
 
-using ParameterTypeMap = std::unordered_map<InternedString, pxrcore::DataType>;
-using ParameterTypeMapPtr = shared_ptr<ParameterTypeMap>;
-using ParameterTypeCache = IECore::LRUCache<string, ParameterTypeMapPtr>;
-
-void loadParameterTypes( const boost::property_tree::ptree &tree, ParameterTypeMap &typeMap )
+std::optional<pxrcore::DataType> parameterType( const IECoreScene::Shader *shader, InternedString name )
 {
-	for( const auto &child : tree )
+	const Data *value = shader->parametersData()->member( name );
+	if( !value )
 	{
-		if( child.first == "param" )
-		{
-			const string name = child.second.get<string>( "<xmlattr>.name" );
-			const string type = child.second.get<string>( "<xmlattr>.type" );
-			if( type == "float" )
-			{
-				typeMap[name] = pxrcore::DataType::k_float;
-			}
-			else if( type == "int" )
-			{
-				typeMap[name] = pxrcore::DataType::k_integer;
-			}
-			else if( type == "point" )
-			{
-				typeMap[name] = pxrcore::DataType::k_point;
-			}
-			else if( type == "vector" )
-			{
-				typeMap[name] = pxrcore::DataType::k_vector;
-			}
-			else if( type == "normal" )
-			{
-				typeMap[name] = pxrcore::DataType::k_normal;
-			}
-			else if( type == "color" )
-			{
-				typeMap[name] = pxrcore::DataType::k_color;
-			}
-			else if( type == "string" )
-			{
-				typeMap[name] = pxrcore::DataType::k_string;
-			}
-			else if( type == "struct" )
-			{
-				typeMap[name] = pxrcore::DataType::k_struct;
-			}
-			else
-			{
-				IECore::msg( IECore::Msg::Warning, "IECoreRenderMan::Renderer", fmt::format( "Unknown type {} for parameter \"{}\".", type, name ) );
-			}
-		}
-		else if( child.first == "page" )
-		{
-			loadParameterTypes( child.second, typeMap );
-		}
+		return std::nullopt;
 	}
-}
 
-ParameterTypeCache g_parameterTypeCache(
-
-	[]( const std::string &shaderName, size_t &cost ) {
-
-		const char *pluginPath = getenv( "RMAN_RIXPLUGINPATH" );
-		SearchPath searchPath( pluginPath ? pluginPath : "" );
-
-		boost::filesystem::path argsFilename = searchPath.find( "Args/" + shaderName + ".args" );
-		if( argsFilename.empty() )
-		{
-			throw IECore::Exception(
-				fmt::format( "Unable to find shader \"{}\" on RMAN_RIXPLUGINPATH", shaderName )
-			);
-		}
-
-		std::ifstream argsStream( argsFilename.string() );
-
-		boost::property_tree::ptree tree;
-		boost::property_tree::read_xml( argsStream, tree );
-
-		auto parameterTypes = make_shared<ParameterTypeMap>();
-		loadParameterTypes( tree.get_child( "args" ), *parameterTypes );
-
-		cost = 1;
-		return parameterTypes;
-	},
-	/* maxCost = */ 10000
-
-);
-
-const pxrcore::DataType *parameterType( const Shader *shader, IECore::InternedString parameterName )
-{
-	ParameterTypeMapPtr p = g_parameterTypeCache.get( shader->getName() );
-	auto it = p->find( parameterName );
-	if( it != p->end() )
+	switch( value->typeId() )
 	{
-		return &it->second;
+		case IntDataTypeId :
+			return pxrcore::DataType::k_integer;
+		case FloatDataTypeId :
+			return pxrcore::DataType::k_float;
+		case V3fDataTypeId : {
+			switch( static_cast<const V3fData *>( value )->getInterpretation() )
+			{
+				case GeometricData::Vector :
+					return pxrcore::DataType::k_vector;
+				case GeometricData::Normal :
+					return pxrcore::DataType::k_normal;
+				default :
+					return pxrcore::DataType::k_point;
+			}
+		}
+		case Color3fDataTypeId :
+			return pxrcore::DataType::k_color;
+		case StringDataTypeId :
+			return pxrcore::DataType::k_string;
+		default :
+			return std::nullopt;
 	}
-	return nullptr;
 }
 
 using HandleSet = std::unordered_set<InternedString>;
 
 void convertConnection( const IECoreScene::ShaderNetwork::Connection &connection, const IECoreScene::Shader *shader, RtParamList &paramList )
 {
-	const pxrcore::DataType *type = parameterType( shader, connection.destination.name );
+	std::optional<pxrcore::DataType> type = parameterType( shader, connection.destination.name );
 	if( !type )
 	{
+		IECore::msg(
+			IECore::Msg::Warning, "IECoreRenderMan",
+			fmt::format(
+				"Unable to translate connection to `{}.{}` because its type is not known",
+				connection.destination.shader.string(), connection.destination.name.string()
+			)
+		);
 		return;
 	}
 
@@ -193,6 +135,8 @@ const boost::container::flat_map<string, RtUString> g_shaderNameConversions = {
 	// lights, almost as if they may have been put together rather hastily, with
 	// little consideration for standardisation ;) That does at least make
 	// conversion easy for _one_ renderer backend though.
+	/// \todo This was too optimistic. There are also a bunch of parameter
+	/// renames that we need to take into account.
 	{ "CylinderLight", RtUString( "PxrCylinderLight" ) },
 	{ "DiskLight", RtUString( "PxrDiskLight" ) },
 	{ "DistantLight", RtUString( "PxrDistantLight" ) },

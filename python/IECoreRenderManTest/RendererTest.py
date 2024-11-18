@@ -559,7 +559,7 @@ class RendererTest( GafferTest.TestCase ) :
 								"type" : "color",
 							}
 						),
-						"output" : IECoreScene.Shader( "PxrConstant" ),
+						"output" : IECoreScene.Shader( "PxrConstant", "ri:surface", { "emitColor" : imath.Color3f( 0 ) } ),
 					},
 					connections = [
 						( ( "attribute", "resultRGB" ), ( "output", "emitColor" ) )
@@ -738,6 +738,92 @@ class RendererTest( GafferTest.TestCase ) :
 
 		del sphere, portal, dome
 		del renderer
+
+	def testConnectionToMissingShader( self ) :
+
+		# This test doesn't assert anything, but demonstrates that making
+		# a connection to a missing shader doesn't throw an exception or
+		# crash. Both of which we did at one point.
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+		)
+
+		renderer.output(
+			"test",
+			IECoreScene.Output(
+				str( self.temporaryDirectory() / "test.exr" ),
+				"exr",
+				"rgba",
+				{
+				},
+			)
+		)
+
+		renderer.object(
+			"sphere",
+			IECoreScene.SpherePrimitive(),
+			renderer.attributes( IECore.CompoundObject( {
+				"ri:surface" : IECoreScene.ShaderNetwork(
+					shaders = {
+						"attribute" : IECoreScene.Shader( "PxrAttribute", "osl:shader", {} ),
+						"output" : IECoreScene.Shader( "MissingShader", "ri:surface", { "emitColor" : imath.Color3f( 0 ) } ),
+					},
+					connections = [
+						( ( "attribute", "resultRGB" ), ( "output", "emitColor" ) )
+					],
+					output = "output",
+				),
+			} ) )
+		).transform( imath.M44f().translate( imath.V3f( 0, 0, -3 ) ) )
+
+		renderer.render()
+		del renderer
+
+	def testConnectionToOSLShader( self ) :
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+		)
+
+		fileName = str( self.temporaryDirectory() / "test.exr" )
+		renderer.output(
+			"test",
+			IECoreScene.Output(
+				fileName,
+				"exr",
+				"rgba",
+				{
+				},
+			)
+		)
+
+		renderer.object(
+			"sphere",
+			IECoreScene.SpherePrimitive(),
+			renderer.attributes( IECore.CompoundObject( {
+				"ri:surface" : IECoreScene.ShaderNetwork(
+					shaders = {
+						"mix" : IECoreScene.Shader( "PxrMix", "osl:shader", { "color1" : imath.Color3f( 1, 1, 0 ) } ),
+						"correct" : IECoreScene.Shader( "PxrColorCorrect", "osl:shader", { "inputRGB" : imath.Color3f( 0 ) } ),
+						"output" : IECoreScene.Shader( "PxrConstant", "ri:surface", { "emitColor" : imath.Color3f( 0 ) } ),
+					},
+					connections = [
+						( ( "mix", "resultRGB" ), ( "correct", "inputRGB" ) ),
+						( ( "correct", "resultRGB" ), ( "output", "emitColor" ) ),
+					],
+					output = "output",
+				),
+			} ) )
+		).transform( imath.M44f().translate( imath.V3f( 0, 0, -3 ) ) )
+
+		renderer.render()
+		del renderer
+
+		image = OpenImageIO.ImageBuf( fileName )
+		self.assertEqual( image.getpixel( 320, 240, 0 ), ( 1.0, 1.0, 0.0, 1.0 ) )
 
 	def __colorAtUV( self, image, uv ) :
 
