@@ -2378,6 +2378,11 @@ for f in exampleFiles :
 def installer( target, source, env ) :
 
 	distutils.dir_util.copy_tree( str( source[0] ), str( target[0] ), preserve_symlinks=True, update=True )
+	# Hack to allow Gaffer to be run on an Alma container on a CentOS base at Cinesite.
+	# As far as I can tell, this isn't needed for `libQt5Widgets`, but I've just copied
+	# what Cinesite do internally.
+	for lib in [ "libQt5Core.so", "libQt5Widgets.so" ] :
+		subprocess.check_call( [ "strip", "--remove-section=.note.ABI-tag", f"{target[0]}/lib/{lib}" ] )
 
 if env.subst( "$PACKAGE_FILE" ).endswith( ".dmg" ) :
 
