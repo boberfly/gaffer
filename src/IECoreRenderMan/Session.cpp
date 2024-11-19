@@ -36,6 +36,8 @@
 
 #include "Session.h"
 
+#include "Imath/ImathMatrixAlgo.h"
+
 #include "RixPredefinedStrings.hpp"
 #include "XcptErrorCodes.h"
 
@@ -53,12 +55,44 @@ const RtUString g_intensityMultUStr( "intensityMult" );
 const RtUString g_lightingMuteUStr( "lighting:mute" );
 const RtUString g_lightColorUStr( "lightColor" );
 const RtUString g_lightColorMapUStr( "lightColorMap" );
+const RtUString g_portalNameUStr( "portalName" );
 const RtUString g_portalToDomeUStr( "portalToDome" );
 const RtUString g_pxrDomeLightUStr( "PxrDomeLight" );
 const RtUString g_pxrPortalLightUStr( "PxrPortalLight" );
 const RtUString g_tintUStr( "tint" );
 
 const riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
+
+// Returns a unique portal name based on a color map and rotation, to
+// satisfy these requirements from the RenderMan docs :
+//
+// > All portal lights that are associated with the same parent dome light
+// > and the same portal name must have the same rotation. If you need
+// > to change a portal light's rotation, then you need to have a new portal
+// > name. However, different translation and scaling can share the same portal
+// > name.
+//
+// I don't really know why this is, but I assume that somehow the name
+// is used to share an acceleration table or some such behind the scenes.
+// Why it is should be our responsibility to facilitate that is beyond me.
+RtUString portalName( RtUString colorMap, const RtMatrix4x4 domeTransform, const RtMatrix4x4 portalTransform )
+{
+	Imath::V3f domeRotation;
+	Imath::extractEulerXYZ( Imath::M44f( domeTransform.m ), domeRotation );
+
+	Imath::V3f portalRotation;
+	Imath::extractEulerXYZ( Imath::M44f( portalTransform.m ), portalRotation );
+
+	IECore::MurmurHash h;
+	if( !colorMap.Empty() )
+	{
+		h.append( colorMap.CStr() );
+	}
+	h.append( domeRotation );
+	h.append( portalRotation );
+
+	return RtUString( h.toString().c_str() );
+}
 
 } // namespace
 
@@ -381,7 +415,11 @@ void Session::updatePortals()
 				RtMatrix4x4 domeInverse; domeInverse.Identity();
 				domeLight->transform.Inverse( &domeInverse );
 				const RtMatrix4x4 portalToDome = info.transform * domeInverse;
-				portalShader.shaders.back().params.SetMatrix( g_portalToDomeUStr, portalToDome );
+				portalParams.SetMatrix( g_portalToDomeUStr, portalToDome );
+
+				// And most bizarrely of all, we are required to compute `portalName`,
+				// which must change any time the rotation does.
+				portalParams.SetString( g_portalNameUStr, portalName( colorMap, domeLight->transform, info.transform ) );
 
 				// Update the light shader. We can modify the existing one in
 				// place because we know we're only using it on this one light.
