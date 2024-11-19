@@ -130,8 +130,8 @@ if "RMANTREE" in os.environ :
 	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:enabled", "label", "Enabled" )
 	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:enabled", "layout:section", "Interactive Denoiser" )
 
-	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:cheapFirstPass", "defaultValue", True )
-	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:cheapFirstPass", "description",
+	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:cheapPass", "defaultValue", True )
+	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:cheapPass", "description",
 		"""
 		When on, the first pass will use a cheaper (slightly faster but lower
 		quality) heuristic. This can be useful if rendering something that is
@@ -139,8 +139,8 @@ if "RMANTREE" in os.environ :
 		result faster.
 		"""
 	)
-	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:cheapFirstPass", "label", "Cheap First Pass" )
-	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:cheapFirstPass", "layout:section", "Interactive Denoiser" )
+	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:cheapPass", "label", "Cheap First Pass" )
+	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:cheapPass", "layout:section", "Interactive Denoiser" )
 
 	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:interval", "defaultValue", 4.0 )
 	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:interval", "description",
@@ -151,7 +151,7 @@ if "RMANTREE" in os.environ :
 	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:interval", "label", "Interval" )
 	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:interval", "layout:section", "Interactive Denoiser" )
 
-	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:minSamples", "defaultValue", 4.0 )
+	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:minSamples", "defaultValue", 2 )
 	Gaffer.Metadata.registerValue( "option:ri:interactiveDenoiser:minSamples", "description",
 		"""
 		The minimum number of average samples per bucket before the interactive denoiser runs for the first time.

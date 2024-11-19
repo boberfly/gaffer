@@ -95,6 +95,12 @@ class _InteractiveDenoiserAdaptor( GafferScene.SceneProcessor ) :
 		templateOutput.parameters()["dspyDSOPath"] = IECore.StringData(
 			str( Gaffer.rootPath() / "renderManPlugins" / "d_ieDisplay.so" )
 		)
+		# Works around RenderMan terminating on renderer shutdown with :
+		# ```
+		# terminate called after throwing an instance of 'std::runtime_error
+		#   what():  Channel not found: Ci.r`
+		# ```
+		templateOutput.parameters()["immediateClose"] = IECore.BoolData( True )
 
 		qnParameterPrefix = "option:ri:interactiveDenoiser:"
 		for name, value in inputGlobals.items() :
