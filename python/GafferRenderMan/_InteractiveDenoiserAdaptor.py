@@ -35,6 +35,8 @@
 ##########################################################################
 
 import inspect
+import os
+import pathlib
 
 import IECore
 
@@ -78,7 +80,7 @@ class _InteractiveDenoiserAdaptor( GafferScene.SceneProcessor ) :
 		for key, value in inputGlobals.items() :
 			if not key.startswith( "output:" ) :
 				continue
-			if value.getType() != "ieDisplay" :
+			if value.getType() not in ( "ieDisplay", "socket" ) :
 				continue
 			if value.getData() in { "rgb", "rgba" } :
 				templateOutput = value.copy()
@@ -90,11 +92,18 @@ class _InteractiveDenoiserAdaptor( GafferScene.SceneProcessor ) :
 
 		# Set up the template for the `quicklyNoiseless` driver.
 
-		templateOutput.setName( "denoiser" )
+		if templateOutput.getType() == "ieDisplay" :
+			templateOutput.parameters()["dspyDSOPath"] = IECore.StringData(
+				str( Gaffer.rootPath() / "renderManPlugins" / "d_ieDisplay.so" )
+			)
+		else :
+			templateOutput.parameters()["dspyDSOPath"] = IECore.StringData(
+				str( pathlib.Path( os.environ["RMANTREE"] ) / "lib" / "plugins" / "d_socket.so" )
+			)
+
 		templateOutput.setType( "quicklyNoiseless" )
-		templateOutput.parameters()["dspyDSOPath"] = IECore.StringData(
-			str( Gaffer.rootPath() / "renderManPlugins" / "d_ieDisplay.so" )
-		)
+		templateOutput.setName( "denoiser" )
+
 		# Works around RenderMan terminating on renderer shutdown with :
 		# ```
 		# terminate called after throwing an instance of 'std::runtime_error
