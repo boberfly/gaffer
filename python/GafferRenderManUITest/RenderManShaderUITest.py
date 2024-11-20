@@ -48,7 +48,7 @@ import GafferRenderManUI
 
 class RenderManShaderUITest( GafferUITest.TestCase ) :
 
-	def testMetadata( self ) :
+	def testArgFileMetadata( self ) :
 
 		n = GafferRenderMan.RenderManShader()
 		n.loadShader( "PxrSurface" )
@@ -79,6 +79,25 @@ class RenderManShaderUITest( GafferUITest.TestCase ) :
 			Gaffer.Metadata.value( n["parameters"]["continuationRayMode"], "presetValues" ),
 			IECore.IntVectorData( [ 0, 1, 2 ] )
 		)
+
+	def testCustomMetadata( self ) :
+
+		# Check that all the metadata registered by
+		# `startup/GafferRenderManUII/shaderMetadata.py` refers to shaders and
+		# parameters that actually exist.
+
+		node = GafferRenderMan.RenderManShader()
+
+		for key in [ "noduleLayout:visible", "userDefault" ] :
+			targets = Gaffer.Metadata.targetsWithMetadata( "ri:surface:*", key )
+			shaders = { t.split( ":" )[2] for t in targets }
+			for shader in shaders :
+				with self.subTest( shader = shader ) :
+					node.loadShader( shader )
+					for target in targets :
+						_, _, s, parameter = target.split( ":" )
+						if s == shader :
+							self.assertIn( parameter, node["parameters"] )
 
 	def testLoadAllStandardShaders( self ) :
 
