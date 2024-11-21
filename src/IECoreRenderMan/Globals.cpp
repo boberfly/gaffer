@@ -64,11 +64,6 @@ const IECore::InternedString g_layerName( "layerName" );
 const IECore::InternedString g_sampleMotionOption( "sampleMotion" );
 const IECore::InternedString g_frameOption( "frame" );
 const IECore::InternedString g_integratorOption( "ri:integrator" );
-const IECore::InternedString g_pixelFilterNameOption( "ri:Ri:PixelFilterName" );
-const IECore::InternedString g_pixelFilterWidthOption( "ri:Ri:PixelFilterWidth" );
-
-const RtUString g_defaultPixelFilter = Rix::k_gaussian;
-riley::FilterSize g_defaultPixelFilterSize = { 2, 2 };
 
 const vector<InternedString> g_rejectedOutputFilterParameters = {
 	"filter",
@@ -116,7 +111,6 @@ T parameter( const CompoundDataMap &parameters, const IECore::InternedString &na
 
 Globals::Globals( IECoreScenePreview::Renderer::RenderType renderType, const IECore::MessageHandlerPtr &messageHandler )
 	:	m_renderType( renderType ), m_messageHandler( messageHandler ),
-		m_pixelFilter( g_defaultPixelFilter ), m_pixelFilterSize( g_defaultPixelFilterSize ),
 		m_renderTargetExtent()
 {
 	// Initialise `m_integratorToConvert`.
@@ -197,50 +191,6 @@ void Globals::option( const IECore::InternedString &name, const IECore::Object *
 		else
 		{
 			m_options.Remove( RtUString( "hider:samplemotion" ) );
-		}
-	}
-	else if( name == g_pixelFilterNameOption )
-	{
-		// We're in a strange situation here. RenderMan has deprecated the
-		// `Ri:PixelFilterName` option, and instead expects pixel filters to be
-		// specified on a per-output basis. But denoising has become so
-		// ubiquitous that "importance" is the only `filterMode` you'd
-		// realistically use. And of course, in that mode, you can't have
-		// different filters per output - it just uses the filter from the first
-		// output. So exposing per-output filters to the user would be
-		// completely misleading.
-		//
-		// So we emulate the deprecated option, and forward it on to all
-		// of our outputs. Hopefully at some point the Riley API will be
-		// simplified to avoid all this ambiguity.
-		auto *d = optionCast<const StringData>( value, name );
-		m_pixelFilter = d ? RtUString( d->readable().c_str() ) : g_defaultPixelFilter;
-		for( auto &[h, outputs] : m_renderOutputs )
-		{
-			for( const auto &output : outputs )
-			{
-				std::cerr << "MODIFYING OUTPUT " << output.AsUInt32() << std::endl;
-				m_session->riley->ModifyRenderOutput(
-					output, nullptr, nullptr, nullptr, nullptr, &m_pixelFilter,
-					nullptr, nullptr, nullptr
-				);
-			}
-		}
-	}
-	else if( name == g_pixelFilterWidthOption )
-	{
-		// See above.
-		auto *d = optionCast<const V2fData>( value, name );
-		m_pixelFilterSize = d ? riley::FilterSize( { d->readable().x, d->readable().y } ) : g_defaultPixelFilterSize;
-		for( auto &[h, outputs] : m_renderOutputs )
-		{
-			for( const auto &output : outputs )
-			{
-				m_session->riley->ModifyRenderOutput(
-					output, nullptr, nullptr, nullptr, nullptr, nullptr,
-					&m_pixelFilterSize, nullptr, nullptr
-				);
-			}
 		}
 	}
 	else if( boost::starts_with( name.c_str(), g_renderManPrefix.c_str() ) )
@@ -636,6 +586,9 @@ const std::vector<riley::RenderOutputId> &Globals::acquireRenderOutputs( const I
 	const RtUString accumulationRule( parameter( output->parameters(), "ri:accumulationRule", string( "filter" ) ).c_str() );
 	const float relativePixelVariance = parameter( output->parameters(), "ri:relativePixelVariance", 0.0f );
 
+	const RtUString filter = Rix::k_gaussian; // TODO : GET FROM OPTIONS
+	const riley::FilterSize filterSize = { 2.0, 2.0 }; // TODO : GET FROM OPTIONS
+
 	// Hash.
 
 	MurmurHash hash;
@@ -643,6 +596,9 @@ const std::vector<riley::RenderOutputId> &Globals::acquireRenderOutputs( const I
 	hash.append( *type );
 	hash.append( source.CStr() );
 	hash.append( accumulationRule.CStr() );
+	hash.append( filter.CStr() );
+	hash.append( filterSize.width );
+	hash.append( filterSize.height );
 	hash.append( output->getData() == "rgba" );
 
 	// Return previously created result if we have one.
@@ -659,7 +615,7 @@ const std::vector<riley::RenderOutputId> &Globals::acquireRenderOutputs( const I
 		m_session->riley->CreateRenderOutput(
 			riley::UserId(),
 			renderOutputName, *type, source,
-			accumulationRule, m_pixelFilter, m_pixelFilterSize, relativePixelVariance,
+			accumulationRule, filter, filterSize, relativePixelVariance,
 			RtParamList()
 		)
 	);
@@ -670,7 +626,7 @@ const std::vector<riley::RenderOutputId> &Globals::acquireRenderOutputs( const I
 			m_session->riley->CreateRenderOutput(
 				riley::UserId(),
 				RtUString( "a" ), riley::RenderOutputType::k_Float, Rix::k_a,
-				accumulationRule, m_pixelFilter, m_pixelFilterSize, relativePixelVariance,
+				accumulationRule, filter, filterSize, relativePixelVariance,
 				RtParamList()
 			)
 		);
