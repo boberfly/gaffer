@@ -79,8 +79,11 @@ class Globals : public boost::noncopyable
 		void updateRenderView();
 		void deleteRenderView();
 
+		const IECoreScenePreview::Renderer::RenderType m_renderType;
+		const IECore::MessageHandlerPtr m_messageHandler;
+
 		// We are not allowed to call anything in the Riley API before we've
-		// called `Riley::SetOptions()`. So we buffer all the options and output
+		// called `Riley::SetOptions()`. So we buffer all the options and outputs
 		// into the following member variables, and create the Riley session
 		// only when we must.
 
@@ -88,11 +91,11 @@ class Globals : public boost::noncopyable
 		std::string m_cameraOption;
 		IECoreScene::ConstShaderPtr m_integratorToConvert;
 		std::unordered_map<IECore::InternedString, IECoreScene::ConstOutputPtr> m_outputs;
+		RtUString m_pixelFilter;
+		riley::FilterSize m_pixelFilterSize;
 
 		// When we require the Riley session, we create it in `acquireSession()`.
 
-		const IECoreScenePreview::Renderer::RenderType m_renderType;
-		const IECore::MessageHandlerPtr m_messageHandler;
 		std::unique_ptr<Session> m_session;
 
 		// Then once we have the session, we are free to use the Riley API
