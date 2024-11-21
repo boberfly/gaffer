@@ -826,6 +826,33 @@ class RendererTest( GafferTest.TestCase ) :
 		image = OpenImageIO.ImageBuf( fileName )
 		self.assertEqual( image.getpixel( 320, 240, 0 ), ( 1.0, 1.0, 0.0, 1.0 ) )
 
+	def testWarningForPerOutputPixelFilter( self ) :
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+		)
+
+		with IECore.CapturingMessageHandler() as mh :
+
+			renderer.output(
+				"test",
+				IECoreScene.Output(
+					"test.exr",
+					"exr",
+					"rgba",
+					{
+						"filter" : "gaussian",
+						"filterwidth" : imath.V2f( 4, 4 ),
+					},
+				)
+			)
+
+		self.assertEqual( len( mh.messages ), 2 )
+		for m in mh.messages :
+			self.assertEqual( m.level, IECore.Msg.Level.Warning )
+			self.assertIn( "Ignoring unsupported parameter", m.message )
+
 	def testSubdivInterpolatedBoundary( self ) :
 
 		for interpolateBoundary, expected in [

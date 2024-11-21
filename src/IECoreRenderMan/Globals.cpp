@@ -65,6 +65,11 @@ const IECore::InternedString g_sampleMotionOption( "sampleMotion" );
 const IECore::InternedString g_frameOption( "frame" );
 const IECore::InternedString g_integratorOption( "ri:integrator" );
 
+const vector<InternedString> g_rejectedOutputFilterParameters = {
+	"filter",
+	"filterwidth"
+};
+
 template<typename T>
 T *optionCast( const IECore::RunTimeTyped *v, const IECore::InternedString &name )
 {
@@ -218,7 +223,15 @@ void Globals::output( const IECore::InternedString &name, const Output *output )
 {
 	if( output )
 	{
-		m_outputs[name] = output;
+		OutputPtr copy = output->copy();
+		for( const auto &n : g_rejectedOutputFilterParameters )
+		{
+			if( copy->parameters().erase( n ) )
+			{
+				IECore::msg( IECore::Msg::Warning, "RenderManRenderer", fmt::format( "Ignoring unsupported parameter \"{}\" on output \"{}\". Filters must be specified via global options.", n.string(), name.string() ) );
+			}
+		}
+		m_outputs[name] = copy;
 	}
 	else
 	{
