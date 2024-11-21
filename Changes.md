@@ -1,9 +1,16 @@
 1.5.x.x (relative to 1.5.0.1)
 =======
 
+> Caution : The GafferML features introduced in this release are considered experimental, and are not subject to the usual backwards compatibility guarantees that apply to the rest of Gaffer.
+
 Features
 --------
 
+- GafferML : Added a new module with the following nodes for running maching learning models via ONNX Runtime :
+  - DataToTensor : Converts Gaffer data to tensors.
+  - Inference : Loads ONNX models and performance inference using an array of input tensors.
+  - ImageToTensor : Converts images to tensors for use with the Inference node.
+  - TensorToImage : Converts tensors back to images following inference.
 - EditScope : Introduced the Global Edit Target, providing script-level control over the target used by editors. The Global Edit Target can be set from a new "Edit Target" menu in the menu bar, which displays all available edit targets upstream of the focus node.
   - Editors now follow the Global Edit Target by default, allowing for a simpler experience when switching multiple editors to a common target.
   - Individual editors can be overridden to use a specific edit target where necessary. An overridden editor can return to following the Global Edit Target via the new "Follow Global Edit Target" menu item.
@@ -53,6 +60,7 @@ API
   - Deprecated `connect()` function. Use `connectToApplication()` instead.
 - SceneEditor : Added `editScope()` method.
 - Image : Added optional `image` argument to `createSwatch()` static method.
+- PlugLayout : Activations may now depend on the presence of certain plugs, as they are now reevaluated when child plugs are added and removed.
 
 1.5.0.1 (relative to 1.5.0.0)
 =======
