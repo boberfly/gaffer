@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2018, John Haddon. All rights reserved.
+#  Copyright (c) 2024, Cinesite VFX Ltd. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -34,9 +34,30 @@
 #
 ##########################################################################
 
-from .RileyCapture import RileyCapture
-from .RendererTest import RendererTest
+import json
+import os
+import pathlib
+import shutil
+import tempfile
 
-if __name__ == "__main__":
-	import unittest
-	unittest.main()
+class RileyCapture :
+
+	def __init__( self ) :
+
+		self.__dir = pathlib.Path( tempfile.mkdtemp( prefix = "rileyCapture" ) )
+		self.__fileName = self.__dir / "capture.json"
+		self.json = {}
+
+	def __enter__( self ) :
+
+		os.environ["RILEY_CAPTURE"] = str( self.__fileName )
+		os.environ["RILEY_CAPTURE_FORMAT"] = "json"
+
+		return self
+
+	def __exit__( self, type, value, traceBack ) :
+
+		del os.environ["RILEY_CAPTURE"]
+		del os.environ["RILEY_CAPTURE_FORMAT"]
+		self.json = json.load( open( self.__fileName ) )
+		shutil.rmtree( self.__dir )
