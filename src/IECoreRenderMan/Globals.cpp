@@ -66,9 +66,11 @@ const IECore::InternedString g_frameOption( "frame" );
 const IECore::InternedString g_integratorOption( "ri:integrator" );
 const IECore::InternedString g_pixelFilterNameOption( "ri:Ri:PixelFilterName" );
 const IECore::InternedString g_pixelFilterWidthOption( "ri:Ri:PixelFilterWidth" );
+const IECore::InternedString g_pixelVarianceOption( "ri:Ri:PixelVariance" );
 
 const RtUString g_defaultPixelFilter = Rix::k_gaussian;
 riley::FilterSize g_defaultPixelFilterSize = { 2, 2 };
+float g_defaultPixelVariance = 0.015;
 
 const vector<InternedString> g_rejectedOutputFilterParameters = {
 	"filter",
@@ -116,7 +118,7 @@ T parameter( const CompoundDataMap &parameters, const IECore::InternedString &na
 
 Globals::Globals( IECoreScenePreview::Renderer::RenderType renderType, const IECore::MessageHandlerPtr &messageHandler )
 	:	m_renderType( renderType ), m_messageHandler( messageHandler ),
-		m_pixelFilter( g_defaultPixelFilter ), m_pixelFilterSize( g_defaultPixelFilterSize ),
+		m_pixelFilter( g_defaultPixelFilter ), m_pixelFilterSize( g_defaultPixelFilterSize ), m_pixelVariance( g_defaultPixelVariance ),
 		m_renderTargetExtent()
 {
 	// Initialise `m_integratorToConvert`.
@@ -159,6 +161,22 @@ Globals::~Globals()
 
 void Globals::option( const IECore::InternedString &name, const IECore::Object *value )
 {
+	if( name == g_pixelVarianceOption )
+	{
+		// Store value for next time we create a render target. And update
+		// any existing render target.
+		auto *d = optionCast<const FloatData>( value, name );
+		m_pixelVariance = d ? d->readable() : g_defaultPixelVariance;
+		if( m_renderTarget != riley::RenderTargetId() )
+		{
+			m_session->riley->ModifyRenderTarget( m_renderTarget, nullptr, nullptr, nullptr, &m_pixelVariance, nullptr );
+		}
+		// Fall through so that we update `m_options` as well. It's completely
+		// unclear whether Riley uses the value from the target or from the
+		// option, but certainly for interactive edits the option needs to be
+		// updated to see a change.
+	}
+
 	if( name == g_integratorOption )
 	{
 		if( auto *network = optionCast<const ShaderNetwork>( value, name ) )
@@ -495,7 +513,10 @@ void Globals::updateRenderView()
 		// `k_Ri_FormatResolution` option? Riley only knows.
 		extent,
 		RtUString( "importance" ),
-		0.015f, // TODO : GET FROM OPTIONS
+		// Likewise, it's unclear what the relationship between this
+		// and the `k_Ri_PixelVariance` option. We just specify them both
+		// to be on the safe side.
+		m_pixelVariance,
 		RtParamList()
 	);
 	m_renderTargetExtent = extent;

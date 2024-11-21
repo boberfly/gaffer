@@ -93,6 +93,7 @@ class Globals : public boost::noncopyable
 		std::unordered_map<IECore::InternedString, IECoreScene::ConstOutputPtr> m_outputs;
 		RtUString m_pixelFilter;
 		riley::FilterSize m_pixelFilterSize;
+		float m_pixelVariance;
 
 		// When we require the Riley session, we create it in `acquireSession()`.
 
