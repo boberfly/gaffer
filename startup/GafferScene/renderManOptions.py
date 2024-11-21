@@ -106,6 +106,18 @@ if "RMANTREE" in os.environ :
 			] )
 		)
 
+	# Omit pixel filters with negative lobes, since they are not compatible
+	# with filter importance sampling (we don't expose weighted sampling).
+
+	for key in [ "presetNames", "presetValues" ] :
+		Gaffer.Metadata.registerValue(
+			"option:ri:Ri:PixelFilterName", key,
+			IECore.StringVectorData( [
+				x for x in Gaffer.Metadata.value( "option:ri:Ri:PixelFilterName", key )
+				if x.lower() not in { "catmull-rom", "separable-catmull-rom", "mitchell", "sinc", "bessel", "lanczos" }
+			] )
+		)
+
 	# Move some stray options into a more logical section of the layout.
 
 	for option in [
