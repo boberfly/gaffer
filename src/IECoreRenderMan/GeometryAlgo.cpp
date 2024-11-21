@@ -413,6 +413,76 @@ GeometryAlgo::ConverterDescription<SpherePrimitive> g_sphereConverterDescription
 namespace
 {
 
+int interpolateBoundary( const IECoreScene::MeshPrimitive *mesh )
+{
+	const InternedString s = mesh->getInterpolateBoundary();
+	if( s == IECoreScene::MeshPrimitive::interpolateBoundaryNone )
+	{
+		return 0;
+	}
+	else if( s == IECoreScene::MeshPrimitive::interpolateBoundaryEdgeAndCorner )
+	{
+		return 1;
+	}
+	else if( s == IECoreScene::MeshPrimitive::interpolateBoundaryEdgeOnly )
+	{
+		return 2;
+	}
+	else
+	{
+		msg( Msg::Error, "GeometryAlgo", fmt::format( "Unknown boundary interpolation \"{}\"", s.string() ) );
+		return 0;
+	}
+}
+
+int faceVaryingInterpolateBoundary( const IECoreScene::MeshPrimitive *mesh )
+{
+	const InternedString s = mesh->getFaceVaryingLinearInterpolation();
+	if( s == IECoreScene::MeshPrimitive::faceVaryingLinearInterpolationNone )
+	{
+		return 2;
+	}
+	else if(
+		s == IECoreScene::MeshPrimitive::faceVaryingLinearInterpolationCornersOnly ||
+		s == IECoreScene::MeshPrimitive::faceVaryingLinearInterpolationCornersPlus1 ||
+		s == IECoreScene::MeshPrimitive::faceVaryingLinearInterpolationCornersPlus2
+	)
+	{
+		return 1;
+	}
+	else if( s == IECoreScene::MeshPrimitive::faceVaryingLinearInterpolationBoundaries )
+	{
+		return 3;
+	}
+	else if( s == IECoreScene::MeshPrimitive::faceVaryingLinearInterpolationAll )
+	{
+		return 0;
+	}
+	else
+	{
+		msg( Msg::Error, "GeometryAlgo", fmt::format( "Unknown facevarying linear interpolation \"{}\"", s.string() ) );
+		return 0;
+	}
+}
+
+int smoothTriangles( const IECoreScene::MeshPrimitive *mesh )
+{
+	const InternedString s = mesh->getTriangleSubdivisionRule();
+	if( s == IECoreScene::MeshPrimitive::triangleSubdivisionRuleCatmullClark )
+	{
+		return 0;
+	}
+	else if( s == IECoreScene::MeshPrimitive::triangleSubdivisionRuleSmooth )
+	{
+		return 2;
+	}
+	else
+	{
+		msg( Msg::Error, "GeometryAlgo", fmt::format( "Unknown triangle subdivision rule \"{}\"", s.string() ) );
+		return 0;
+	}
+}
+
 riley::GeometryPrototypeId convertStaticMesh( const IECoreScene::MeshPrimitive *mesh, riley::Riley *riley )
 {
 	RtPrimVarList primVars(
@@ -432,16 +502,30 @@ riley::GeometryPrototypeId convertStaticMesh( const IECoreScene::MeshPrimitive *
 	primVars.SetIntegerDetail( Rix::k_Ri_vertices, mesh->vertexIds()->readable().data(), RtDetailType::k_facevarying );
 
 	RtUString geometryType = Rix::k_Ri_PolygonMesh;
-	if( mesh->interpolation() == "catmullClark" )
+	if( mesh->interpolation() != MeshPrimitive::interpolationLinear.string() )
 	{
 		geometryType = Rix::k_Ri_SubdivisionMesh;
-		primVars.SetString( Rix::k_Ri_scheme, Rix::k_catmullclark );
+		if( mesh->interpolation() == MeshPrimitive::interpolationCatmullClark.string() )
+		{
+			primVars.SetString( Rix::k_Ri_scheme, Rix::k_catmullclark );
+		}
+		else if( mesh->interpolation() == MeshPrimitive::interpolationLoop.string() )
+		{
+			primVars.SetString( Rix::k_Ri_scheme, Rix::k_loop );
+		}
+		else
+		{
+			msg( Msg::Error, "GeometryAlgo", fmt::format( "Unknown mesh interpolation \"{}\"", mesh->interpolation() ) );
+			primVars.SetString( Rix::k_Ri_scheme, Rix::k_catmullclark );
+		}
 
 		vector<RtUString> tagNames;
 		vector<RtInt> tagArgCounts;
 		vector<RtInt> tagIntArgs;
 		vector<RtFloat> tagFloatArgs;
 		vector<RtToken> tagStringArgs;
+
+		// Creases
 
 		for( int creaseLength : mesh->creaseLengths()->readable() )
 		{
@@ -454,6 +538,8 @@ riley::GeometryPrototypeId convertStaticMesh( const IECoreScene::MeshPrimitive *
 		tagIntArgs = mesh->creaseIds()->readable();
 		tagFloatArgs = mesh->creaseSharpnesses()->readable();
 
+		// Corners
+
 		if( mesh->cornerIds()->readable().size() )
 		{
 			tagNames.push_back( Rix::k_corner );
@@ -463,6 +549,22 @@ riley::GeometryPrototypeId convertStaticMesh( const IECoreScene::MeshPrimitive *
 			tagIntArgs.insert( tagIntArgs.end(), mesh->cornerIds()->readable().begin(), mesh->cornerIds()->readable().end() );
 			tagFloatArgs.insert( tagFloatArgs.end(), mesh->cornerSharpnesses()->readable().begin(), mesh->cornerSharpnesses()->readable().end() );
 		}
+
+		// Interpolation rules
+
+		tagNames.push_back( Rix::k_interpolateboundary );
+		tagArgCounts.insert( tagArgCounts.end(), { 1, 0, 0 } );
+		tagIntArgs.push_back( interpolateBoundary( mesh ) );
+
+		tagNames.push_back( Rix::k_facevaryinginterpolateboundary );
+		tagArgCounts.insert( tagArgCounts.end(), { 1, 0, 0 } );
+		tagIntArgs.push_back( faceVaryingInterpolateBoundary( mesh ) );
+
+		tagNames.push_back( Rix::k_smoothtriangles );
+		tagArgCounts.insert( tagArgCounts.end(), { 1, 0, 0 } );
+		tagIntArgs.push_back( smoothTriangles( mesh ) );
+
+		// Pseudo-primvars to hold the tags
 
 		primVars.SetStringArray( Rix::k_Ri_subdivtags, tagNames.data(), tagNames.size() );
 		primVars.SetIntegerArray( Rix::k_Ri_subdivtagnargs, tagArgCounts.data(), tagArgCounts.size() );
