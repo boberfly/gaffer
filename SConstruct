@@ -173,6 +173,12 @@ options.Add(
 )
 
 options.Add(
+	"RENDERMAN_ROOT",
+	"The directory in which RenderMan is installed",
+	"",
+)
+
+options.Add(
 	"VTUNE_ROOT",
 	"The directory in which VTune is installed.",
 	""
@@ -1332,6 +1338,61 @@ libraries = {
 
 	"GafferCyclesUITest" : { "requiredOptions" : [ "CYCLES_ROOT" ], },
 
+	"IECoreRenderMan" : {
+		"envAppends" : {
+			"CPPPATH" : [ "$RENDERMAN_ROOT/include" ],
+			# The RenderMan headers contain deprecated functionality that we don't use,
+			# but which nonetheless emit compilation warnings. We turn them off so we
+			# can continue to compile with warnings as errors.
+			"CPPDEFINES" : [ "RMAN_RIX_NO_WARN_DEPRECATED" ],
+			"LIBS" : [ "GafferScene", "IECoreScene", "prman", "pxrcore" ],
+			"LIBPATH" : [ "$RENDERMAN_ROOT/lib" ],
+		},
+		"pythonEnvAppends" : {
+			"LIBS" : [ "IECoreRenderMan" ],
+		},
+		"requiredOptions" : [ "RENDERMAN_ROOT" ],
+	},
+
+	"IECoreRenderManTest" : {
+		"requiredOptions" : [ "RENDERMAN_ROOT" ],
+	},
+
+	"GafferRenderMan" : {
+		"envAppends" : {
+			"CPPPATH" : [ "$RENDERMAN_ROOT/include" ],
+			# The RenderMan headers contain deprecated functionality that we don't use,
+			# but which nonetheless emit compilation warnings. We turn them off so we
+			# can continue to compile with warnings as errors.
+			"CPPDEFINES" : [ "RMAN_RIX_NO_WARN_DEPRECATED" ],
+			"LIBS" : [ "Iex$OPENEXR_LIB_SUFFIX", "Gaffer", "GafferDispatch", "GafferScene", "IECoreScene", "prman", "pxrcore" ],
+			"LIBPATH" : [ "$RENDERMAN_ROOT/lib" ],
+		},
+		"pythonEnvAppends" : {
+			"LIBS" : [ "GafferBindings", "GafferDispatch", "GafferRenderMan", "GafferScene" ],
+			"LIBPATH" : [ "$RENDERMAN_ROOT/lib" ],
+		},
+		"requiredOptions" : [ "RENDERMAN_ROOT" ],
+	},
+
+	"GafferRenderManTest" : {},
+
+	"GafferRenderManUI" : {},
+
+	"GafferRenderManUITest" : {},
+
+	"GafferRenderManDisplay" : {
+		"envAppends" : {
+			"LIBS" : [ "IECoreImage$CORTEX_LIB_SUFFIX" ],
+			"CPPPATH" : [ "$RENDERMAN_ROOT/include" ],
+		},
+		"envReplacements" : {
+			"SHLIBPREFIX" : "",
+		},
+		"installName" : "renderManPlugins/d_ieDisplay",
+		"requiredOptions" : [ "RENDERMAN_ROOT" ],
+	},
+
 	"GafferTractor" : {},
 
 	"GafferTractorTest" : {},
@@ -2280,6 +2341,11 @@ for f in exampleFiles :
 def installer( target, source, env ) :
 
 	distutils.dir_util.copy_tree( str( source[0] ), str( target[0] ), preserve_symlinks=True, update=True )
+	# Hack to allow Gaffer to be run on an Alma container on a CentOS base at Cinesite.
+	# As far as I can tell, this isn't needed for `libQt5Widgets`, but I've just copied
+	# what Cinesite do internally.
+	for lib in [ "libQt5Core.so", "libQt5Widgets.so" ] :
+		subprocess.check_call( [ "strip", "--remove-section=.note.ABI-tag", f"{target[0]}/lib/{lib}" ] )
 
 if env.subst( "$PACKAGE_FILE" ).endswith( ".dmg" ) :
 

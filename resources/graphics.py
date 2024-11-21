@@ -351,6 +351,7 @@
 				"pointLight",
 				"diskLight",
 				"quadLight",
+				"portalLight",
 				"cylinderLight",
 				"spotLight",
 				"distantLight",

@@ -305,6 +305,28 @@ if [[ -n $DELIGHT ]] ; then
 
 fi
 
+# Set up RenderMan
+##########################################################################
+
+if [[ -n $RMANTREE ]] ; then
+
+	if [[ `uname` = "Linux" ]] ; then
+		appendToPath "$RMANTREE/lib" LD_LIBRARY_PATH
+	else
+		appendToPath "$RMANTREE/lib" DYLD_LIBRARY_PATH
+	fi
+
+	## TODO : CHECK IF WE NEED ALL THIS
+	appendToPath "$RMANTREE/bin" PATH
+	appendToPath "$RMANTREE/bin" PYTHONPATH
+	appendToPath "$RMANTREE/lib/plugins" RMAN_RIXPLUGINPATH
+	# TODO : MAYBE JUST USE RIXPLUGINPATH FOR THIS TOO?
+	appendToPath "$GAFFER_ROOT/renderManPlugins" RMAN_DISPLAYS_PATH
+	appendToPath "$RMANTREE/lib/usd_plugins/usdRiPxr/Resources" PXR_PLUGINPATH_NAME
+	appendToPath "$RMANTREE/lib/shaders" OSL_SHADER_PATHS
+
+fi
+
 # Set up 3rd Party extensions
 ##########################################################################
 
