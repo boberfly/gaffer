@@ -86,6 +86,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 		~RenderManRenderer() override
 		{
+			m_materialCache.reset();
 			m_globals.reset();
 			g_haveInstance = false;
 		}
