@@ -45,6 +45,7 @@ import OpenImageIO
 import IECore
 import IECoreImage
 import IECoreScene
+import IECoreRenderManTest
 
 import GafferTest
 import GafferScene
@@ -824,6 +825,185 @@ class RendererTest( GafferTest.TestCase ) :
 
 		image = OpenImageIO.ImageBuf( fileName )
 		self.assertEqual( image.getpixel( 320, 240, 0 ), ( 1.0, 1.0, 0.0, 1.0 ) )
+
+	def testSubdivInterpolatedBoundary( self ) :
+
+		for interpolateBoundary, expected in [
+			( IECoreScene.MeshPrimitive.interpolateBoundaryNone, 0 ),
+			( IECoreScene.MeshPrimitive.interpolateBoundaryEdgeAndCorner, 1 ),
+			( IECoreScene.MeshPrimitive.interpolateBoundaryEdgeOnly, 2 ),
+		] :
+
+			with self.subTest( interpolateBoundary = interpolateBoundary ) :
+
+				with IECoreRenderManTest.RileyCapture() as capture :
+
+					renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+						"RenderMan",
+						GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+					)
+
+					mesh = IECoreScene.MeshPrimitive.createPlane( imath.Box2f( imath.V2f( -1 ), imath.V2f( 1 ) ) )
+					mesh.setInterpolation( "catmullClark" )
+					mesh.setInterpolateBoundary( interpolateBoundary )
+
+					renderer.object(
+						"mesh", mesh, renderer.attributes( IECore.CompoundObject() )
+					)
+
+					del mesh, renderer
+
+				proto = next(
+					x for x in capture.json if x["method"] == "CreateGeometryPrototype"
+				)
+				self.__assertInTags(
+					proto, "interpolateboundary", intArgs = [ expected ]
+				)
+
+	def testSubdivFaceVaryingLinearInterpolation( self ) :
+
+		for faceVaryingLinearInterpolation, expected in [
+			( IECoreScene.MeshPrimitive.faceVaryingLinearInterpolationNone, 2 ),
+			( IECoreScene.MeshPrimitive.faceVaryingLinearInterpolationCornersOnly, 1 ),
+			( IECoreScene.MeshPrimitive.faceVaryingLinearInterpolationCornersPlus1, 1 ),
+			( IECoreScene.MeshPrimitive.faceVaryingLinearInterpolationCornersPlus2, 1 ),
+			( IECoreScene.MeshPrimitive.faceVaryingLinearInterpolationBoundaries, 3 ),
+			( IECoreScene.MeshPrimitive.faceVaryingLinearInterpolationAll, 0 ),
+		] :
+
+			with self.subTest( faceVaryingLinearInterpolation = faceVaryingLinearInterpolation ) :
+
+				with IECoreRenderManTest.RileyCapture() as capture :
+
+					renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+						"RenderMan",
+						GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+					)
+
+					mesh = IECoreScene.MeshPrimitive.createPlane( imath.Box2f( imath.V2f( -1 ), imath.V2f( 1 ) ) )
+					mesh.setInterpolation( "catmullClark" )
+					mesh.setFaceVaryingLinearInterpolation( faceVaryingLinearInterpolation )
+
+					renderer.object(
+						"mesh", mesh, renderer.attributes( IECore.CompoundObject() )
+					)
+
+					del mesh, renderer
+
+				proto = next(
+					x for x in capture.json if x["method"] == "CreateGeometryPrototype"
+				)
+				self.__assertInTags(
+					proto, "facevaryinginterpolateboundary", intArgs = [ expected ]
+				)
+
+	def testSubdivTriangleSubdivisionRule( self ) :
+
+		for rule, expected in [
+			( IECoreScene.MeshPrimitive.triangleSubdivisionRuleCatmullClark, 0 ),
+			( IECoreScene.MeshPrimitive.triangleSubdivisionRuleSmooth, 2 ),
+		] :
+
+			with self.subTest( rule = rule ) :
+
+				with IECoreRenderManTest.RileyCapture() as capture :
+
+					renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+						"RenderMan",
+						GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+					)
+
+					mesh = IECoreScene.MeshPrimitive.createPlane( imath.Box2f( imath.V2f( -1 ), imath.V2f( 1 ) ) )
+					mesh.setInterpolation( "catmullClark" )
+					mesh.setTriangleSubdivisionRule( rule )
+
+					renderer.object(
+						"mesh", mesh, renderer.attributes( IECore.CompoundObject() )
+					)
+
+					del mesh, renderer
+
+				proto = next(
+					x for x in capture.json if x["method"] == "CreateGeometryPrototype"
+				)
+				self.__assertInTags(
+					proto, "smoothtriangles", intArgs = [ expected ]
+				)
+
+	def testSubdivisionScheme( self ) :
+
+		for interpolation, scheme in [
+			( IECoreScene.MeshPrimitive.interpolationLinear, None ),
+			( IECoreScene.MeshPrimitive.interpolationCatmullClark, "catmull-clark" ),
+			( IECoreScene.MeshPrimitive.interpolationLoop, "loop" ),
+		] :
+
+			with self.subTest( interpolation = interpolation ) :
+
+				with IECoreRenderManTest.RileyCapture() as capture :
+
+					renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+						"RenderMan",
+						GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+					)
+
+					mesh = IECoreScene.MeshPrimitive.createPlane( imath.Box2f( imath.V2f( -1 ), imath.V2f( 1 ) ) )
+					mesh.setInterpolation( interpolation )
+
+					renderer.object(
+						"mesh", mesh, renderer.attributes( IECore.CompoundObject() )
+					)
+
+					del mesh, renderer
+
+				proto = next(
+					x for x in capture.json if x["method"] == "CreateGeometryPrototype"
+				)
+
+				if scheme is not None :
+					self.assertEqual( proto["type"], "Ri:SubdivisionMesh" )
+					self.__assertPrimitiveVariableEqual( proto, "Ri:scheme", [ scheme ] )
+				else :
+					self.__assertNotInPrimitiveVariables( proto, "Ri:scheme" )
+					self.assertEqual( proto["type"], "Ri:PolygonMesh" )
+
+	def __assertPrimitiveVariableEqual( self, geometryPrototype, name, data ) :
+
+		p = next( x for x in geometryPrototype["primvars"]["params"] if x["info"]["name"] == name )
+		self.assertEqual( p["data"], data )
+
+	def __assertNotInPrimitiveVariables( self, geometryPrototype, name ) :
+
+		self.assertNotIn(
+			name, { x["info"]["name"] for x in geometryPrototype["primvars"]["params"] }
+		)
+
+	def __assertInTags( self, geometryPrototype, tag, intArgs = [], floatArgs = [] ) :
+
+		tags = next( x for x in geometryPrototype["primvars"]["params"] if x["info"]["name"] == "Ri:subdivtags" )["data"]
+		numArgs = next( x for x in geometryPrototype["primvars"]["params"] if x["info"]["name"] == "Ri:subdivtagnargs" )["data"]
+		ints = next( x for x in geometryPrototype["primvars"]["params"] if x["info"]["name"] == "Ri:subdivtagintargs" )["data"]
+		floats = next( x for x in geometryPrototype["primvars"]["params"] if x["info"]["name"] == "Ri:subdivtagfloatargs" )["data"]
+
+		foundTag = False
+		for t in tags :
+
+			if t == tag :
+				self.assertEqual( numArgs[0:3], [ len( intArgs ), len( floatArgs ), 0 ] )
+				self.assertEqual( ints[0:len(intArgs)], intArgs )
+				self.assertEqual( floats[0:len(floatArgs)], floatArgs )
+				foundTag = True
+
+			# Move to next tag
+			del ints[0:numArgs[0]]
+			del floats[0:numArgs[1]]
+			del numArgs[0:3]
+
+		self.assertEqual( len( numArgs ), 0 )
+		self.assertEqual( len( ints ), 0 )
+		self.assertEqual( len( floats ), 0 )
+
+		self.assertTrue( foundTag )
 
 	def __colorAtUV( self, image, uv ) :
 
