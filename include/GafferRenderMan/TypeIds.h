@@ -49,6 +49,8 @@ enum TypeId
 	TagPlugTypeId = 110405,
 	RenderManMeshLightTypeId = 110406,
 	RenderManLightFilterTypeId = 110407,
+	RenderManDisplayFilterTypeId = 110408,
+	RenderManSampleFilterTypeId = 110409,
 	LastTypeId = 110450
 };
 

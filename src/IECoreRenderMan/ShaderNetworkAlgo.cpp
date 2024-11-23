@@ -342,6 +342,18 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 		return;
 	}
 
+	const bool isFilterCombiner = (
+		(
+			shaderInfo->type == riley::ShadingNode::Type::k_DisplayFilter ||
+			shaderInfo->type == riley::ShadingNode::Type::k_SampleFilter
+		)
+		&&
+		(
+			shader->getName() == "PxrDisplayFilterCombiner" ||
+			shader->getName() == "PxrSampleFilterCombiner"
+		)
+	);
+
 	riley::ShadingNode node = {
 		shaderInfo->type,
 		RtUString( shader->getName().c_str() ),
@@ -349,12 +361,18 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 		RtParamList()
 	};
 
-	ParamListAlgo::convertParameters( shader->parameters(), node.params );
+	if( !isFilterCombiner )
+	{
+		ParamListAlgo::convertParameters( shader->parameters(), node.params );
+	}
 
 	for( const auto &connection : shaderNetwork->inputConnections( outputParameter.shader ) )
 	{
 		convertShaderNetworkWalk( connection.source, shaderNetwork, shadingNodes, visited );
-		convertConnection( connection, shaderInfo.get(), node.params );
+		if( !isFilterCombiner )
+		{
+			convertConnection( connection, shaderInfo.get(), node.params );
+		}
 	}
 
 	shadingNodes.push_back( node );
@@ -375,4 +393,62 @@ std::vector<riley::ShadingNode> IECoreRenderMan::ShaderNetworkAlgo::convert( con
 	convertShaderNetworkWalk( network->getOutput(), network, result, visited );
 
 	return result;
+}
+
+riley::DisplayFilterId IECoreRenderMan::ShaderNetworkAlgo::convertDisplayFilter( const IECoreScene::ShaderNetwork *network, Session *session )
+{
+	vector<riley::ShadingNode> shadingNodes;
+	shadingNodes.reserve( network->size() );
+
+	vector<RtUString> filterRefs;
+	const IECoreScene::Shader *shader = network->outputShader();
+	if( shader->getName() == "PxrDisplayFilterCombiner" )
+	{
+		for( int i = 0; i < shader->parameters().size(); i++ )
+		{
+			if( auto filter = shader->parameters().find( fmt::format( "filter[{}]", i ) ); filter != shader->parameters().end() )
+			{
+				filterRefs.push_back( RtUString( network->input( { network->getOutput().shader, filter->first } ).shader.c_str() ) );
+			}
+		}
+	}
+
+	HandleSet visited;
+	convertShaderNetworkWalk( network->getOutput(), network, shadingNodes, visited );
+
+	if( filterRefs.size() )
+	{
+		shadingNodes.back().params.SetDisplayFilterReferenceArray( RtUString( "filter" ), filterRefs.data(), filterRefs.size() );
+	}
+
+	return session->riley->CreateDisplayFilter( riley::UserId(), { (uint32_t)shadingNodes.size(), shadingNodes.data() }, RtParamList() );
+}
+
+riley::SampleFilterId IECoreRenderMan::ShaderNetworkAlgo::convertSampleFilter( const IECoreScene::ShaderNetwork *network, Session *session )
+{
+	vector<riley::ShadingNode> shadingNodes;
+	shadingNodes.reserve( network->size() );
+
+	vector<RtUString> filterRefs;
+	const IECoreScene::Shader *shader = network->outputShader();
+	if( shader->getName() == "PxrSampleFilterCombiner" )
+	{
+		for( int i = 0; i < shader->parameters().size(); i++ )
+		{
+			if( auto filter = shader->parameters().find( fmt::format( "filter[{}]", i ) ); filter != shader->parameters().end() )
+			{
+				filterRefs.push_back( RtUString( network->input( { network->getOutput().shader, filter->first } ).shader.c_str() ) );
+			}
+		}
+	}
+
+	HandleSet visited;
+	convertShaderNetworkWalk( network->getOutput(), network, shadingNodes, visited );
+
+	if( filterRefs.size() )
+	{
+		shadingNodes.back().params.SetSampleFilterReferenceArray( RtUString( "filter" ), filterRefs.data(), filterRefs.size() );
+	}
+
+	return session->riley->CreateSampleFilter( riley::UserId(), { (uint32_t)shadingNodes.size(), shadingNodes.data() }, RtParamList() );
 }

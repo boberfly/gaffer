@@ -40,5 +40,7 @@ from . import RenderManAttributesUI
 from . import RenderManOptionsUI
 from . import RenderManShaderUI
 from . import RenderManMeshLightUI
+from . import RenderManDisplayFilterUI
+from . import RenderManSampleFilterUI
 
 __import__( "IECore" ).loadConfig( "GAFFER_STARTUP_PATHS", subdirectory = "GafferRenderManUI" )
