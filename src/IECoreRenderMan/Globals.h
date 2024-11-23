@@ -40,6 +40,7 @@
 
 #include "IECoreScene/Output.h"
 #include "IECoreScene/Shader.h"
+#include "IECoreScene/ShaderNetwork.h"
 
 #include "GafferScene/Private/IECoreScenePreview/Renderer.h"
 
@@ -76,6 +77,8 @@ class Globals : public boost::noncopyable
 
 		bool worldBegun();
 		void updateIntegrator();
+		void updateDisplayFilter();
+		void updateSampleFilter();
 		void updateRenderView();
 		void deleteRenderView();
 
@@ -87,6 +90,8 @@ class Globals : public boost::noncopyable
 		RtParamList m_options;
 		std::string m_cameraOption;
 		IECoreScene::ConstShaderPtr m_integratorToConvert;
+		IECoreScene::ConstShaderNetworkPtr m_displayFilterToConvert;
+		IECoreScene::ConstShaderNetworkPtr m_sampleFilterToConvert;
 		std::unordered_map<IECore::InternedString, IECoreScene::ConstOutputPtr> m_outputs;
 
 		// When we require the Riley session, we create it in `acquireSession()`.
@@ -100,6 +105,11 @@ class Globals : public boost::noncopyable
 
 		riley::IntegratorId m_integratorId;
 		riley::CameraId m_defaultCamera;
+
+		riley::DisplayFilterId m_displayFilterId;
+		riley::SampleFilterId m_sampleFilterId;
+		riley::DisplayFilterList m_displayFilterList;
+		riley::SampleFilterList m_sampleFilterList;
 
 		// We assume RenderOutputs to be lightweight, and equivalent to
 		// an RiDisplayChannel. So we just make them on demand, and never

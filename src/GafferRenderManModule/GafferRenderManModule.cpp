@@ -37,9 +37,11 @@
 #include "boost/python.hpp"
 
 #include "GafferRenderMan/RenderManAttributes.h"
+#include "GafferRenderMan/RenderManDisplayFilter.h"
 #include "GafferRenderMan/RenderManIntegrator.h"
 #include "GafferRenderMan/RenderManLight.h"
 #include "GafferRenderMan/RenderManOptions.h"
+#include "GafferRenderMan/RenderManSampleFilter.h"
 #include "GafferRenderMan/RenderManShader.h"
 #include "GafferRenderMan/TagPlug.h"
 
@@ -93,6 +95,24 @@ BOOST_PYTHON_MODULE( _GafferRenderMan )
 	GafferBindings::DependencyNodeClass<RenderManAttributes>();
 	GafferBindings::DependencyNodeClass<RenderManIntegrator>();
 	GafferBindings::DependencyNodeClass<RenderManOptions>();
+
+	{
+		scope s = GafferBindings::DependencyNodeClass<RenderManDisplayFilter>();
+		enum_<RenderManDisplayFilter::Mode>( "Mode" )
+			.value( "Replace", RenderManDisplayFilter::Mode::Replace )
+			.value( "InsertFirst", RenderManDisplayFilter::Mode::InsertFirst )
+			.value( "InsertLast", RenderManDisplayFilter::Mode::InsertLast )
+		;
+	}
+
+	{
+		scope s = GafferBindings::DependencyNodeClass<RenderManSampleFilter>();
+		enum_<RenderManSampleFilter::Mode>( "Mode" )
+			.value( "Replace", RenderManSampleFilter::Mode::Replace )
+			.value( "InsertFirst", RenderManSampleFilter::Mode::InsertFirst )
+			.value( "InsertLast", RenderManSampleFilter::Mode::InsertLast )
+		;
+	}
 
 	PlugClass<TagPlug>()
 		.def(

@@ -92,4 +92,8 @@ class MaterialCache
 /// \todo Is there a better home for this? Should we have a LightShader class like the Material class?
 riley::LightShaderId convertLightShaderNetwork( const IECoreScene::ShaderNetwork *network, Session *session );
 
+/// \todo Perhaps a ShaderNetworkAlgo refactor could be made to target lights and display/sample filters?
+riley::DisplayFilterId convertDisplayFilterShaderNetwork( const IECoreScene::ShaderNetwork *network, Session *session );
+riley::SampleFilterId convertSampleFilterShaderNetwork( const IECoreScene::ShaderNetwork *network, Session *session );
+
 } // namespace IECoreRenderMan

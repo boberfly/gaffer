@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2018, John Haddon. All rights reserved.
+#  Copyright (c) 2024, Alex Fuller. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -34,17 +34,56 @@
 #
 ##########################################################################
 
-from .RenderManShaderTest import RenderManShaderTest
-from .RenderManLightTest import RenderManLightTest
-from .InteractiveRenderManRenderTest import InteractiveRenderManRenderTest
-from .RenderManRenderTest import RenderManRenderTest
-from .RenderManOptionsTest import RenderManOptionsTest
-from .RenderManAttributesTest import RenderManAttributesTest
-from .TagPlugTest import TagPlugTest
-from .ModuleTest import ModuleTest
-from .RenderManDisplayFilterTest import RenderManDisplayFilterTest
-from .RenderManSampleFilterTest import RenderManSampleFilterTest
+import Gaffer
+import GafferRenderMan
 
-if __name__ == "__main__":
-	import unittest
-	unittest.main()
+Gaffer.Metadata.registerNode(
+
+	GafferRenderMan.RenderManDisplayFilter,
+
+	"description",
+	"""
+	Assigns a DisplayFilter. This is stored as an `ri:displayfilter` option in
+	Gaffer's globals, and applied to all render outputs.
+	""",
+
+	plugs = {
+
+		"displayfilter" : [
+
+			"description",
+			"""
+			The DisplayFilter to be assigned. The output of a RenderManShader node
+			holding a DisplayFilter should be connected here.
+			""",
+
+			"noduleLayout:section", "left",
+			"nodule:type", "GafferUI::StandardNodule",
+
+		],
+
+		"mode" : [
+
+			"description",
+			"""
+			The mode used to combine the `displayfilter` input with any display
+			filters that already exist in the globals.
+
+			- Replace : Removes all pre-existing Display Filters, and replaces them with
+			  the new ones.
+			- InsertFirst : Inserts the new Display Filter so that they will be run before
+			  any pre-existing Display Filters.
+			- InsertLast : Inserts the new Display Filter so that they will be run after
+			  any pre-existing Display Filters.
+			""",
+
+			"preset:Replace", GafferRenderMan.RenderManDisplayFilter.Mode.Replace,
+			"preset:InsertFirst", GafferRenderMan.RenderManDisplayFilter.Mode.InsertFirst,
+			"preset:InsertLast", GafferRenderMan.RenderManDisplayFilter.Mode.InsertLast,
+			"plugValueWidget:type", "GafferUI.PresetsPlugValueWidget",
+
+		],
+
+	}
+
+)

@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2018, John Haddon. All rights reserved.
+//  Copyright (c) 2024, Alex Fuller. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -36,20 +36,53 @@
 
 #pragma once
 
+#include "GafferRenderMan/Export.h"
+#include "GafferRenderMan/TypeIds.h"
+
+#include "GafferScene/GlobalsProcessor.h"
+#include "GafferScene/ShaderPlug.h"
+
 namespace GafferRenderMan
 {
 
-enum TypeId
+class GAFFERRENDERMAN_API RenderManDisplayFilter : public GafferScene::GlobalsProcessor
 {
-	RenderManShaderTypeId = 110400,
-	RenderManLightTypeId = 110401,
-	RenderManIntegratorTypeId = 110402,
-	RenderManAttributesTypeId = 110403,
-	RenderManOptionsTypeId = 110404,
-	TagPlugTypeId = 110405,
-	RenderManDisplayFilterTypeId = 110406,
-	RenderManSampleFilterTypeId = 110407,
-	LastTypeId = 110450
+
+	public :
+
+		explicit RenderManDisplayFilter( const std::string &name=defaultName<RenderManDisplayFilter>() );
+		~RenderManDisplayFilter() override;
+
+		GAFFER_NODE_DECLARE_TYPE( GafferRenderMan::RenderManDisplayFilter, RenderManDisplayFilterTypeId, GafferScene::GlobalsProcessor );
+
+		void affects( const Gaffer::Plug *input, AffectedPlugsContainer &outputs ) const override;
+
+		enum class Mode
+		{
+			Replace,
+			InsertFirst,
+			InsertLast
+		};
+
+		GafferScene::ShaderPlug *displayFilterPlug();
+		const GafferScene::ShaderPlug *displayFilterPlug() const;
+
+		Gaffer::IntPlug *modePlug();
+		const Gaffer::IntPlug *modePlug() const;
+
+	protected :
+
+		bool acceptsInput( const Gaffer::Plug *plug, const Gaffer::Plug *inputPlug ) const override;
+
+		void hashProcessedGlobals( const Gaffer::Context *context, IECore::MurmurHash &h ) const override;
+		IECore::ConstCompoundObjectPtr computeProcessedGlobals( const Gaffer::Context *context, IECore::ConstCompoundObjectPtr inputGlobals ) const override;
+
+	private :
+
+		static size_t g_firstPlugIndex;
+
 };
+
+IE_CORE_DECLAREPTR( RenderManDisplayFilter )
 
 } // namespace GafferRenderMan
