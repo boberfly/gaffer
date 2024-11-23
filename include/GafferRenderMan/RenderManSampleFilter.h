@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2024, Cinesite VFX Ltd. All rights reserved.
+//  Copyright (c) 2024, Alex Fuller. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -36,19 +36,53 @@
 
 #pragma once
 
-#include "Session.h"
+#include "GafferRenderMan/Export.h"
+#include "GafferRenderMan/TypeIds.h"
 
-#include "IECoreScene/ShaderNetwork.h"
+#include "GafferScene/GlobalsProcessor.h"
+#include "GafferScene/ShaderPlug.h"
 
-#include "Riley.h"
-
-namespace IECoreRenderMan::ShaderNetworkAlgo
+namespace GafferRenderMan
 {
 
-std::vector<riley::ShadingNode> convert( const IECoreScene::ShaderNetwork *network );
+class GAFFERRENDERMAN_API RenderManSampleFilter : public GafferScene::GlobalsProcessor
+{
 
-// TODO: Refactor into MaterialCache ?
-riley::DisplayFilterId convertDisplayFilter( const IECoreScene::ShaderNetwork *network, Session *session );
-riley::SampleFilterId convertSampleFilter( const IECoreScene::ShaderNetwork *network, Session *session );
+	public :
 
-} // namespace IECoreRenderMan::ShaderNetworkAlgo
+		explicit RenderManSampleFilter( const std::string &name=defaultName<RenderManSampleFilter>() );
+		~RenderManSampleFilter() override;
+
+		GAFFER_NODE_DECLARE_TYPE( GafferRenderMan::RenderManSampleFilter, RenderManSampleFilterTypeId, GafferScene::GlobalsProcessor );
+
+		void affects( const Gaffer::Plug *input, AffectedPlugsContainer &outputs ) const override;
+
+		enum class Mode
+		{
+			Replace,
+			InsertFirst,
+			InsertLast
+		};
+
+		GafferScene::ShaderPlug *sampleFilterPlug();
+		const GafferScene::ShaderPlug *sampleFilterPlug() const;
+
+		Gaffer::IntPlug *modePlug();
+		const Gaffer::IntPlug *modePlug() const;
+
+	protected :
+
+		bool acceptsInput( const Gaffer::Plug *plug, const Gaffer::Plug *inputPlug ) const override;
+
+		void hashProcessedGlobals( const Gaffer::Context *context, IECore::MurmurHash &h ) const override;
+		IECore::ConstCompoundObjectPtr computeProcessedGlobals( const Gaffer::Context *context, IECore::ConstCompoundObjectPtr inputGlobals ) const override;
+
+	private :
+
+		static size_t g_firstPlugIndex;
+
+};
+
+IE_CORE_DECLAREPTR( RenderManSampleFilter )
+
+} // namespace GafferRenderMan

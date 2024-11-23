@@ -149,7 +149,11 @@ def __shadersSubMenu( plugins ) :
 			# Deprecated in RenderMan 24 - don't let folks become dependent on it.
 			continue
 
-		if plugin["type"] not in { "bxdf", "pattern", "integrator" } :
+		if name in [ "PxrDisplayFilterCombiner", "PxrSampleFilterCombiner" ] :
+			# The filter combiners are handled under the hood transparently
+			continue
+
+		if plugin["type"] not in { "bxdf", "pattern", "integrator", "displayfilter", "samplefilter" } :
 			continue
 
 		if not plugin["classification"] or not plugin["classification"].startswith( "rendernode/RenderMan" ) :
@@ -158,6 +162,8 @@ def __shadersSubMenu( plugins ) :
 				"bxdf" : "BXDF",
 				"pattern" : "Pattern/Other",
 				"integrator" : "Integrator",
+				"displayfilter" : "Displayfilter",
+				"samplefilter" : "Samplefilter",
 			}.get( plugin["type"] )
 
 		else :

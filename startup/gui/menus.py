@@ -251,6 +251,8 @@ if "RMANTREE" in os.environ :
 		nodeMenu.append( "/RenderMan/Attributes", GafferRenderMan.RenderManAttributes, searchText = "RenderManAttributes" )
 		nodeMenu.append( "/RenderMan/Integrator", GafferRenderMan.RenderManIntegrator, searchText = "RenderManIntegrator" )
 		nodeMenu.append( "/RenderMan/Options", GafferRenderMan.RenderManOptions, searchText = "RenderManOptions" )
+		nodeMenu.append( "/RenderMan/Display Filter", GafferRenderMan.RenderManDisplayFilter, searchText = "RenderManDisplayFilter" )
+		nodeMenu.append( "/RenderMan/Sample Filter", GafferRenderMan.RenderManSampleFilter, searchText = "RenderManSampleFilter" )
 
 	except Exception as m :
 

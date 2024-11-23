@@ -47,6 +47,8 @@ enum TypeId
 	RenderManAttributesTypeId = 110403,
 	RenderManOptionsTypeId = 110404,
 	TagPlugTypeId = 110405,
+	RenderManDisplayFilterTypeId = 110406,
+	RenderManSampleFilterTypeId = 110407,
 	LastTypeId = 110450
 };
 
