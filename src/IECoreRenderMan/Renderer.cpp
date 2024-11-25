@@ -37,6 +37,7 @@
 #include "Attributes.h"
 #include "Camera.h"
 #include "GeometryAlgo.h"
+#include "GeometryPrototypeCache.h"
 #include "Globals.h"
 #include "Light.h"
 #include "Material.h"
@@ -87,6 +88,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 		~RenderManRenderer() override
 		{
 			m_materialCache.reset();
+			m_geometryPrototypeCache.reset();
 			m_globals.reset();
 			g_haveInstance = false;
 		}
@@ -138,9 +140,18 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 
 		Renderer::ObjectInterfacePtr object( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
 		{
+			if( !object )
+			{
+				return nullptr;
+			}
+
 			acquireSession();
-			/// \todo Cache geometry masters
-			riley::GeometryPrototypeId geometryPrototype = GeometryAlgo::convert( object, m_session->riley );
+			ConstGeometryPrototypePtr geometryPrototype = m_geometryPrototypeCache->get( object );
+			if( !geometryPrototype )
+			{
+				return nullptr;
+			}
+
 			return new IECoreRenderMan::Object( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session );
 		}
 
@@ -184,6 +195,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 				{
 					m_session = m_globals->acquireSession();
 					m_materialCache = std::make_unique<MaterialCache>( m_session );
+					m_geometryPrototypeCache = std::make_unique<GeometryPrototypeCache>( m_session );
 				}
 			}
 			return m_session;
@@ -194,6 +206,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 		// `acquireSession()`.
 		Session *m_session;
 		std::unique_ptr<MaterialCache> m_materialCache;
+		std::unique_ptr<GeometryPrototypeCache> m_geometryPrototypeCache;
 
 		static Renderer::TypeDescription<RenderManRenderer> g_typeDescription;
 		static std::atomic_bool g_haveInstance;

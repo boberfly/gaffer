@@ -48,22 +48,18 @@ static riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
 
 } // namespace
 
-Object::Object( riley::GeometryPrototypeId geometryPrototype, const Attributes *attributes, const Session *session )
-	:	m_session( session ), m_geometryInstance( riley::GeometryInstanceId::InvalidId() )
+Object::Object( const ConstGeometryPrototypePtr &geometryPrototype, const Attributes *attributes, const Session *session )
+	:	m_session( session ), m_geometryInstance( riley::GeometryInstanceId::InvalidId() ), m_material( attributes->material() ), m_geometryPrototype( geometryPrototype )
 {
-	if( geometryPrototype != riley::GeometryPrototypeId::InvalidId() )
-	{
-		m_material = attributes->material();
-		m_geometryInstance = m_session->riley->CreateGeometryInstance(
-			riley::UserId(),
-			/* group = */ riley::GeometryPrototypeId::InvalidId(),
-			geometryPrototype,
-			m_material->id(),
-			g_emptyCoordinateSystems,
-			StaticTransform(),
-			attributes->paramList()
-		);
-	}
+	m_geometryInstance = m_session->riley->CreateGeometryInstance(
+		riley::UserId(),
+		/* group = */ riley::GeometryPrototypeId::InvalidId(),
+		m_geometryPrototype->id(),
+		m_material->id(),
+		g_emptyCoordinateSystems,
+		StaticTransform(),
+		attributes->paramList()
+	);
 }
 
 Object::~Object()

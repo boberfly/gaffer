@@ -994,6 +994,35 @@ class RendererTest( GafferTest.TestCase ) :
 					self.__assertNotInPrimitiveVariables( proto, "Ri:scheme" )
 					self.assertEqual( proto["type"], "Ri:PolygonMesh" )
 
+	def testAutomaticInstancing( self ) :
+
+		for instancingEnabled in ( True, False ) :
+			with self.subTest( instancingEnabled = instancingEnabled ) :
+				with IECoreRenderManTest.RileyCapture() as capture :
+
+					renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+						"RenderMan",
+						GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+					)
+
+					mesh = IECoreScene.MeshPrimitive.createPlane( imath.Box2f( imath.V2f( -1 ), imath.V2f( 1 ) ) )
+					attributes = renderer.attributes( IECore.CompoundObject() )
+					for i in range( 0, 10 ) :
+						renderer.object( f"mesh{i}", mesh, attributes )
+
+					del renderer
+
+				self.assertEqual(
+					sum( 1 for x in capture.json if x["method"] == "CreateGeometryPrototype" ),
+					1 if instancingEnabled else 10
+				)
+				self.assertEqual(
+					sum( 1 for x in capture.json if x["method"] == "CreateGeometryInstance" ),
+					10
+				)
+
+	# TODO : TEST DESTRUCTION OF UNUSED STUFF
+
 	def __assertPrimitiveVariableEqual( self, geometryPrototype, name, data ) :
 
 		p = next( x for x in geometryPrototype["primvars"]["params"] if x["info"]["name"] == name )

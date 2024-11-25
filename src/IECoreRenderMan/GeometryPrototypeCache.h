@@ -36,41 +36,65 @@
 
 #pragma once
 
-#include "Attributes.h"
-#include "GeometryPrototypeCache.h"
+#include "IECore/RefCounted.h"
+
 #include "Session.h"
 
-#include "GafferScene/Private/IECoreScenePreview/Renderer.h"
+#include "tbb/concurrent_unordered_map.h"
+
+#include <mutex>
 
 namespace IECoreRenderMan
 {
 
-class Object : public IECoreScenePreview::Renderer::ObjectInterface
+/// TODO : COULD THIS JUST BE A TEMPLATED COUNTEDID?
+/// IF SESSION HAD A TEMPLATED DESTROY METHOD?
+class GeometryPrototype : public IECore::RefCounted
 {
 
 	public :
 
-		Object( const ConstGeometryPrototypePtr &geometryPrototype, const Attributes *attributes, const Session *session );
-		~Object();
+		~GeometryPrototype() override;
+		const riley::GeometryPrototypeId id() const { return m_id; }
 
-		void transform( const Imath::M44f &transform ) override;
-		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override;
-		bool attributes( const IECoreScenePreview::Renderer::AttributesInterface *attributes ) override;
-		void link( const IECore::InternedString &type, const IECoreScenePreview::Renderer::ConstObjectSetPtr &objects ) override;
-		void assignID( uint32_t id ) override;
+	private :
+
+		friend class GeometryPrototypeCache;
+
+		/// TODO : ALIGN WITH MATERIAL/MATERIALCACHE OR VICE-VERSA
+		GeometryPrototype( const Session *session, riley::GeometryPrototypeId id );
+
+		const Session *m_session;
+		riley::GeometryPrototypeId m_id;
+
+};
+
+IE_CORE_DECLAREPTR( GeometryPrototype )
+
+class GeometryPrototypeCache
+{
+
+	public :
+
+		GeometryPrototypeCache( const Session *session );
+
+		// Can be called concurrently with other calls to `get()`.
+		GeometryPrototypePtr get( const IECore::Object *object );
+
+		// Must not be called concurrently with anything.
+		void clearUnused();
 
 	private :
 
 		const Session *m_session;
-		riley::GeometryInstanceId m_geometryInstance;
-		/// Used to keep material etc alive as long as we need it.
-		/// \todo Not sure if this is necessary or not? Perhaps Riley will
-		/// extend lifetime anyway? It's not clear if `DeleteMaterial`
-		/// actually destroys the material, or just drops a reference
-		/// to it.
-		ConstMaterialPtr m_material;
-		/// Used to keep geometry prototype alive as long as we need it.
-		ConstGeometryPrototypePtr m_geometryPrototype;
+
+		struct CacheEntry
+		{
+			std::once_flag onceFlag;
+			GeometryPrototypePtr prototype;
+		};
+		using Cache = tbb::concurrent_unordered_map<IECore::MurmurHash, CacheEntry>;
+		Cache m_cache;
 
 };
 
