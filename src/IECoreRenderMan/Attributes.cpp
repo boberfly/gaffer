@@ -46,6 +46,7 @@
 
 #include "boost/algorithm/string.hpp"
 #include "boost/algorithm/string/predicate.hpp"
+#include "boost/container/flat_map.hpp"
 
 #include "fmt/format.h"
 
@@ -57,7 +58,59 @@ using namespace IECoreRenderMan;
 namespace
 {
 
+// List generated from `$RMANTREE/lib/defaults/PRManPrimVars.args` using
+// `contrib/scripts/renderManPrototypeAttributes.py`.
+boost::container::flat_map<InternedString, RtUString> g_prototypeAttributes = {
+	{ "ri:identifier:object", RtUString( "identifier:object" ) },
+	{ "ri:stats:prototypeIdentifier", RtUString( "stats:prototypeIdentifier" ) },
+	{ "ri:derivatives:extrapolate", RtUString( "derivatives:extrapolate" ) },
+	{ "ri:trace:autobias", RtUString( "trace:autobias" ) },
+	{ "ri:trace:bias", RtUString( "trace:bias" ) },
+	{ "ri:trace:sssautobias", RtUString( "trace:sssautobias" ) },
+	{ "ri:trace:sssbias", RtUString( "trace:sssbias" ) },
+	{ "ri:trace:displacements", RtUString( "trace:displacements" ) },
+	{ "ri:displacementbound:CoordinateSystem", RtUString( "displacementbound:CoordinateSystem" ) },
+	{ "ri:displacementbound:offscreen", RtUString( "displacementbound:offscreen" ) },
+	{ "ri:displacementbound:sphere", RtUString( "displacementbound:sphere" ) },
+	{ "ri:displacement:ignorereferenceinstance", RtUString( "displacement:ignorereferenceinstance" ) },
+	{ "ri:Ri:Orientation", RtUString( "Ri:Orientation" ) },
+	{ "ri:dice:micropolygonlength", RtUString( "dice:micropolygonlength" ) },
+	{ "ri:dice:offscreenstrategy", RtUString( "dice:offscreenstrategy" ) },
+	{ "ri:dice:rasterorient", RtUString( "dice:rasterorient" ) },
+	{ "ri:dice:referencecamera", RtUString( "dice:referencecamera" ) },
+	{ "ri:dice:referenceinstance", RtUString( "dice:referenceinstance" ) },
+	{ "ri:dice:strategy", RtUString( "dice:strategy" ) },
+	{ "ri:dice:worlddistancelength", RtUString( "dice:worlddistancelength" ) },
+	{ "ri:Ri:GeometricApproximationFocusFactor", RtUString( "Ri:GeometricApproximationFocusFactor" ) },
+	{ "ri:dice:offscreenmultiplier", RtUString( "dice:offscreenmultiplier" ) },
+	{ "ri:falloffpower", RtUString( "falloffpower" ) },
+	{ "ri:curve:opacitysamples", RtUString( "curve:opacitysamples" ) },
+	{ "ri:curve:widthaffectscurvature", RtUString( "curve:widthaffectscurvature" ) },
+	{ "ri:dice:minlength", RtUString( "dice:minlength" ) },
+	{ "ri:dice:minlengthspace", RtUString( "dice:minlengthspace" ) },
+	{ "ri:Ri:Bound", RtUString( "Ri:Bound" ) },
+	{ "ri:volume:aggregate", RtUString( "volume:aggregate" ) },
+	{ "ri:volume:dsominmax", RtUString( "volume:dsominmax" ) },
+	{ "ri:volume:fps", RtUString( "volume:fps" ) },
+	{ "ri:volume:shutteroffset", RtUString( "volume:shutteroffset" ) },
+	{ "ri:volume:velocityshuttercorrection", RtUString( "volume:velocityshuttercorrection" ) },
+	{ "ri:volume:aggregaterespectvisibility", RtUString( "volume:aggregaterespectvisibility" ) },
+	{ "ri:volume:dsovelocity", RtUString( "volume:dsovelocity" ) },
+	{ "ri:dice:pretessellate", RtUString( "dice:pretessellate" ) },
+	{ "ri:dice:watertight", RtUString( "dice:watertight" ) },
+	{ "ri:shade:faceset", RtUString( "shade:faceset" ) },
+	{ "ri:stitchbound:CoordinateSystem", RtUString( "stitchbound:CoordinateSystem" ) },
+	{ "ri:stitchbound:sphere", RtUString( "stitchbound:sphere" ) },
+	{ "ri:trimcurve:sense", RtUString( "trimcurve:sense" ) },
+	{ "ri:polygon:concave", RtUString( "polygon:concave" ) },
+	{ "ri:polygon:smoothdisplacement", RtUString( "polygon:smoothdisplacement" ) },
+	{ "ri:polygon:smoothnormals", RtUString( "polygon:smoothnormals" ) },
+	{ "ri:procedural:immediatesubdivide", RtUString( "procedural:immediatesubdivide" ) },
+	{ "ri:procedural:reentrant", RtUString( "procedural:reentrant" ) }
+};
+
 const string g_renderManPrefix( "ri:" );
+const IECore::InternedString g_automaticInstancingAttributeName( "gaffer:automaticInstancing" );
 const InternedString g_doubleSidedAttributeName( "doubleSided" );
 const InternedString g_surfaceShaderAttributeName( "ri:surface" );
 const InternedString g_lightMuteAttributeName( "light:mute" );
@@ -91,7 +144,7 @@ T attributeCast( const IECore::RunTimeTyped *v, const IECore::InternedString &na
 }
 
 template<typename T>
-const T *attribute( const CompoundObject::ObjectMap &attributes, const IECore::InternedString &name )
+const T *attribute( const CompoundObject::ObjectMap &attributes, IECore::InternedString name )
 {
 	auto it = attributes.find( name );
 	if( it == attributes.end() )
@@ -102,6 +155,14 @@ const T *attribute( const CompoundObject::ObjectMap &attributes, const IECore::I
 	return attributeCast<const T>( it->second.get(), name );
 }
 
+template<typename T>
+T attributeValue( const CompoundObject::ObjectMap &attributes, IECore::InternedString name, const T &defaultValue )
+{
+	using DataType = IECore::TypedData<T>;
+	const DataType *data = attribute<DataType>( attributes, name );
+	return data ? data->readable() : defaultValue;
+}
+
 } // namespace
 
 Attributes::Attributes( const IECore::CompoundObject *attributes, MaterialCache *materialCache )
@@ -109,6 +170,11 @@ Attributes::Attributes( const IECore::CompoundObject *attributes, MaterialCache 
 	m_material = materialCache->get( attribute<ShaderNetwork>( attributes->members(), g_surfaceShaderAttributeName ) );
 	m_lightShader = attribute<ShaderNetwork>( attributes->members(), g_renderManLightShaderAttributeName );
 	m_lightShader = m_lightShader ? m_lightShader : attribute<ShaderNetwork>( attributes->members(), g_lightShaderAttributeName );
+
+	if( attributeValue<bool>( attributes->members(), g_automaticInstancingAttributeName, true ) )
+	{
+		m_prototypeHash.emplace( IECore::MurmurHash() );
+	}
 
 	for( const auto &[name, value] : attributes->members() )
 	{
@@ -120,26 +186,59 @@ Attributes::Attributes( const IECore::CompoundObject *attributes, MaterialCache 
 
 		if( name == g_lightMuteAttributeName )
 		{
-			ParamListAlgo::convertParameter( Rix::k_lighting_mute, data, m_paramList );
+			ParamListAlgo::convertParameter( Rix::k_lighting_mute, data, m_instanceAttributes );
 		}
 		else if( name == g_doubleSidedAttributeName )
 		{
 			int sides = attributeCast<bool>( value.get(), name, true ) ? 2 : 1;
-			m_paramList.SetInteger( Rix::k_Ri_Sides, sides );
-		}
-		else if( boost::starts_with( name.c_str(), g_renderManPrefix.c_str() ) )
-		{
-			ParamListAlgo::convertParameter( RtUString( name.c_str() + g_renderManPrefix.size() ), data, m_paramList );
+			m_instanceAttributes.SetInteger( Rix::k_Ri_Sides, sides );
 		}
 		else if( boost::starts_with( name.c_str(), "user:" ) )
 		{
-			ParamListAlgo::convertParameter( RtUString( name.c_str() ), data, m_paramList );
+			ParamListAlgo::convertParameter( RtUString( name.c_str() ), data, m_instanceAttributes );
+		}
+
+		if( !boost::starts_with( name.c_str(), g_renderManPrefix.c_str() ) )
+		{
+			continue;
+		}
+
+		auto it = g_prototypeAttributes.find( name );
+		if( it != g_prototypeAttributes.end() )
+		{
+			ParamListAlgo::convertParameter( it->second, data, m_prototypeAttributes );
+			if( m_prototypeHash )
+			{
+				/// \todo Make the hash match between non-specified attributes and attributes which
+				/// are explicitly specified with their default values.
+				data->hash( *m_prototypeHash );
+			}
+		}
+		else
+		{
+			ParamListAlgo::convertParameter( RtUString( name.c_str() + g_renderManPrefix.size() ), data, m_instanceAttributes );
+
 		}
 	}
 }
 
 Attributes::~Attributes()
 {
+}
+
+const std::optional<IECore::MurmurHash> &Attributes::prototypeHash() const
+{
+	return m_prototypeHash;
+}
+
+const RtParamList &Attributes::prototypeAttributes() const
+{
+	return m_prototypeAttributes;
+}
+
+const RtParamList &Attributes::instanceAttributes() const
+{
+	return m_instanceAttributes;
 }
 
 const Material *Attributes::material() const
@@ -152,7 +251,3 @@ const IECoreScene::ShaderNetwork *Attributes::lightShader() const
 	return m_lightShader.get();
 }
 
-const RtParamList &Attributes::paramList() const
-{
-	return m_paramList;
-}

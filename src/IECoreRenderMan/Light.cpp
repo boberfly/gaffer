@@ -82,7 +82,7 @@ Light::Light( riley::GeometryPrototypeId geometryPrototype, const Attributes *at
 		return;
 	}
 
-	m_lightInstance = m_session->createLightInstance( m_lightShader, StaticTransform(), attributes->paramList() );
+	m_lightInstance = m_session->createLightInstance( m_lightShader, StaticTransform(), attributes->instanceAttributes() );
 }
 
 Light::~Light()
@@ -185,7 +185,7 @@ bool Light::attributes( const IECoreScenePreview::Renderer::AttributesInterface 
 		m_lightInstance,
 		/* light shader = */ &m_lightShader,
 		/* xform = */ nullptr,
-		&renderManAttributes->paramList()
+		&renderManAttributes->instanceAttributes()
 	);
 
 	if( result != riley::LightInstanceResult::k_Success )

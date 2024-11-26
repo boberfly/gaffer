@@ -71,28 +71,41 @@ GeometryPrototypeCache::GeometryPrototypeCache( const Session *session )
 {
 }
 
-GeometryPrototypePtr GeometryPrototypeCache::get( const IECore::Object *object )
+GeometryPrototypePtr GeometryPrototypeCache::get( const IECore::Object *object, const Attributes *attributes )
 {
 	if( !object )
 	{
 		return nullptr;
 	}
 
-	const IECore::MurmurHash h = object->hash(); /// TODO : INCLUDE ATTRIBUTE HASH
+	std::optional<IECore::MurmurHash> attributesHash = attributes->prototypeHash();
+	if( !attributesHash )
+	{
+		// Automatic instancing disabled.
+		riley::GeometryPrototypeId id = GeometryAlgo::convert( object, attributes->prototypeAttributes(), m_session->riley );
+		if( id != riley::GeometryPrototypeId::InvalidId() )
+		{
+			return new GeometryPrototype( m_session, id );
+		}
+		return nullptr;
+	}
+
+	IECore::MurmurHash h = *attributesHash;
+	object->hash( h );
 
 	auto [it, inserted] = m_cache.emplace(
 		std::piecewise_construct, std::forward_as_tuple( h ), std::make_tuple()
 	);
 	std::call_once(
 		it->second.onceFlag,
-		[] ( const IECore::Object *object, const Session *session, GeometryPrototypePtr &prototype ) {
-			riley::GeometryPrototypeId id = GeometryAlgo::convert( object, session->riley );
+		[] ( const IECore::Object *object, const Attributes *attributes, const Session *session, GeometryPrototypePtr &prototype ) {
+			riley::GeometryPrototypeId id = GeometryAlgo::convert( object, attributes->prototypeAttributes(), session->riley );
 			if( id != riley::GeometryPrototypeId::InvalidId() )
 			{
 				prototype = new GeometryPrototype( session, id );
 			}
 		},
-		object, m_session, it->second.prototype
+		object, attributes, m_session, it->second.prototype
 	);
 
 	return it->second.prototype;

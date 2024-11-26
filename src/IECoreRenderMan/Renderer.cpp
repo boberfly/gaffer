@@ -124,13 +124,14 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 		ObjectInterfacePtr light( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
 		{
 			acquireSession();
+			auto typedAttributes = static_cast<const Attributes *>( attributes );
 			riley::GeometryPrototypeId geometryPrototype = riley::GeometryPrototypeId::InvalidId();
 			if( object )
 			{
 				/// \todo Cache geometry masters
-				geometryPrototype = GeometryAlgo::convert( object, m_session->riley );
+				geometryPrototype = GeometryAlgo::convert( object, typedAttributes->prototypeAttributes(), m_session->riley );
 			}
-			return new IECoreRenderMan::Light( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session );
+			return new IECoreRenderMan::Light( geometryPrototype, typedAttributes, m_session );
 		}
 
 		ObjectInterfacePtr lightFilter( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
@@ -146,7 +147,8 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 			}
 
 			acquireSession();
-			ConstGeometryPrototypePtr geometryPrototype = m_geometryPrototypeCache->get( object );
+			auto typedAttributes = static_cast<const Attributes *>( attributes );
+			ConstGeometryPrototypePtr geometryPrototype = m_geometryPrototypeCache->get( object, typedAttributes );
 			if( !geometryPrototype )
 			{
 				return nullptr;

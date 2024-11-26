@@ -323,7 +323,7 @@ namespace IECoreRenderMan
 namespace GeometryAlgo
 {
 
-riley::GeometryPrototypeId convert( const IECore::Object *object, riley::Riley *riley )
+riley::GeometryPrototypeId convert( const IECore::Object *object, const RtParamList &prototypeAttributes, riley::Riley *riley )
 {
 	Registry &r = registry();
 	auto it = r.find( object->typeId() );
@@ -331,10 +331,10 @@ riley::GeometryPrototypeId convert( const IECore::Object *object, riley::Riley *
 	{
 		return GeometryPrototypeId::InvalidId();
 	}
-	return it->second.converter( object, riley );
+	return it->second.converter( object, prototypeAttributes, riley );
 }
 
-riley::GeometryPrototypeId convert( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, riley::Riley *riley )
+riley::GeometryPrototypeId convert( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, const RtParamList &prototypeAttributes, riley::Riley *riley )
 {
 	Registry &r = registry();
 	auto it = r.find( samples.front()->typeId() );
@@ -344,11 +344,11 @@ riley::GeometryPrototypeId convert( const std::vector<const IECore::Object *> &s
 	}
 	if( it->second.motionConverter )
 	{
-		return it->second.motionConverter( samples, sampleTimes, riley );
+		return it->second.motionConverter( samples, sampleTimes, prototypeAttributes, riley );
 	}
 	else
 	{
-		return it->second.converter( samples.front(), riley );
+		return it->second.converter( samples.front(), prototypeAttributes, riley );
 	}
 }
 
@@ -373,7 +373,7 @@ void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVaria
 namespace
 {
 
-riley::GeometryPrototypeId convertStaticSphere( const IECoreScene::SpherePrimitive *sphere, riley::Riley *riley )
+riley::GeometryPrototypeId convertStaticSphere( const IECoreScene::SpherePrimitive *sphere, const RtParamList &prototypeAttributes, riley::Riley *riley )
 {
 	RtPrimVarList primVars(
 		sphere->variableSize( PrimitiveVariable::Uniform ),
@@ -381,6 +381,7 @@ riley::GeometryPrototypeId convertStaticSphere( const IECoreScene::SpherePrimiti
 		sphere->variableSize( PrimitiveVariable::Varying ),
 		sphere->variableSize( PrimitiveVariable::FaceVarying )
 	);
+	primVars.RtParamList::Update( prototypeAttributes );
 
 	for( auto &primitiveVariable : sphere->variables )
 	{
@@ -483,7 +484,7 @@ int smoothTriangles( const IECoreScene::MeshPrimitive *mesh )
 	}
 }
 
-riley::GeometryPrototypeId convertStaticMesh( const IECoreScene::MeshPrimitive *mesh, riley::Riley *riley )
+riley::GeometryPrototypeId convertStaticMesh( const IECoreScene::MeshPrimitive *mesh, const RtParamList &prototypeAttributes, riley::Riley *riley )
 {
 	RtPrimVarList primVars(
 		mesh->variableSize( PrimitiveVariable::Uniform ),
@@ -491,6 +492,7 @@ riley::GeometryPrototypeId convertStaticMesh( const IECoreScene::MeshPrimitive *
 		mesh->variableSize( PrimitiveVariable::Varying ),
 		mesh->variableSize( PrimitiveVariable::FaceVarying )
 	);
+	primVars.RtParamList::Update( prototypeAttributes );
 
 	for( auto &primitiveVariable : mesh->variables )
 	{
@@ -588,7 +590,7 @@ GeometryAlgo::ConverterDescription<MeshPrimitive> g_meshConverterDescription( co
 namespace
 {
 
-riley::GeometryPrototypeId convertStaticPoints( const IECoreScene::PointsPrimitive *points, riley::Riley *riley )
+riley::GeometryPrototypeId convertStaticPoints( const IECoreScene::PointsPrimitive *points, const RtParamList &prototypeAttributes, riley::Riley *riley )
 {
 	RtPrimVarList primVars(
 		points->variableSize( PrimitiveVariable::Uniform ),
@@ -596,6 +598,7 @@ riley::GeometryPrototypeId convertStaticPoints( const IECoreScene::PointsPrimiti
 		points->variableSize( PrimitiveVariable::Varying ),
 		points->variableSize( PrimitiveVariable::FaceVarying )
 	);
+	primVars.RtParamList::Update( prototypeAttributes );
 
 	for( auto &primitiveVariable : points->variables )
 	{
@@ -618,7 +621,7 @@ GeometryAlgo::ConverterDescription<PointsPrimitive> g_pointsConverterDescription
 namespace
 {
 
-riley::GeometryPrototypeId convertStaticCurves( const IECoreScene::CurvesPrimitive *curves, riley::Riley *riley )
+riley::GeometryPrototypeId convertStaticCurves( const IECoreScene::CurvesPrimitive *curves, const RtParamList &prototypeAttributes, riley::Riley *riley )
 {
 	RtPrimVarList primVars(
 		curves->variableSize( PrimitiveVariable::Uniform ),
@@ -626,6 +629,7 @@ riley::GeometryPrototypeId convertStaticCurves( const IECoreScene::CurvesPrimiti
 		curves->variableSize( PrimitiveVariable::Varying ),
 		curves->variableSize( PrimitiveVariable::FaceVarying )
 	);
+	primVars.RtParamList::Update( prototypeAttributes );
 
 	for( auto &primitiveVariable : curves->variables )
 	{

@@ -58,7 +58,7 @@ Object::Object( const ConstGeometryPrototypePtr &geometryPrototype, const Attrib
 		m_material->id(),
 		g_emptyCoordinateSystems,
 		StaticTransform(),
-		attributes->paramList()
+		attributes->instanceAttributes()
 	);
 }
 
@@ -120,7 +120,7 @@ bool Object::attributes( const IECoreScenePreview::Renderer::AttributesInterface
 		&m_material->id(),
 		/* coordsys = */ nullptr,
 		/* xform = */ nullptr,
-		&renderManAttributes->paramList()
+		&renderManAttributes->instanceAttributes()
 	);
 
 	if( result != riley::GeometryInstanceResult::k_Success )

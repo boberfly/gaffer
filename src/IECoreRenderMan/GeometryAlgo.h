@@ -52,23 +52,22 @@ namespace GeometryAlgo
 /// Geometry conversion
 /// ===================
 
-/// Converts the specified IECore::Object into an equivalent
-/// geometry master in Riley. Returns k_InvalidId if no converter
-/// is available.
-riley::GeometryPrototypeId convert( const IECore::Object *object, riley::Riley *riley );
+/// Converts the specified IECore::Object into an equivalent geometry prototype
+/// in Riley. Returns `GeometryPrototypeId::InvalidId()` if no converter is
+/// available.
+riley::GeometryPrototypeId convert( const IECore::Object *object, const RtParamList &prototypeAttributes, riley::Riley *riley );
 
 /// As above, but converting a moving object. If no motion converter
 /// is available, the first sample is converted instead.
-riley::GeometryPrototypeId convert( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, riley::Riley *riley );
+riley::GeometryPrototypeId convert( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, const RtParamList &prototypeAttributes, riley::Riley *riley );
 
-/// Signature of a function which can convert an IECore::Object
-/// into a geometry master.
-using Converter = riley::GeometryPrototypeId (*)( const IECore::Object *, riley::Riley * );
-using MotionConverter = riley::GeometryPrototypeId (*)( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, riley::Riley *riley );
+/// Signature of a function which can convert an IECore::Object into a geometry prototype.
+using Converter = riley::GeometryPrototypeId (*)( const IECore::Object *object, const RtParamList &prototypeAttributes, riley::Riley *riley );
+using MotionConverter = riley::GeometryPrototypeId (*)( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, const RtParamList &prototypeAttributes, riley::Riley *riley );
 
-/// Registers a converter for a specific type.
-/// Use the ConverterDescription utility class in preference to
-/// this, since it provides additional type safety.
+/// Registers a converter for a specific type. Use the ConverterDescription
+/// utility class in preference to this, since it provides additional type
+/// safety.
 void registerConverter( IECore::TypeId fromType, Converter converter, MotionConverter motionConverter = nullptr );
 
 /// Class which registers a converter for type T automatically
@@ -80,8 +79,8 @@ class ConverterDescription
 	public :
 
 		/// Type-specific conversion functions.
-		using Converter = riley::GeometryPrototypeId (*)( const T *, riley::Riley * );
-		using MotionConverter = riley::GeometryPrototypeId (*)( const std::vector<const T *> &samples, const std::vector<float> &sampleTimes, riley::Riley * );
+		using Converter = riley::GeometryPrototypeId (*)( const T *object, const RtParamList &prototypeAttributes, riley::Riley *riley );
+		using MotionConverter = riley::GeometryPrototypeId (*)( const std::vector<const T *> &samples, const std::vector<float> &sampleTimes, const RtParamList &prototypeAttributes, riley::Riley *riley );
 
 		ConverterDescription( Converter converter, MotionConverter motionConverter = nullptr )
 		{

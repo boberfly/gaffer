@@ -51,13 +51,27 @@ class Attributes : public IECoreScenePreview::Renderer::AttributesInterface
 		Attributes( const IECore::CompoundObject *attributes, MaterialCache *materialCache );
 		~Attributes();
 
+		/// Returns a hash of everything in `prototypeParamList()`, to be
+		/// used by GeometryPrototypeCache when automaticaly deduplicating
+		/// objects. Returns `std::nullopt` if automatic instancing is
+		/// turned off.
+		/// \todo Should we have different hashes for different object types,
+		/// so attributes for curves (for example) don't mess with instancing
+		/// of meshes?
+		const std::optional<IECore::MurmurHash> &prototypeHash() const;
+		/// Attributes to be applied when creating GeometryPrototypes.
+		const RtParamList &prototypeAttributes() const;
+		/// Attributes to be applied to GeometryInstances.
+		const RtParamList &instanceAttributes() const;
+
 		const Material *material() const;
 		const IECoreScene::ShaderNetwork *lightShader() const;
-		const RtParamList &paramList() const;
 
 	private :
 
-		RtParamList m_paramList;
+		std::optional<IECore::MurmurHash> m_prototypeHash;
+		RtParamList m_prototypeAttributes;
+		RtParamList m_instanceAttributes;
 		ConstMaterialPtr m_material;
 		/// \todo Could we use the material cache for these too?
 		IECoreScene::ConstShaderNetworkPtr m_lightShader;

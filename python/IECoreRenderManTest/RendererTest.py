@@ -994,7 +994,7 @@ class RendererTest( GafferTest.TestCase ) :
 					self.__assertNotInPrimitiveVariables( proto, "Ri:scheme" )
 					self.assertEqual( proto["type"], "Ri:PolygonMesh" )
 
-	def testAutomaticInstancing( self ) :
+	def testAutomaticInstancingAttribute( self ) :
 
 		for instancingEnabled in ( True, False ) :
 			with self.subTest( instancingEnabled = instancingEnabled ) :
@@ -1006,7 +1006,7 @@ class RendererTest( GafferTest.TestCase ) :
 					)
 
 					mesh = IECoreScene.MeshPrimitive.createPlane( imath.Box2f( imath.V2f( -1 ), imath.V2f( 1 ) ) )
-					attributes = renderer.attributes( IECore.CompoundObject() )
+					attributes = renderer.attributes( IECore.CompoundObject( { "gaffer:automaticInstancing" : IECore.BoolData( instancingEnabled ) } )  )
 					for i in range( 0, 10 ) :
 						renderer.object( f"mesh{i}", mesh, attributes )
 
@@ -1021,18 +1021,97 @@ class RendererTest( GafferTest.TestCase ) :
 					10
 				)
 
-	# TODO : TEST DESTRUCTION OF UNUSED STUFF
+	def testPrototypeAndInstanceAttributes( self ) :
+
+		with IECoreRenderManTest.RileyCapture() as capture :
+
+			renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+				"RenderMan",
+				GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+			)
+
+			mesh = IECoreScene.MeshPrimitive.createPlane( imath.Box2f( imath.V2f( -1 ), imath.V2f( 1 ) ) )
+			attributes = renderer.attributes(
+				IECore.CompoundObject( {
+					"ri:shade:minsamples" : IECore.IntData( 5 ),
+					"ri:polygon:concave" : IECore.BoolData( 1 ),
+				} )
+			)
+			renderer.object( "mesh", mesh, attributes )
+
+			del renderer
+
+		prototype = next(
+			x for x in capture.json if x["method"] == "CreateGeometryPrototype"
+		)
+
+		self.__assertPrimitiveVariableEqual( prototype, "polygon:concave", [ 1 ] )
+		self.__assertNotInPrimitiveVariables( prototype, "shade:minsamples" )
+
+		instance = next(
+			x for x in capture.json if x["method"] == "CreateGeometryInstance"
+		)
+		self.__assertParameterEqual( instance["attributes"]["params"], "shade:minsamples", [ 5 ] )
+		self.__assertNotInParameters( instance["attributes"]["params"], "polygon:concave" )
+
+	def testAutomaticInstancingRespectsPrototypeAttributes( self ) :
+
+		with IECoreRenderManTest.RileyCapture() as capture :
+
+			renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+				"RenderMan",
+				GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+			)
+
+			mesh = IECoreScene.MeshPrimitive.createPlane( imath.Box2f( imath.V2f( -1 ), imath.V2f( 1 ) ) )
+			concaveAttributes = renderer.attributes(
+				IECore.CompoundObject( {
+					"ri:polygon:concave" : IECore.BoolData( 1 ),
+				} )
+			)
+			convexAttributes = renderer.attributes(
+				IECore.CompoundObject( {
+					"ri:polygon:concave" : IECore.BoolData( 0 ),
+				} )
+			)
+
+			renderer.object( "concave1", mesh, concaveAttributes )
+			renderer.object( "convex1", mesh, convexAttributes )
+			renderer.object( "concave2", mesh, concaveAttributes )
+			renderer.object( "convex2", mesh, convexAttributes )
+
+			del renderer
+
+		prototypes = [ x for x in capture.json if x["method"] == "CreateGeometryPrototype" ]
+		self.assertEqual( len( prototypes ), 2 )
+		self.__assertPrimitiveVariableEqual( prototypes[0], "polygon:concave", [ 1 ] )
+		self.__assertPrimitiveVariableEqual( prototypes[1], "polygon:concave", [ 0 ] )
+
+		instances = [ x for x in capture.json if x["method"] == "CreateGeometryInstance" ]
+		self.assertEqual( len( instances ), 4 )
+		self.assertEqual( instances[0]["geoMasterId"], prototypes[0]["result"] )
+		self.assertEqual( instances[1]["geoMasterId"], prototypes[1]["result"] )
+		self.assertEqual( instances[2]["geoMasterId"], prototypes[0]["result"] )
+		self.assertEqual( instances[3]["geoMasterId"], prototypes[1]["result"] )
+
+	def __assertParameterEqual( self, paramList, name, data ) :
+
+		p = next( x for x in paramList if x["info"]["name"] == name )
+		self.assertEqual( p["data"], data )
+
+	def __assertNotInParameters( self, paramList, name ) :
+
+		self.assertNotIn(
+			name, { x["info"]["name"] for x in paramList }
+		)
 
 	def __assertPrimitiveVariableEqual( self, geometryPrototype, name, data ) :
 
-		p = next( x for x in geometryPrototype["primvars"]["params"] if x["info"]["name"] == name )
-		self.assertEqual( p["data"], data )
+		self.__assertParameterEqual( geometryPrototype["primvars"]["params"], name, data )
 
 	def __assertNotInPrimitiveVariables( self, geometryPrototype, name ) :
 
-		self.assertNotIn(
-			name, { x["info"]["name"] for x in geometryPrototype["primvars"]["params"] }
-		)
+		self.__assertNotInParameters( geometryPrototype["primvars"]["params"], name )
 
 	def __assertInTags( self, geometryPrototype, tag, intArgs = [], floatArgs = [] ) :
 

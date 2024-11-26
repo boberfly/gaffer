@@ -38,6 +38,7 @@
 
 #include "IECore/RefCounted.h"
 
+#include "Attributes.h"
 #include "Session.h"
 
 #include "tbb/concurrent_unordered_map.h"
@@ -79,7 +80,7 @@ class GeometryPrototypeCache
 		GeometryPrototypeCache( const Session *session );
 
 		// Can be called concurrently with other calls to `get()`.
-		GeometryPrototypePtr get( const IECore::Object *object );
+		GeometryPrototypePtr get( const IECore::Object *object, const Attributes *attributes );
 
 		// Must not be called concurrently with anything.
 		void clearUnused();
