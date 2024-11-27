@@ -39,6 +39,7 @@
 #include "IECore/RefCounted.h"
 
 #include "Attributes.h"
+#include "RefCountedId.h"
 #include "Session.h"
 
 #include "tbb/concurrent_unordered_map.h"
@@ -48,28 +49,7 @@
 namespace IECoreRenderMan
 {
 
-/// TODO : COULD THIS JUST BE A TEMPLATED COUNTEDID?
-/// IF SESSION HAD A TEMPLATED DESTROY METHOD?
-class GeometryPrototype : public IECore::RefCounted
-{
-
-	public :
-
-		~GeometryPrototype() override;
-		const riley::GeometryPrototypeId id() const { return m_id; }
-
-	private :
-
-		friend class GeometryPrototypeCache;
-
-		/// TODO : ALIGN WITH MATERIAL/MATERIALCACHE OR VICE-VERSA
-		GeometryPrototype( const Session *session, riley::GeometryPrototypeId id );
-
-		const Session *m_session;
-		riley::GeometryPrototypeId m_id;
-
-};
-
+using GeometryPrototype = RefCountedId<riley::GeometryPrototypeId>;
 IE_CORE_DECLAREPTR( GeometryPrototype )
 
 class GeometryPrototypeCache

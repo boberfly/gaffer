@@ -36,48 +36,44 @@
 
 #pragma once
 
-#include "GafferScene/Private/IECoreScenePreview/Renderer.h"
+#include "IECoreScene/ShaderNetwork.h"
 
-#include "MaterialCache.h"
+#include "IECore/RefCounted.h"
+
+#include "RefCountedId.h"
+#include "Session.h"
+
+#include "tbb/concurrent_hash_map.h"
 
 namespace IECoreRenderMan
 {
 
-class Attributes : public IECoreScenePreview::Renderer::AttributesInterface
+using Material = RefCountedId<riley::MaterialId>;
+IE_CORE_DECLAREPTR( Material );
+
+class MaterialCache
 {
 
 	public :
 
-		Attributes( const IECore::CompoundObject *attributes, MaterialCache *materialCache );
-		~Attributes();
+		MaterialCache( const Session *session );
 
-		/// Returns a hash of everything in `prototypeParamList()`, to be
-		/// used by GeometryPrototypeCache when automaticaly deduplicating
-		/// objects. Returns `std::nullopt` if automatic instancing is
-		/// turned off.
-		/// \todo Should we have different hashes for different object types,
-		/// so attributes for curves (for example) don't mess with instancing
-		/// of meshes?
-		const std::optional<IECore::MurmurHash> &prototypeHash() const;
-		/// Attributes to be applied when creating GeometryPrototypes.
-		const RtParamList &prototypeAttributes() const;
-		/// Attributes to be applied to GeometryInstances.
-		const RtParamList &instanceAttributes() const;
+		// Can be called concurrently with other calls to `get()`
+		ConstMaterialPtr get( const IECoreScene::ShaderNetwork *network );
 
-		const Material *material() const;
-		const IECoreScene::ShaderNetwork *lightShader() const;
+		// Must not be called concurrently with anything.
+		void clearUnused();
 
 	private :
 
-		std::optional<IECore::MurmurHash> m_prototypeHash;
-		RtParamList m_prototypeAttributes;
-		RtParamList m_instanceAttributes;
-		ConstMaterialPtr m_material;
-		/// \todo Could we use the material cache for these too?
-		IECoreScene::ConstShaderNetworkPtr m_lightShader;
+		const Session *m_session;
+
+		using Cache = tbb::concurrent_hash_map<IECore::MurmurHash, ConstMaterialPtr>;
+		Cache m_cache;
 
 };
 
-IE_CORE_DECLAREPTR( Attributes )
+/// \todo Is there a better home for this? Should we have a LightShader class like the Material class?
+riley::LightShaderId convertLightShaderNetwork( const IECoreScene::ShaderNetwork *network, Session *session );
 
 } // namespace IECoreRenderMan

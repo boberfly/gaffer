@@ -36,60 +36,53 @@
 
 #pragma once
 
-#include "IECoreScene/ShaderNetwork.h"
-
 #include "IECore/RefCounted.h"
 
 #include "Session.h"
 
-#include "tbb/concurrent_hash_map.h"
-
 namespace IECoreRenderMan
 {
 
-// A reference counted material.
-class Material : public IECore::RefCounted
+// A reference counted Riley Id.
+template<typename T>
+class RefCountedId : public IECore::RefCounted
 {
 
 	public :
 
-		Material( const IECoreScene::ShaderNetwork *network, const Session *session );
-		~Material() override;
+		RefCountedId( T id, const Session *session )
+			:	m_session( session ), m_id( id )
+		{
 
-		const riley::MaterialId &id() const;
+		}
+
+		~RefCountedId() override
+		{
+			if( m_session->renderType != IECoreScenePreview::Renderer::Interactive )
+			{
+				return;
+			}
+
+			if constexpr( std::is_same_v<T, riley::MaterialId> )
+			{
+				m_session->riley->DeleteMaterial( m_id );
+			}
+			// Deliberately not checking type for the last case, so that we get
+			// a compilation error if compiled for types we haven't added a
+			// delete for.
+			else
+			{
+				m_session->riley->DeleteGeometryPrototype( m_id );
+			}
+		}
+
+		const T &id() const { return m_id; }
 
 	private :
 
 		const Session *m_session;
-		riley::MaterialId m_id;
+		T m_id;
 
 };
-
-IE_CORE_DECLAREPTR( Material )
-
-class MaterialCache
-{
-
-	public :
-
-		MaterialCache( const Session *session );
-
-		// Can be called concurrently with other calls to `get()`
-		ConstMaterialPtr get( const IECoreScene::ShaderNetwork *network );
-
-		// Must not be called concurrently with anything.
-		void clearUnused();
-
-	private :
-
-		const Session *m_session;
-
-		using Cache = tbb::concurrent_hash_map<IECore::MurmurHash, ConstMaterialPtr>;
-		Cache m_cache;
-
-};
-
-/// \todo Is there a better home for this? Should we have a LightShader class like the Material class?
-riley::LightShaderId convertLightShaderNetwork( const IECoreScene::ShaderNetwork *network, Session *session );
 
 } // namespace IECoreRenderMan

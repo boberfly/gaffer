@@ -40,7 +40,7 @@
 #include "GeometryPrototypeCache.h"
 #include "Globals.h"
 #include "Light.h"
-#include "Material.h"
+#include "MaterialCache.h"
 #include "Globals.h"
 #include "Object.h"
 #include "ParamListAlgo.h"

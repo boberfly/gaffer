@@ -45,27 +45,6 @@ using namespace IECore;
 using namespace IECoreScene;
 using namespace IECoreRenderMan;
 
-//////////////////////////////////////////////////////////////////////////
-// GeometryPrototype
-//////////////////////////////////////////////////////////////////////////
-
-GeometryPrototype::GeometryPrototype( const Session *session, riley::GeometryPrototypeId id )
-	:	m_session( session ), m_id( id )
-{
-}
-
-GeometryPrototype::~GeometryPrototype()
-{
-	if( m_session->renderType == IECoreScenePreview::Renderer::Interactive )
-	{
-		m_session->riley->DeleteGeometryPrototype( m_id );
-	}
-}
-
-//////////////////////////////////////////////////////////////////////////
-// GeometryPrototype
-//////////////////////////////////////////////////////////////////////////
-
 GeometryPrototypeCache::GeometryPrototypeCache( const Session *session )
 	:	m_session( session )
 {
@@ -85,7 +64,7 @@ GeometryPrototypePtr GeometryPrototypeCache::get( const IECore::Object *object, 
 		riley::GeometryPrototypeId id = GeometryAlgo::convert( object, attributes->prototypeAttributes(), m_session->riley );
 		if( id != riley::GeometryPrototypeId::InvalidId() )
 		{
-			return new GeometryPrototype( m_session, id );
+			return new GeometryPrototype( id, m_session );
 		}
 		return nullptr;
 	}
@@ -102,7 +81,7 @@ GeometryPrototypePtr GeometryPrototypeCache::get( const IECore::Object *object, 
 			riley::GeometryPrototypeId id = GeometryAlgo::convert( object, attributes->prototypeAttributes(), session->riley );
 			if( id != riley::GeometryPrototypeId::InvalidId() )
 			{
-				prototype = new GeometryPrototype( session, id );
+				prototype = new GeometryPrototype( id, session );
 			}
 		},
 		object, attributes, m_session, it->second.prototype

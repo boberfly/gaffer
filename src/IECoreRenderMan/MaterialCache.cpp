@@ -34,7 +34,7 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "Material.h"
+#include "MaterialCache.h"
 
 #include "ParamListAlgo.h"
 
@@ -223,35 +223,10 @@ riley::MaterialId defaultMaterial( riley::Riley *riley )
 } // namespace
 
 //////////////////////////////////////////////////////////////////////////
-// Material
+// Utilities
 //////////////////////////////////////////////////////////////////////////
 
-Material::Material( const IECoreScene::ShaderNetwork *network, const Session *session )
-	:	m_session( session )
-{
-	if( network )
-	{
-		m_id = convertShaderNetwork( network, m_session->riley );
-	}
-	else
-	{
-		m_id = defaultMaterial( m_session->riley );
-	}
-}
-
-Material::~Material()
-{
-	if( m_session->renderType == IECoreScenePreview::Renderer::Interactive )
-	{
-		m_session->riley->DeleteMaterial( m_id );
-	}
-}
-
-const riley::MaterialId &Material::id() const
-{
-	return m_id;
-}
-
+/// \todo This probably belongs in a ShaderNetworkAlgo namespace.
 riley::LightShaderId IECoreRenderMan::convertLightShaderNetwork( const IECoreScene::ShaderNetwork *network, Session *session )
 {
 	vector<riley::ShadingNode> shadingNodes;
@@ -279,7 +254,10 @@ ConstMaterialPtr MaterialCache::get( const IECoreScene::ShaderNetwork *network )
 	m_cache.insert( a, network ? network->Object::hash() : IECore::MurmurHash() );
 	if( !a->second )
 	{
-		a->second = new Material( network, m_session );
+		a->second = new Material(
+			network ? convertShaderNetwork( network, m_session->riley ) : defaultMaterial( m_session->riley ),
+			m_session
+		);
 	}
 	return a->second;
 }
