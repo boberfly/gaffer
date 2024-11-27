@@ -59,8 +59,8 @@ class RenderManAttributesTest( GafferSceneTest.SceneTestCase ) :
 		)
 
 		self.assertEqual(
-			Gaffer.Metadata.targetsWithMetadata( "attribute:ri:*", "label" ),
-			Gaffer.Metadata.targetsWithMetadata( "attribute:ri:*", "defaultValue" ),
+			set( Gaffer.Metadata.targetsWithMetadata( "attribute:ri:*", "label" ) ),
+			set( Gaffer.Metadata.targetsWithMetadata( "attribute:ri:*", "defaultValue" ) ),
 		)
 
 	def testOmittedAttributesMetadata( self ) :
