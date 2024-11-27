@@ -36,12 +36,17 @@
 
 import os
 import pathlib
+import re
 
+import IECore
+
+import Gaffer
 import GafferRenderMan
 
-# Pull all the attribute definitions out of RenderMan's `PRManAttributes.args` file
-# and register them using Gaffer's standard metadata conventions. This is then
-# used to populate the RenderManAttributes node and the AttributeEditor etc.
+# Pull all the attribute definitions out of RenderMan's `PRManAttributes.args`
+# and `PRManPrimVars.args` files, and register them using Gaffer's standard
+# metadata conventions. This is then used to populate the RenderManAttributes
+# node and the AttributeEditor etc.
 
 if "RMANTREE" in os.environ :
 
@@ -57,6 +62,7 @@ if "RMANTREE" in os.environ :
 			"identifier:id",
 			"identifier:id2",
 			"identifier:name",
+			"stats:identifier",
 			"Ri:ReverseOrientation",
 			# Things that we probably want to expose, but which will require
 			# additional plumbing before they will be useful.
@@ -74,3 +80,53 @@ if "RMANTREE" in os.environ :
 			"grouping:membership",
 		}
 	)
+
+	GafferRenderMan._ArgsFileAlgo.registerMetadata(
+		rmanTree / "lib" / "defaults" / "PRManPrimVars.args", "attribute:ri:",
+		parametersToIgnore = {
+			# Things which we probably need to handle automatically in the
+			# Renderer class.
+			"identifier:object",
+			"stats:prototypeIdentifier",
+			"Ri:Bound",
+			"Ri:Orientation",
+			# Things that we might want to expose but which might need extra
+			# plumbing to make work.
+			"dice:referencecamera",
+			"dice:referenceinstance",
+			"shade:faceset",
+			"trimcurve:sense",
+			# Things that we think might just be too esoteric or which have no
+			# documentation to explain them. People can always use
+			# CustomAttributes to specify these.
+			"polygon:concave",
+			"displacement:ignorereferenceinstance",
+			"stitchbound:CoordinateSystem",
+			"stitchbound:sphere",
+		}
+	)
+
+	# Override dodgy bits with our own metadata.
+
+	Gaffer.Metadata.registerValue( "attribute:ri:derivatives:extrapolate", "label", "Extrapolate Derivatives" )
+	Gaffer.Metadata.registerValue( "attribute:ri:trace:sssautobias", "label", "SSS Auto Trace Bias" )
+	Gaffer.Metadata.registerValue( "attribute:ri:dice:strategy", "plugValueWidget:type", "GafferUI.PresetsPlugValueWidget" )
+
+	# Move displacement stuff into its own section. This simplifies the very
+	# long shading section and allows us to use shorter labels that fit the
+	# available space.
+
+	for attribute in [
+		"trace:displacements",
+		"displacementbound:CoordinateSystem",
+		"displacementbound:CoordinateSystem",
+		"displacementbound:offscreen",
+		"displacementbound:sphere",
+	] :
+		target = f"attribute:ri:{attribute}"
+		Gaffer.Metadata.registerValue( target, "layout:section", "Displacement" )
+		if attribute == "trace:displacements" :
+			label = "Trace"
+		else :
+			label = re.sub( r"[dD]isplacement ?", "", Gaffer.Metadata.value( target, "label" ) )
+		Gaffer.Metadata.registerValue( target, "label", label )
