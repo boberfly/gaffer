@@ -81,7 +81,7 @@ Gaffer.Metadata.registerNode(
 
 		],
 
-		"options.*.value" : [
+		"attributes.*.value" : [
 
 			"plugValueWidget:type", lambda plug : __attributeMetadata( plug, "plugValueWidget:type" ),
 			"presetNames", lambda plug : __attributeMetadata( plug, "presetNames" ),
