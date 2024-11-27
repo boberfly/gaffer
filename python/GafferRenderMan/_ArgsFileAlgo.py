@@ -151,6 +151,13 @@ def __boolParser( string ) :
 
 	return bool( int( string ) )
 
+def __floatParser( string ) :
+
+	if string.endswith( "f" ) :
+		string = string[:-1]
+
+	return float( string )
+
 def __vectorParser( string, vectorType, baseType ) :
 
 	return vectorType( *[ baseType( x ) for x in string.split() ] )
@@ -162,7 +169,7 @@ def __stringVectorDataParser( string ) :
 __valueParsers = {
 	"bool" : __boolParser,
 	"int" : int,
-	"float" : float,
+	"float" : __floatParser,
 	"string" : str,
 	"int2" : functools.partial( __vectorParser, vectorType = imath.V2i, baseType = int ),
 	"float2" : functools.partial( __vectorParser, vectorType = imath.V2f, baseType = float ),
