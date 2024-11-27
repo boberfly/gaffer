@@ -43,10 +43,7 @@
 
 #include <vector>
 
-namespace IECoreRenderMan
-{
-
-namespace GeometryAlgo
+namespace IECoreRenderMan::GeometryAlgo
 {
 
 /// Geometry conversion
@@ -98,6 +95,4 @@ class ConverterDescription
 
 void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVariable &primitiveVariable, RtParamList &paramList );
 
-} // namespace GeometryAlgo
-
-} // namespace IECoreRenderMan
+} // namespace IECoreRenderMan::GeometryAlgo
