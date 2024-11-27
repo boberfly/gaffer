@@ -38,39 +38,11 @@
 
 #include "IECoreScene/ShaderNetwork.h"
 
-#include "IECore/RefCounted.h"
+#include "Riley.h"
 
-#include "RefCountedId.h"
-#include "Session.h"
-
-#include "tbb/concurrent_hash_map.h"
-
-namespace IECoreRenderMan
+namespace IECoreRenderMan::ShaderNetworkAlgo
 {
 
-using Material = RefCountedId<riley::MaterialId>;
-IE_CORE_DECLAREPTR( Material );
+std::vector<riley::ShadingNode> convert( const IECoreScene::ShaderNetwork *network );
 
-class MaterialCache
-{
-
-	public :
-
-		MaterialCache( const Session *session );
-
-		// Can be called concurrently with other calls to `get()`
-		ConstMaterialPtr get( const IECoreScene::ShaderNetwork *network );
-
-		// Must not be called concurrently with anything.
-		void clearUnused();
-
-	private :
-
-		const Session *m_session;
-
-		using Cache = tbb::concurrent_hash_map<IECore::MurmurHash, ConstMaterialPtr>;
-		Cache m_cache;
-
-};
-
-} // namespace IECoreRenderMan
+} // namespace IECoreRenderMan::ShaderNetworkAlgo

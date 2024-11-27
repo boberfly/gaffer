@@ -36,6 +36,7 @@
 
 #include "Light.h"
 
+#include "ShaderNetworkAlgo.h"
 #include "Transform.h"
 
 using namespace std;
@@ -212,8 +213,10 @@ void Light::updateLightShader( const Attributes *attributes )
 		m_lightShader = riley::LightShaderId::InvalidId();
 	}
 
+	/// \todo Could manage light shaders in MaterialCache.
 	if( attributes->lightShader() )
 	{
-		m_lightShader = convertLightShaderNetwork( attributes->lightShader(), m_session );
+		std::vector<riley::ShadingNode> nodes = ShaderNetworkAlgo::convert( attributes->lightShader() );
+		m_lightShader = m_session->createLightShader( { (uint32_t)nodes.size(), nodes.data() } );
 	}
 }
