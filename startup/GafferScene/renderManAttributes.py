@@ -110,6 +110,7 @@ if "RMANTREE" in os.environ :
 
 	Gaffer.Metadata.registerValue( "attribute:ri:derivatives:extrapolate", "label", "Extrapolate Derivatives" )
 	Gaffer.Metadata.registerValue( "attribute:ri:trace:sssautobias", "label", "SSS Auto Trace Bias" )
+	Gaffer.Metadata.registerValue( "attribute:ri:trace:sssbias", "label", "SSS Trace Bias" )
 	Gaffer.Metadata.registerValue( "attribute:ri:dice:strategy", "plugValueWidget:type", "GafferUI.PresetsPlugValueWidget" )
 
 	# Move displacement stuff into its own section. This simplifies the very
