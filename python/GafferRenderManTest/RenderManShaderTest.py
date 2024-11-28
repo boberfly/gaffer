@@ -139,5 +139,9 @@ class RenderManShaderTest( GafferSceneTest.SceneTestCase ) :
 		shader.loadShader( "PxrDisplace" )
 		self.assertEqual( shader["type"].getValue(), "ri:displacement" )
 
+		shader = GafferOSL.OSLShader()
+		shader.loadShader( "PxrDisplace" )
+		self.assertEqual( shader["type"].getValue(), "osl:displacement" )
+
 if __name__ == "__main__":
 	unittest.main()
