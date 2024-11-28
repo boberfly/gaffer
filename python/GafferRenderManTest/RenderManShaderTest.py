@@ -133,5 +133,11 @@ class RenderManShaderTest( GafferSceneTest.SceneTestCase ) :
 			sceneWriter["in"].attributes( "/plane" )["ri:surface"]
 		)
 
+	def testDisplacementShaderType( self ) :
+
+		shader = GafferRenderMan.RenderManShader()
+		shader.loadShader( "PxrDisplace" )
+		self.assertEqual( shader["type"].getValue(), "ri:displacement" )
+
 if __name__ == "__main__":
 	unittest.main()
