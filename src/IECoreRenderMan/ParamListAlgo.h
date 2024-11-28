@@ -36,7 +36,7 @@
 
 #include "IECore/CompoundData.h"
 
-#include "Riley.h"
+#include "RiTypesHelper.h"
 
 namespace IECoreRenderMan
 {
