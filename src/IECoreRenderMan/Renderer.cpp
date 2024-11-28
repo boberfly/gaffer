@@ -125,13 +125,8 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 		{
 			acquireSession();
 			auto typedAttributes = static_cast<const Attributes *>( attributes );
-			riley::GeometryPrototypeId geometryPrototype = riley::GeometryPrototypeId::InvalidId();
-			if( object )
-			{
-				/// \todo Cache geometry masters
-				geometryPrototype = GeometryAlgo::convert( object, riley::DisplacementId(), typedAttributes->prototypeAttributes(), m_session->riley );
-			}
-			return new IECoreRenderMan::Light( geometryPrototype, typedAttributes, m_session );
+			/// \todo Mesh lights
+			return new IECoreRenderMan::Light( riley::GeometryPrototypeId::InvalidId(), typedAttributes, m_session );
 		}
 
 		ObjectInterfacePtr lightFilter( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override

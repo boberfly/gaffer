@@ -65,10 +65,15 @@ GeometryPrototypePtr GeometryPrototypeCache::get( const IECore::Object *object, 
 			displacement = d->id();
 		}
 
-		riley::GeometryPrototypeId id = GeometryAlgo::convert( object, displacement, attributes->prototypeAttributes(), session->riley );
-		if( id != riley::GeometryPrototypeId::InvalidId() )
+		RtPrimVarList primVars;
+		RtUString type = GeometryAlgo::convert( object, primVars );
+		if( !type.Empty() )
 		{
-			result = new GeometryPrototype( id, session );
+			primVars.RtParamList::Inherit( attributes->prototypeAttributes() );
+			result = new GeometryPrototype(
+				session->riley->CreateGeometryPrototype( riley::UserId(), type, displacement, primVars ),
+				session
+			);
 		}
 
 	};

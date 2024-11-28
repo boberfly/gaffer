@@ -39,7 +39,7 @@
 #include "IECore/Object.h"
 #include "IECore/VectorTypedData.h"
 
-#include "Riley.h"
+#include "RiTypesHelper.h"
 
 #include <vector>
 
@@ -49,22 +49,18 @@ namespace IECoreRenderMan::GeometryAlgo
 /// Geometry conversion
 /// ===================
 
-/// Converts the specified IECore::Object into an equivalent geometry prototype
-/// in Riley. Returns `GeometryPrototypeId::InvalidId()` if no converter is
-/// available.
-///
-/// \todo Would it be cleaner if this just filled an RtPrimVarList
-/// and returned a geometry type? Then we wouldn't have to pass `riley`,
-/// `displacement` or `prototypeAttributes`.
-riley::GeometryPrototypeId convert( const IECore::Object *object, riley::DisplacementId displacement, const RtParamList &prototypeAttributes, riley::Riley *riley );
+/// Converts the specified `IECore::Object` into arguments for
+/// `Riley::CreateGeometryPrototype()`. Fills `primVars` and returns the
+/// geometry `type`. Returns an empty string if no converter is available.
+RtUString convert( const IECore::Object *object, RtPrimVarList &primVars );
 
 /// As above, but converting a moving object. If no motion converter
 /// is available, the first sample is converted instead.
-riley::GeometryPrototypeId convert( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, riley::DisplacementId displacement, const RtParamList &prototypeAttributes, riley::Riley *riley );
+RtUString convert( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, RtPrimVarList &primVars );
 
 /// Signature of a function which can convert an IECore::Object into a geometry prototype.
-using Converter = riley::GeometryPrototypeId (*)( const IECore::Object *object, riley::DisplacementId displacement, const RtParamList &prototypeAttributes, riley::Riley *riley );
-using MotionConverter = riley::GeometryPrototypeId (*)( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, riley::DisplacementId displacement, const RtParamList &prototypeAttributes, riley::Riley *riley );
+using Converter = RtUString (*)( const IECore::Object *object, RtParamList &primVars );
+using MotionConverter = RtUString (*)( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, RtPrimVarList &primVars );
 
 /// Registers a converter for a specific type. Use the ConverterDescription
 /// utility class in preference to this, since it provides additional type
@@ -80,8 +76,8 @@ class ConverterDescription
 	public :
 
 		/// Type-specific conversion functions.
-		using Converter = riley::GeometryPrototypeId (*)( const T *object, riley::DisplacementId displacement, const RtParamList &prototypeAttributes, riley::Riley *riley );
-		using MotionConverter = riley::GeometryPrototypeId (*)( const std::vector<const T *> &samples, const std::vector<float> &sampleTimes, riley::DisplacementId displacement, const RtParamList &prototypeAttributes, riley::Riley *riley );
+		using Converter = RtUString (*)( const T *object, RtPrimVarList &primVars );
+		using MotionConverter = RtUString (*)( const std::vector<const T *> &samples, const std::vector<float> &sampleTimes, RtPrimVarList &primVars );
 
 		ConverterDescription( Converter converter, MotionConverter motionConverter = nullptr )
 		{
@@ -97,6 +93,6 @@ class ConverterDescription
 /// PrimitiveVariable conversion
 /// ============================
 
-void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVariable &primitiveVariable, RtParamList &paramList );
+void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList );
 
 } // namespace IECoreRenderMan::GeometryAlgo
