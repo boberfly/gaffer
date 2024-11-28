@@ -172,6 +172,10 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 	{
 		node.type = riley::ShadingNode::Type::k_Bxdf;
 	}
+	else if( shader->getType() == "displacement" || shader->getType() == "ri:displacement" || shader->getType() == "osl:displacement" )
+	{
+		node.type = riley::ShadingNode::Type::k_Displacement;
+	}
 	else if( shader->getType() == "ri:shader" && visited.size() == 1 )
 	{
 		// Work around failure of IECoreUSD to round-trip surface shader type.
