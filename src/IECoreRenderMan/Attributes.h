@@ -65,6 +65,7 @@ class Attributes : public IECoreScenePreview::Renderer::AttributesInterface
 		const RtParamList &instanceAttributes() const;
 
 		const Material *material() const;
+		const Displacement *displacement() const { return m_displacement.get(); }
 		const IECoreScene::ShaderNetwork *lightShader() const;
 
 	private :
@@ -73,6 +74,7 @@ class Attributes : public IECoreScenePreview::Renderer::AttributesInterface
 		RtParamList m_prototypeAttributes;
 		RtParamList m_instanceAttributes;
 		ConstMaterialPtr m_material;
+		ConstDisplacementPtr m_displacement;
 		/// \todo Could we use the material cache for these too?
 		IECoreScene::ConstShaderNetworkPtr m_lightShader;
 

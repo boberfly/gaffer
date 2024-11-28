@@ -78,8 +78,7 @@ MaterialCache::MaterialCache( const Session *session )
 {
 }
 
-// Can be called concurrently with other calls to `get()`
-ConstMaterialPtr MaterialCache::get( const IECoreScene::ShaderNetwork *network )
+ConstMaterialPtr MaterialCache::getMaterial( const IECoreScene::ShaderNetwork *network )
 {
 	Cache::accessor a;
 	m_cache.insert( a, network ? network->Object::hash() : IECore::MurmurHash() );
@@ -101,6 +100,21 @@ ConstMaterialPtr MaterialCache::get( const IECoreScene::ShaderNetwork *network )
 	return a->second;
 }
 
+ConstDisplacementPtr MaterialCache::getDisplacement( const IECoreScene::ShaderNetwork *network )
+{
+	DisplacementCache::accessor a;
+	m_displacementCache.insert( a, network->Object::hash() );
+	if( !a->second )
+	{
+		std::vector<riley::ShadingNode> nodes = ShaderNetworkAlgo::convert( network );
+		a->second = new Displacement(
+			m_session->riley->CreateDisplacement( riley::UserId(), { (uint32_t)nodes.size(), nodes.data() }, RtParamList() ),
+			m_session
+		);
+	}
+	return a->second;
+}
+
 // Must not be called concurrently with anything.
 void MaterialCache::clearUnused()
 {
@@ -118,5 +132,18 @@ void MaterialCache::clearUnused()
 	for( const auto &e : toErase )
 	{
 		m_cache.erase( e );
+	}
+
+	toErase.clear();
+	for( const auto &m : m_displacementCache )
+	{
+		if( m.second->refCount() == 1 )
+		{
+			toErase.push_back( m.first );
+		}
+	}
+	for( const auto &e : toErase )
+	{
+		m_displacementCache.erase( e );
 	}
 }

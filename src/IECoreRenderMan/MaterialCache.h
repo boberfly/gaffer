@@ -50,6 +50,8 @@ namespace IECoreRenderMan
 
 using Material = RefCountedId<riley::MaterialId>;
 IE_CORE_DECLAREPTR( Material );
+using Displacement = RefCountedId<riley::DisplacementId>;
+IE_CORE_DECLAREPTR( Displacement );
 
 class MaterialCache
 {
@@ -59,7 +61,8 @@ class MaterialCache
 		MaterialCache( const Session *session );
 
 		// Can be called concurrently with other calls to `get()`
-		ConstMaterialPtr get( const IECoreScene::ShaderNetwork *network );
+		ConstMaterialPtr getMaterial( const IECoreScene::ShaderNetwork *network );
+		ConstDisplacementPtr getDisplacement( const IECoreScene::ShaderNetwork *network );
 
 		// Must not be called concurrently with anything.
 		void clearUnused();
@@ -70,6 +73,9 @@ class MaterialCache
 
 		using Cache = tbb::concurrent_hash_map<IECore::MurmurHash, ConstMaterialPtr>;
 		Cache m_cache;
+
+		using DisplacementCache = tbb::concurrent_hash_map<IECore::MurmurHash, ConstDisplacementPtr>;
+		DisplacementCache m_displacementCache;
 
 };
 

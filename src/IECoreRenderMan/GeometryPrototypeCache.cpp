@@ -57,16 +57,29 @@ GeometryPrototypePtr GeometryPrototypeCache::get( const IECore::Object *object, 
 		return nullptr;
 	}
 
+	auto converter = [] ( const IECore::Object *object, const Attributes *attributes, const Session *session, GeometryPrototypePtr &result ) {
+
+		riley::DisplacementId displacement;
+		if( auto d = attributes->displacement() )
+		{
+			displacement = d->id();
+		}
+
+		riley::GeometryPrototypeId id = GeometryAlgo::convert( object, displacement, attributes->prototypeAttributes(), session->riley );
+		if( id != riley::GeometryPrototypeId::InvalidId() )
+		{
+			result = new GeometryPrototype( id, session );
+		}
+
+	};
+
 	std::optional<IECore::MurmurHash> attributesHash = attributes->prototypeHash();
 	if( !attributesHash )
 	{
 		// Automatic instancing disabled.
-		riley::GeometryPrototypeId id = GeometryAlgo::convert( object, attributes->prototypeAttributes(), m_session->riley );
-		if( id != riley::GeometryPrototypeId::InvalidId() )
-		{
-			return new GeometryPrototype( id, m_session );
-		}
-		return nullptr;
+		GeometryPrototypePtr result;
+		converter( object, attributes, m_session, result );
+		return result;
 	}
 
 	IECore::MurmurHash h = *attributesHash;
@@ -75,17 +88,7 @@ GeometryPrototypePtr GeometryPrototypeCache::get( const IECore::Object *object, 
 	auto [it, inserted] = m_cache.emplace(
 		std::piecewise_construct, std::forward_as_tuple( h ), std::make_tuple()
 	);
-	std::call_once(
-		it->second.onceFlag,
-		[] ( const IECore::Object *object, const Attributes *attributes, const Session *session, GeometryPrototypePtr &prototype ) {
-			riley::GeometryPrototypeId id = GeometryAlgo::convert( object, attributes->prototypeAttributes(), session->riley );
-			if( id != riley::GeometryPrototypeId::InvalidId() )
-			{
-				prototype = new GeometryPrototype( id, session );
-			}
-		},
-		object, attributes, m_session, it->second.prototype
-	);
+	std::call_once( it->second.onceFlag, converter, object, attributes, m_session, it->second.prototype );
 
 	return it->second.prototype;
 }

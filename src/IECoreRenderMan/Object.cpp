@@ -49,16 +49,16 @@ static riley::CoordinateSystemList g_emptyCoordinateSystems = { 0, nullptr };
 } // namespace
 
 Object::Object( const ConstGeometryPrototypePtr &geometryPrototype, const Attributes *attributes, const Session *session )
-	:	m_session( session ), m_geometryInstance( riley::GeometryInstanceId::InvalidId() ), m_material( attributes->material() ), m_geometryPrototype( geometryPrototype )
+	:	m_session( session ), m_geometryInstance( riley::GeometryInstanceId::InvalidId() ), m_attributes( attributes ), m_geometryPrototype( geometryPrototype )
 {
 	m_geometryInstance = m_session->riley->CreateGeometryInstance(
 		riley::UserId(),
 		/* group = */ riley::GeometryPrototypeId::InvalidId(),
 		m_geometryPrototype->id(),
-		m_material->id(),
+		m_attributes->material()->id(),
 		g_emptyCoordinateSystems,
 		StaticTransform(),
-		attributes->instanceAttributes()
+		m_attributes->instanceAttributes()
 	);
 }
 
@@ -111,17 +111,21 @@ void Object::transform( const std::vector<Imath::M44f> &samples, const std::vect
 
 bool Object::attributes( const IECoreScenePreview::Renderer::AttributesInterface *attributes )
 {
-	const auto renderManAttributes = static_cast<const Attributes *>( attributes );
-	m_material = renderManAttributes->material();
+	const Attributes *typedAttributes = static_cast<const Attributes *>( attributes );
+	if( typedAttributes->prototypeHash() != m_attributes->prototypeHash() )
+	{
+		return false;
+	}
 
 	const riley::GeometryInstanceResult result = m_session->riley->ModifyGeometryInstance(
 		/* group = */ riley::GeometryPrototypeId::InvalidId(),
 		m_geometryInstance,
-		&m_material->id(),
+		&typedAttributes->material()->id(),
 		/* coordsys = */ nullptr,
 		/* xform = */ nullptr,
-		&renderManAttributes->instanceAttributes()
+		&typedAttributes->instanceAttributes()
 	);
+	m_attributes = typedAttributes;
 
 	if( result != riley::GeometryInstanceResult::k_Success )
 	{

@@ -64,11 +64,7 @@ class Object : public IECoreScenePreview::Renderer::ObjectInterface
 		const Session *m_session;
 		riley::GeometryInstanceId m_geometryInstance;
 		/// Used to keep material etc alive as long as we need it.
-		/// \todo Not sure if this is necessary or not? Perhaps Riley will
-		/// extend lifetime anyway? It's not clear if `DeleteMaterial`
-		/// actually destroys the material, or just drops a reference
-		/// to it.
-		ConstMaterialPtr m_material;
+		ConstAttributesPtr m_attributes;
 		/// Used to keep geometry prototype alive as long as we need it.
 		ConstGeometryPrototypePtr m_geometryPrototype;
 

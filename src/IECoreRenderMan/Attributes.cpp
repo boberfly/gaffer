@@ -111,11 +111,15 @@ boost::container::flat_map<InternedString, RtUString> g_prototypeAttributes = {
 
 const string g_renderManPrefix( "ri:" );
 const IECore::InternedString g_automaticInstancingAttributeName( "gaffer:automaticInstancing" );
+const InternedString g_displacementAttributeName( "displacement" );
 const InternedString g_doubleSidedAttributeName( "doubleSided" );
-const InternedString g_surfaceShaderAttributeName( "ri:surface" );
 const InternedString g_lightMuteAttributeName( "light:mute" );
 const InternedString g_lightShaderAttributeName( "light" );
+const InternedString g_oslDisplacementAttributeName( "osl:displacement" );
+const InternedString g_renderManDisplacementAttributeName( "ri:displacement" );
 const InternedString g_renderManLightShaderAttributeName( "ri:light" );
+const InternedString g_renderManSurfaceAttributeName( "ri:surface" );
+const InternedString g_surfaceAttributeName( "surface" );
 
 template<typename T>
 T *attributeCast( const IECore::RunTimeTyped *v, const IECore::InternedString &name )
@@ -167,13 +171,28 @@ T attributeValue( const CompoundObject::ObjectMap &attributes, IECore::InternedS
 
 Attributes::Attributes( const IECore::CompoundObject *attributes, MaterialCache *materialCache )
 {
-	m_material = materialCache->get( attribute<ShaderNetwork>( attributes->members(), g_surfaceShaderAttributeName ) );
+	const ShaderNetwork *surface = attribute<ShaderNetwork>( attributes->members(), g_renderManSurfaceAttributeName );
+	surface = surface ? surface : attribute<ShaderNetwork>( attributes->members(), g_surfaceAttributeName );
+	m_material = materialCache->getMaterial( surface );
+
+	const ShaderNetwork *displacement = attribute<ShaderNetwork>( attributes->members(), g_renderManDisplacementAttributeName );
+	displacement = displacement ? displacement : attribute<ShaderNetwork>( attributes->members(), g_oslDisplacementAttributeName );
+	displacement = displacement ? displacement : attribute<ShaderNetwork>( attributes->members(), g_displacementAttributeName );
+	if( displacement )
+	{
+		m_displacement = materialCache->getDisplacement( displacement );
+	}
+
 	m_lightShader = attribute<ShaderNetwork>( attributes->members(), g_renderManLightShaderAttributeName );
 	m_lightShader = m_lightShader ? m_lightShader : attribute<ShaderNetwork>( attributes->members(), g_lightShaderAttributeName );
 
 	if( attributeValue<bool>( attributes->members(), g_automaticInstancingAttributeName, true ) )
 	{
 		m_prototypeHash.emplace( IECore::MurmurHash() );
+		if( displacement )
+		{
+			displacement->hash( *m_prototypeHash );
+		}
 	}
 
 	for( const auto &[name, value] : attributes->members() )

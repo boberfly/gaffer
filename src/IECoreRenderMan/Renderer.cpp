@@ -129,7 +129,7 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 			if( object )
 			{
 				/// \todo Cache geometry masters
-				geometryPrototype = GeometryAlgo::convert( object, typedAttributes->prototypeAttributes(), m_session->riley );
+				geometryPrototype = GeometryAlgo::convert( object, riley::DisplacementId(), typedAttributes->prototypeAttributes(), m_session->riley );
 			}
 			return new IECoreRenderMan::Light( geometryPrototype, typedAttributes, m_session );
 		}
