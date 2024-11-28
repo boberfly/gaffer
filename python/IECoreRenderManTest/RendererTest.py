@@ -1094,6 +1094,96 @@ class RendererTest( GafferTest.TestCase ) :
 		self.assertEqual( instances[2]["geoMasterId"], prototypes[0]["result"] )
 		self.assertEqual( instances[3]["geoMasterId"], prototypes[1]["result"] )
 
+	def testChangingPrototypeAttributesCausesEditFailure( self ) :
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Interactive
+		)
+
+		mesh = IECoreScene.MeshPrimitive.createPlane( imath.Box2f( imath.V2f( -1 ), imath.V2f( 1 ) ) )
+		concaveAttributes = renderer.attributes(
+			IECore.CompoundObject( {
+				"ri:polygon:concave" : IECore.BoolData( 1 ),
+			} )
+		)
+		meshObject = renderer.object( "mesh", mesh, concaveAttributes )
+
+		# Can change instance-level attributes OK.
+		concaveAttributesPlus = renderer.attributes(
+			IECore.CompoundObject( {
+				"ri:polygon:concave" : IECore.BoolData( True ),
+				"ri:visibility:camera" : IECore.BoolData( False ),
+			} )
+		)
+		self.assertTrue( meshObject.attributes( concaveAttributesPlus ) )
+
+		# But changing prototype-level attribute should cause edit failure.
+		convexAttributes = renderer.attributes(
+			IECore.CompoundObject( {
+				"ri:polygon:concave" : IECore.BoolData( False ),
+				"ri:visibility:camera" : IECore.BoolData( False ),
+			} )
+		)
+		self.assertFalse( meshObject.attributes( convexAttributes ) )
+
+		del meshObject, concaveAttributes, concaveAttributesPlus, convexAttributes, renderer
+
+	def testDisplacement( self ) :
+
+		with IECoreRenderManTest.RileyCapture() as capture :
+
+			renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+				"RenderMan",
+				GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+			)
+
+			mesh = IECoreScene.MeshPrimitive.createPlane( imath.Box2f( imath.V2f( -1 ), imath.V2f( 1 ) ) )
+
+			displacementAttributes1 = renderer.attributes(
+				IECore.CompoundObject( {
+					"osl:displacement" : IECoreScene.ShaderNetwork(
+						shaders = {
+							"output" : IECoreScene.Shader( "PxrDisplace", "osl:displacement", { "dispAmount" : 1.0 } )
+						},
+						output = ( "output", "result" )
+					),
+				} )
+			)
+
+			displacementAttributes2 = renderer.attributes(
+				IECore.CompoundObject( {
+					"osl:displacement" : IECoreScene.ShaderNetwork(
+						shaders = {
+							"output" : IECoreScene.Shader( "PxrDisplace", "osl:displacement", { "dispAmount" : 2.0 } )
+						},
+						output = ( "output", "result" )
+					),
+				} )
+			)
+
+			renderer.object( "mesh1A", mesh, displacementAttributes1 )
+			renderer.object( "mesh2A", mesh, displacementAttributes2 )
+			renderer.object( "mesh1B", mesh, displacementAttributes1 )
+			renderer.object( "mesh2B", mesh, displacementAttributes2 )
+
+			del renderer
+
+		displacements = [ x for x in capture.json if x["method"] == "CreateDisplacement" ]
+		self.assertEqual( len( displacements ), 2 )
+
+		prototypes = [ x for x in capture.json if x["method"] == "CreateGeometryPrototype" ]
+		self.assertEqual( len( prototypes ), 2 )
+		self.assertEqual( prototypes[0]["displacementId"], displacements[0]["result"] )
+		self.assertEqual( prototypes[1]["displacementId"], displacements[1]["result"] )
+
+		instances = [ x for x in capture.json if x["method"] == "CreateGeometryInstance" ]
+		self.assertEqual( len( instances ), 4 )
+		self.assertEqual( instances[0]["geoMasterId"], prototypes[0]["result"] )
+		self.assertEqual( instances[1]["geoMasterId"], prototypes[1]["result"] )
+		self.assertEqual( instances[2]["geoMasterId"], prototypes[0]["result"] )
+		self.assertEqual( instances[3]["geoMasterId"], prototypes[1]["result"] )
+
 	def __assertParameterEqual( self, paramList, name, data ) :
 
 		p = next( x for x in paramList if x["info"]["name"] == name )
