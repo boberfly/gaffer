@@ -130,6 +130,12 @@ def __loadShader( shaderName, nodeType ) :
 		node["name"].setValue(
 			shaderName.replace( "Pxr", "pxr" )
 		)
+	elif isinstance( node, GafferOSL.OSLShader ) :
+		if "matchCppPattern" in node["parameters"] :
+			# This parameter is only useful for compatibility with RenderMan 23,
+			# which is not a concern for us since we are starting with RenderMan
+			# 26. Hide it.
+			Gaffer.Metadata.registerValue( node["parameters"]["matchCppPattern"], "layout:visibilityActivator", False )
 
 	return node
 
