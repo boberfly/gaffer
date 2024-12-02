@@ -59,7 +59,7 @@ M44f correctiveTransform( const Attributes *attributes )
 		return M44f();
 	}
 
-	if( lightShader->getName() == "PxrDomeLight" )
+	if( lightShader->getName() == "PxrDomeLight" || lightShader->getName() == "PxrEnvDayLight" )
 	{
 		return M44f().rotate( V3f( -M_PI_2, M_PI_2, 0.0f ) );
 	}
