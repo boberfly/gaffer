@@ -355,17 +355,55 @@ void IECoreRenderMan::GeometryAlgo::registerConverter( IECore::TypeId fromType, 
 	registry()[fromType] = { converter, motionConverter };
 }
 
-void IECoreRenderMan::GeometryAlgo::convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList )
-{
-	dispatch( primitiveVariable.data.get(), PrimitiveVariableConverter(), name, primitiveVariable, primVarList );
-}
-
 void IECoreRenderMan::GeometryAlgo::convertPrimitiveVariables( const IECoreScene::Primitive *primitive, RtPrimVarList &primVarList )
 {
-	for( auto &primitiveVariable : primitive->variables )
+	for( const auto &[name, primitiveVariable] : primitive->variables )
 	{
-		const RtUString name( primitiveVariable.first == "uv" ? "st" : primitiveVariable.first.c_str() );
-		GeometryAlgo::convertPrimitiveVariable( name, primitiveVariable.second, primVarList );
+		const RtUString convertedName( name == "uv" ? "st" : name.c_str() );
+		dispatch( primitiveVariable.data.get(), PrimitiveVariableConverter(), convertedName, primitiveVariable, primVarList );
+	}
+}
+
+void IECoreRenderMan::GeometryAlgo::convertPrimitiveVariables( const std::vector<const IECoreScene::Primitive *> &samples, const std::vector<float> &sampleTimes, RtPrimVarList &primVarList )
+{
+	bool haveSetTimes = false;
+	for( const auto &[name, primitiveVariable] : samples[0]->variables )
+	{
+		bool animated = false;
+		for( size_t i = 1; i < samples.size(); ++i )
+		{
+			auto it = samples[i]->variables.find( name );
+			if( it == samples[i]->variables.end() )
+			{
+				animated = false;
+				break;
+			}
+			else if( it->second != primitiveVariable )
+			{
+				animated = true;
+			}
+		}
+
+		const RtUString convertedName( name == "uv" ? "st" : name.c_str() );
+		if( animated )
+		{
+			if( !haveSetTimes )
+			{
+				primVarList.SetTimes( sampleTimes.size(), sampleTimes.data() );
+				haveSetTimes = true;
+			}
+
+			for( size_t i = 0; i < samples.size(); ++i )
+			{
+				auto it = samples[i]->variables.find( name );
+				assert( it != samples[i]->variables.end() );
+				dispatch( it->second.data.get(), PrimitiveVariableConverter(), convertedName, primitiveVariable, primVarList, i );
+			}
+		}
+		else
+		{
+			dispatch( primitiveVariable.data.get(), PrimitiveVariableConverter(), convertedName, primitiveVariable, primVarList );
+		}
 	}
 }
 

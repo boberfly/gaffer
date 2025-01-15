@@ -93,8 +93,6 @@ class ConverterDescription
 /// PrimitiveVariable conversion
 /// ============================
 
-/// \todo Remove
-void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList );
 void convertPrimitiveVariables( const IECoreScene::Primitive *primitive, RtPrimVarList &primVarList );
 void convertPrimitiveVariables( const std::vector<const IECoreScene::Primitive *> &samples, const std::vector<float> &sampleTimes, RtPrimVarList &primVarList );
 
