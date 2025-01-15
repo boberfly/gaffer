@@ -61,6 +61,7 @@ class GeometryPrototypeCache
 
 		// Can be called concurrently with other calls to `get()`.
 		GeometryPrototypePtr get( const IECore::Object *object, const Attributes *attributes );
+		GeometryPrototypePtr get( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, const Attributes *attributes );
 
 		// Must not be called concurrently with anything.
 		void clearUnused();

@@ -57,7 +57,12 @@ GeometryPrototypePtr GeometryPrototypeCache::get( const IECore::Object *object, 
 		return nullptr;
 	}
 
-	auto converter = [] ( const IECore::Object *object, const Attributes *attributes, const Session *session, GeometryPrototypePtr &result ) {
+	return get( { object }, { 0.0f }, attributes );
+}
+
+GeometryPrototypePtr GeometryPrototypeCache::get( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, const Attributes *attributes )
+{
+	auto converter = [] ( const vector<const IECore::Object *> &samples, const vector<float> &sampleTimes, const Attributes *attributes, const Session *session, GeometryPrototypePtr &result ) {
 
 		riley::DisplacementId displacement;
 		if( auto d = attributes->displacement() )
@@ -66,7 +71,17 @@ GeometryPrototypePtr GeometryPrototypeCache::get( const IECore::Object *object, 
 		}
 
 		RtPrimVarList primVars;
-		RtUString type = GeometryAlgo::convert( object, primVars );
+		RtUString type;
+		if( samples.size() == 1 )
+		{
+			/// \todo Remove static conversions from GeometryAlgo?
+			type = GeometryAlgo::convert( samples[0], primVars );
+		}
+		else
+		{
+			type = GeometryAlgo::convert( samples, sampleTimes, primVars );
+		}
+
 		if( !type.Empty() )
 		{
 			primVars.RtParamList::Inherit( attributes->prototypeAttributes() );
@@ -83,17 +98,21 @@ GeometryPrototypePtr GeometryPrototypeCache::get( const IECore::Object *object, 
 	{
 		// Automatic instancing disabled.
 		GeometryPrototypePtr result;
-		converter( object, attributes, m_session, result );
+		converter( samples, sampleTimes, attributes, m_session, result );
 		return result;
 	}
 
 	IECore::MurmurHash h = *attributesHash;
-	object->hash( h );
+	for( size_t i = 0; i < samples.size(); ++i )
+	{
+		samples[i]->hash( h );
+		h.append( sampleTimes[i] );
+	}
 
 	auto [it, inserted] = m_cache.emplace(
 		std::piecewise_construct, std::forward_as_tuple( h ), std::make_tuple()
 	);
-	std::call_once( it->second.onceFlag, converter, object, attributes, m_session, it->second.prototype );
+	std::call_once( it->second.onceFlag, converter, samples, sampleTimes, attributes, m_session, it->second.prototype );
 
 	return it->second.prototype;
 }
