@@ -149,13 +149,21 @@ class RenderManRenderer final : public IECoreScenePreview::Renderer
 				return nullptr;
 			}
 
-			return new IECoreRenderMan::Object( geometryPrototype, static_cast<const Attributes *>( attributes ), m_session );
+			return new IECoreRenderMan::Object( geometryPrototype, typedAttributes, m_session );
 		}
 
 		ObjectInterfacePtr object( const std::string &name, const std::vector<const IECore::Object *> &samples, const std::vector<float> &times, const AttributesInterface *attributes ) override
 		{
-			/// \todo Convert all time samples
-			return object( name, samples.front(), attributes );
+			acquireSession();
+
+			auto typedAttributes = static_cast<const Attributes *>( attributes );
+			ConstGeometryPrototypePtr geometryPrototype = m_geometryPrototypeCache->get( samples, times, typedAttributes );
+			if( !geometryPrototype )
+			{
+				return nullptr;
+			}
+
+			return new IECoreRenderMan::Object( geometryPrototype, typedAttributes, m_session );
 		}
 
 		void render() override
