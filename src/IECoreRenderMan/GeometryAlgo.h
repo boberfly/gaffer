@@ -93,6 +93,7 @@ class ConverterDescription
 /// PrimitiveVariable conversion
 /// ============================
 
-void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList );
+void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList );
+void convertPrimitiveVariables( const IECoreScene::Primitive *primitive, RtPrimVarList &primVarList );
 
 } // namespace IECoreRenderMan::GeometryAlgo

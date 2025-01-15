@@ -133,36 +133,36 @@ struct PrimitiveVariableConverter
 
 	// Simple data
 
-	void operator()( const BoolData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	void operator()( const BoolData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList ) const
 	{
 		int b = data->readable();
-		paramList.SetIntegerDetail( name, &b, detail( primitiveVariable.interpolation ) );
+		primVarList.SetIntegerDetail( name, &b, detail( primitiveVariable.interpolation ) );
 	}
 
-	void operator()( const IntData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	void operator()( const IntData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList ) const
 	{
-		paramList.SetIntegerDetail( name, &data->readable(), detail( primitiveVariable.interpolation ) );
+		primVarList.SetIntegerDetail( name, &data->readable(), detail( primitiveVariable.interpolation ) );
 	}
 
-	void operator()( const FloatData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	void operator()( const FloatData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList ) const
 	{
-		paramList.SetFloatDetail( name, &data->readable(), detail( primitiveVariable.interpolation ) );
+		primVarList.SetFloatDetail( name, &data->readable(), detail( primitiveVariable.interpolation ) );
 	}
 
-	void operator()( const StringData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	void operator()( const StringData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList ) const
 	{
 		RtUString s( data->readable().c_str() );
-		paramList.SetStringDetail( name, &s, detail( primitiveVariable.interpolation ) );
+		primVarList.SetStringDetail( name, &s, detail( primitiveVariable.interpolation ) );
 	}
 
-	void operator()( const Color3fData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	void operator()( const Color3fData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList ) const
 	{
-		paramList.SetColorDetail( name, reinterpret_cast<const RtColorRGB *>( data->readable().getValue() ), detail( primitiveVariable.interpolation ) );
+		primVarList.SetColorDetail( name, reinterpret_cast<const RtColorRGB *>( data->readable().getValue() ), detail( primitiveVariable.interpolation ) );
 	}
 
-	void operator()( const V3fData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	void operator()( const V3fData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList ) const
 	{
-		paramList.SetParam(
+		primVarList.SetParam(
 			{
 				name,
 				dataType( data->getInterpretation() ),
@@ -179,7 +179,7 @@ struct PrimitiveVariableConverter
 
 	// Vector data
 
-	void operator()( const IntVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	void operator()( const IntVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList ) const
 	{
 		emit(
 			data,
@@ -193,11 +193,11 @@ struct PrimitiveVariableConverter
 				/* deduplicated = */ false
 			},
 			primitiveVariable,
-			paramList
+			primVarList
 		);
 	}
 
-	void operator()( const FloatVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	void operator()( const FloatVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList ) const
 	{
 		emit(
 			data,
@@ -211,11 +211,11 @@ struct PrimitiveVariableConverter
 				/* deduplicated = */ false
 			},
 			primitiveVariable,
-			paramList
+			primVarList
 		);
 	}
 
-	void operator()( const V2fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	void operator()( const V2fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList ) const
 	{
 		emit(
 			data,
@@ -229,11 +229,11 @@ struct PrimitiveVariableConverter
 				/* deduplicated = */ false
 			},
 			primitiveVariable,
-			paramList
+			primVarList
 		);
 	}
 
-	void operator()( const V3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	void operator()( const V3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList ) const
 	{
 		emit(
 			data,
@@ -247,11 +247,11 @@ struct PrimitiveVariableConverter
 				/* deduplicated = */ false
 			},
 			primitiveVariable,
-			paramList
+			primVarList
 		);
 	}
 
-	void operator()( const Color3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	void operator()( const Color3fVectorData *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList ) const
 	{
 		emit(
 			data,
@@ -265,11 +265,11 @@ struct PrimitiveVariableConverter
 				/* deduplicated = */ false
 			},
 			primitiveVariable,
-			paramList
+			primVarList
 		);
 	}
 
-	void operator()( const Data *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+	void operator()( const Data *data, RtUString name, const PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList ) const
 	{
 		IECore::msg(
 			IECore::Msg::Warning,
@@ -281,12 +281,12 @@ struct PrimitiveVariableConverter
 	private :
 
 		template<typename T>
-		void emit( const T *data, const RtPrimVarList::ParamInfo &paramInfo, const PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList ) const
+		void emit( const T *data, const RtPrimVarList::ParamInfo &paramInfo, const PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList ) const
 		{
 			if( primitiveVariable.indices )
 			{
 				typedef RtPrimVarList::Buffer<typename T::ValueType::value_type> Buffer;
-				Buffer buffer( paramList, paramInfo, /* time = */ 0 );
+				Buffer buffer( primVarList, paramInfo, /* time = */ 0 );
 				buffer.Bind();
 
 				const vector<int> &indices = primitiveVariable.indices->readable();
@@ -300,7 +300,7 @@ struct PrimitiveVariableConverter
 			}
 			else
 			{
-				paramList.SetParam(
+				primVarList.SetParam(
 					paramInfo,
 					data->readable().data(),
 					0
@@ -316,13 +316,7 @@ struct PrimitiveVariableConverter
 // Implementation of public API
 //////////////////////////////////////////////////////////////////////////
 
-namespace IECoreRenderMan
-{
-
-namespace GeometryAlgo
-{
-
-RtUString convert( const IECore::Object *object, RtPrimVarList &primVars )
+RtUString IECoreRenderMan::GeometryAlgo::convert( const IECore::Object *object, RtPrimVarList &primVars )
 {
 	Registry &r = registry();
 	auto it = r.find( object->typeId() );
@@ -333,7 +327,7 @@ RtUString convert( const IECore::Object *object, RtPrimVarList &primVars )
 	return it->second.converter( object, primVars );
 }
 
-RtUString convert( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, RtPrimVarList &primVars )
+RtUString IECoreRenderMan::GeometryAlgo::convert( const std::vector<const IECore::Object *> &samples, const std::vector<float> &sampleTimes, RtPrimVarList &primVars )
 {
 	Registry &r = registry();
 	auto it = r.find( samples.front()->typeId() );
@@ -351,19 +345,24 @@ RtUString convert( const std::vector<const IECore::Object *> &samples, const std
 	}
 }
 
-void registerConverter( IECore::TypeId fromType, Converter converter, MotionConverter motionConverter )
+void IECoreRenderMan::GeometryAlgo::registerConverter( IECore::TypeId fromType, Converter converter, MotionConverter motionConverter )
 {
 	registry()[fromType] = { converter, motionConverter };
 }
 
-void convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVariable &primitiveVariable, RtPrimVarList &paramList )
+void IECoreRenderMan::GeometryAlgo::convertPrimitiveVariable( RtUString name, const IECoreScene::PrimitiveVariable &primitiveVariable, RtPrimVarList &primVarList )
 {
-	dispatch( primitiveVariable.data.get(), PrimitiveVariableConverter(), name, primitiveVariable, paramList );
+	dispatch( primitiveVariable.data.get(), PrimitiveVariableConverter(), name, primitiveVariable, primVarList );
 }
 
-} // namespace GeometryAlgo
-
-} // namespace IECoreRenderMan
+void IECoreRenderMan::GeometryAlgo::convertPrimitiveVariables( const IECoreScene::Primitive *primitive, RtPrimVarList &primVarList )
+{
+	for( auto &primitiveVariable : primitive->variables )
+	{
+		const RtUString name( primitiveVariable.first == "uv" ? "st" : primitiveVariable.first.c_str() );
+		GeometryAlgo::convertPrimitiveVariable( name, primitiveVariable.second, primVarList );
+	}
+}
 
 //////////////////////////////////////////////////////////////////////////
 // Spheres
@@ -381,10 +380,7 @@ RtUString convertStaticSphere( const IECoreScene::SpherePrimitive *sphere, RtPri
 		sphere->variableSize( PrimitiveVariable::FaceVarying )
 	);
 
-	for( auto &primitiveVariable : sphere->variables )
-	{
-		GeometryAlgo::convertPrimitiveVariable( RtUString( primitiveVariable.first.c_str() ), primitiveVariable.second, primVars );
-	}
+	GeometryAlgo::convertPrimitiveVariables( sphere, primVars );
 
 	const float radius = sphere->radius();
 	const float zMin = sphere->zMin();
@@ -489,11 +485,7 @@ RtUString convertStaticMesh( const IECoreScene::MeshPrimitive *mesh, RtPrimVarLi
 		mesh->variableSize( PrimitiveVariable::FaceVarying )
 	);
 
-	for( auto &primitiveVariable : mesh->variables )
-	{
-		const RtUString name( primitiveVariable.first == "uv" ? "st" : primitiveVariable.first.c_str() );
-		GeometryAlgo::convertPrimitiveVariable( name, primitiveVariable.second, primVars );
-	}
+	GeometryAlgo::convertPrimitiveVariables( mesh, primVars );
 
 	primVars.SetIntegerDetail( Rix::k_Ri_nvertices, mesh->verticesPerFace()->readable().data(), RtDetailType::k_uniform );
 	primVars.SetIntegerDetail( Rix::k_Ri_vertices, mesh->vertexIds()->readable().data(), RtDetailType::k_facevarying );
@@ -592,10 +584,7 @@ RtUString convertStaticPoints( const IECoreScene::PointsPrimitive *points, RtPri
 		points->variableSize( PrimitiveVariable::FaceVarying )
 	);
 
-	for( auto &primitiveVariable : points->variables )
-	{
-		GeometryAlgo::convertPrimitiveVariable( RtUString( primitiveVariable.first.c_str() ), primitiveVariable.second, primVars );
-	}
+	GeometryAlgo::convertPrimitiveVariables( points, primVars );
 
 	return Rix::k_Ri_Points;
 }
@@ -620,10 +609,7 @@ RtUString convertStaticCurves( const IECoreScene::CurvesPrimitive *curves, RtPri
 		curves->variableSize( PrimitiveVariable::FaceVarying )
 	);
 
-	for( auto &primitiveVariable : curves->variables )
-	{
-		GeometryAlgo::convertPrimitiveVariable( RtUString( primitiveVariable.first.c_str() ), primitiveVariable.second, primVars );
-	}
+	GeometryAlgo::convertPrimitiveVariables( curves, primVars );
 
 	if( curves->basis().standardBasis() == StandardCubicBasis::Unknown )
 	{
