@@ -812,6 +812,7 @@ for option, envVar in {
 	"ARNOLD_ROOT" : "ARNOLD_ROOT",
 	"DELIGHT_ROOT" : "DELIGHT",
 	"ONNX_ROOT" : "ONNX_ROOT",
+	"RENDERMAN_ROOT" : "RMANTREE",
 	"CYCLES_ROOT" : "CYCLES_ROOT",
 }.items() :
 	commandEnv["ENV"][envVar] = commandEnv[option]
