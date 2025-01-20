@@ -3644,6 +3644,19 @@ class ArnoldGlobals
 				}
 				return;
 			}
+			else if( name == g_operatorOptionName )
+			{
+				m_operator = nullptr;
+				if( value )
+				{
+					if( const IECoreScene::ShaderNetwork *d = reportedCast<const IECoreScene::ShaderNetwork>( value, "option", name ) )
+					{
+						m_operator = m_shaderCache->get( d, IECore::InternedString(), nullptr );
+					}
+				}
+				AiOpSetTarget( universe(), m_operator ? m_operator->root() : nullptr );
+				return;
+			}
 			else if( boost::starts_with( name.c_str(), "ai:aov_shader:" ) )
 			{
 				m_aovShaders.erase( name );
