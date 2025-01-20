@@ -141,7 +141,12 @@ jobs:
         echo DELIGHT=$GITHUB_WORKSPACE/3delight >> $GITHUB_ENV
         ./.github/workflows/main/installONNX.py
         echo ONNX_ROOT=$GITHUB_WORKSPACE/onnxruntime >> $GITHUB_ENV
+        ./.github/workflows/main/installRenderMan.py
+        echo RMANTREE=$GITHUB_WORKSPACE/renderMan >> $GITHUB_ENV
       shell: bash
+      env:
+        RENDERMAN_DOWNLOAD_USER: ${{ secrets.RENDERMAN_DOWNLOAD_USER }}
+        RENDERMAN_DOWNLOAD_PASSWORD: ${{ secrets.RENDERMAN_DOWNLOAD_PASSWORD }}
 
     - name: Install Mesa (Windows)
       # Installed after dependencies to avoid errors from python related to existing directory `bin`.
