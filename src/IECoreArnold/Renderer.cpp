@@ -3619,7 +3619,7 @@ class ArnoldGlobals
 				{
 					if( const IECoreScene::ShaderNetwork *d = reportedCast<const IECoreScene::ShaderNetwork>( value, "option", name ) )
 					{
-						m_operator = m_shaderCache->get( d, nullptr );
+						m_operator = m_shaderCache->get( d, IECore::InternedString(), nullptr );
 					}
 				}
 				AiOpSetTarget( universe(), m_operator ? m_operator->root() : nullptr );
