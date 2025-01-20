@@ -143,7 +143,7 @@ jobs:
         ./.github/workflows/main/installONNX.py
         echo ONNX_ROOT=$GITHUB_WORKSPACE/onnxruntime >> $GITHUB_ENV
         ./.github/workflows/main/installRenderMan.py
-        echo RMANTREE=$GITHUB_WORKSPACE/renderMan >> $GITHUB_ENV
+        echo RMANTREE=/opt/pixar/RenderManProServer-26.3 >> $GITHUB_ENV
       shell: bash
       env:
         RENDERMAN_DOWNLOAD_USER: ${{ secrets.RENDERMAN_DOWNLOAD_USER }}
