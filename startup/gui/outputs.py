@@ -448,7 +448,7 @@ with IECore.IgnoredExceptions( ImportError ) :
 
 	# If RenderMan isn't available for any reason, this will fail
 	# and we won't add any unnecessary output definitions.
-	import GafferArnold
+	import GafferRenderMan
 
 	for name, data, accumulationRule in [
 		( "albedo", "lpe nothruput;noinfinitecheck;noclamp;unoccluded;overwrite;C<.S'passthru'>*((U2L)|O)", "filter" ),
