@@ -141,7 +141,7 @@ AtNode *convertWalk( const ShaderNetwork::Parameter &outputParameter, const IECo
 	// Set the shader parameters
 
 	IECore::ConstCompoundDataPtr expandedParameters = IECoreScene::ShaderNetworkAlgo::expandSplineParameters(
-		shader->parametersData()
+		shader->parametersData(), shader->getType(), shader->getName()
 	);
 
 	for( const auto &namedParameter : expandedParameters->readable() )

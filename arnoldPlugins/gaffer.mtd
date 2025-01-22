@@ -2409,22 +2409,6 @@
 	gaffer.nodeMenu.category STRING "Maths"
 
 
-[node ramp_float]
-
-	# Hidden, because we don't have support for
-	# array parameters or a UI to match Arnold's
-	# interpolation modes.
-	gaffer.nodeMenu.category STRING ""
-
-
-[node ramp_rgb]
-
-	# Hidden, because we don't have support for
-	# array parameters or a UI to match Arnold's
-	# interpolation modes.
-	gaffer.nodeMenu.category STRING ""
-
-
 [node random]
 
 	primaryInput STRING "input_color"
