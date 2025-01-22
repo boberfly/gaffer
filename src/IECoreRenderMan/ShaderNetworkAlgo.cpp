@@ -43,6 +43,8 @@
 #include "IECore/MessageHandler.h"
 #include "IECore/SearchPath.h"
 
+#include "IECoreScene/ShaderNetworkAlgo.h"
+
 #include "OSL/oslquery.h"
 
 #include "boost/container/flat_map.hpp"
@@ -363,7 +365,10 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 
 	if( !isFilterCombiner )
 	{
-		ParamListAlgo::convertParameters( shader->parameters(), node.params );
+		IECore::ConstCompoundDataPtr expandedParameters = IECoreScene::ShaderNetworkAlgo::expandSplineParameters(
+			shader->parametersData(), shader->getType(), shader->getName()
+		);
+		ParamListAlgo::convertParameters( expandedParameters->readable(), node.params );
 	}
 
 	for( const auto &connection : shaderNetwork->inputConnections( outputParameter.shader ) )
@@ -386,11 +391,14 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 
 std::vector<riley::ShadingNode> IECoreRenderMan::ShaderNetworkAlgo::convert( const IECoreScene::ShaderNetwork *network )
 {
+	IECoreScene::ShaderNetworkPtr networkCopy = network->copy();
+	IECoreScene::ShaderNetworkAlgo::convertToOSLConventions( networkCopy.get(), 10900 );
+
 	vector<riley::ShadingNode> result;
-	result.reserve( network->size() );
+	result.reserve( networkCopy->size() );
 
 	HandleSet visited;
-	convertShaderNetworkWalk( network->getOutput(), network, result, visited );
+	convertShaderNetworkWalk( networkCopy->getOutput(), networkCopy.get(), result, visited );
 
 	return result;
 }
