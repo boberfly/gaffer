@@ -432,6 +432,77 @@ bool find3DelightSplineParameters(
 	return positionsParameter && valuesParameter && basisParameter;
 }
 
+//////////////////////////////////////////////////////////////////////////
+// Renderman Shader loading code
+//////////////////////////////////////////////////////////////////////////
+
+bool findRendermanSplineParameters(
+	const OSLQuery &query,
+	const OSLQuery::Parameter *parameter,
+	std::string &nameWithoutSuffix,
+	const OSLQuery::Parameter * &positionsParameter,
+	const OSLQuery::Parameter * &valuesParameter,
+	const OSLQuery::Parameter * &basisParameter
+)
+{
+	const char *suffixes[] = { "_Knots", "_Colors", "_Floats", "_Interpolation", nullptr };
+	const char *suffix = nullptr;
+	for( const char **suffixPtr = suffixes; *suffixPtr; ++suffixPtr )
+	{
+		if( boost::ends_with( parameter->name.c_str(), *suffixPtr ) )
+		{
+			suffix = *suffixPtr;
+			break;
+		}
+	}
+
+	if( !suffix )
+	{
+		return false;
+	}
+
+	nameWithoutSuffix = parameter->name.string().substr( 0, parameter->name.string().size() - strlen( suffix ) );
+
+	positionsParameter = query.getparam( nameWithoutSuffix + "_Knots" );
+	if(
+		!positionsParameter ||
+		!positionsParameter->type.is_array() ||
+		positionsParameter->type.basetype != TypeDesc::FLOAT ||
+		positionsParameter->type.aggregate != TypeDesc::SCALAR
+	)
+	{
+		return false;
+	}
+
+	valuesParameter = query.getparam( nameWithoutSuffix + "_Floats" );
+	if(
+		!valuesParameter ||
+		!valuesParameter->type.is_array() ||
+		valuesParameter->type.basetype != TypeDesc::FLOAT ||
+		( valuesParameter->type.aggregate != TypeDesc::SCALAR )
+	)
+	{
+		valuesParameter = query.getparam( nameWithoutSuffix + "_Colors" );
+		if(
+			!valuesParameter ||
+			!valuesParameter->type.is_array() ||
+			valuesParameter->type.basetype != TypeDesc::FLOAT ||
+			( valuesParameter->type.aggregate != TypeDesc::SCALAR && valuesParameter->type.vecsemantics != TypeDesc::COLOR )
+		)
+		{
+			return false;
+		}
+	}
+
+	basisParameter = query.getparam( nameWithoutSuffix + "_Interpolation" );
+	if( !basisParameter || basisParameter->type != TypeDesc::TypeString )
+	{
+		return false;
+	}
+
+	return true;
+}
+
 
 //////////////////////////////////////////////////////////////////////////
 // Shader loading code
@@ -981,7 +1052,8 @@ bool findSplineParameters( const OSLQuery &query, const OSLQuery::Parameter *par
 {
 	return
 		findGafferSplineParameters( query, parameter, nameWithoutSuffix, positionsParameter, valuesParameter, basisParameter ) ||
-		find3DelightSplineParameters( query, parameter, nameWithoutSuffix, positionsParameter, valuesParameter, basisParameter )
+		find3DelightSplineParameters( query, parameter, nameWithoutSuffix, positionsParameter, valuesParameter, basisParameter ) ||
+		findRendermanSplineParameters( query, parameter, nameWithoutSuffix, positionsParameter, valuesParameter, basisParameter )
 	;
 }
 
@@ -1444,6 +1516,23 @@ static IECore::ConstCompoundDataPtr metadataGetter( const std::string &key, size
 				if( prevData )
 				{
 					data->writable().insert( prevData->readable().begin(), prevData->readable().end() );
+				}
+
+				// Renderman has the metadata on the parameter name without a suffix so we look for that.
+				if( const OSLQuery::Parameter *mainParameter = query.getparam( nameWithoutSuffix ) )
+				{
+					CompoundDataPtr mainParameterData = convertMetadata( mainParameter->metadata );
+					mainParameterData->writable().erase( "widget" );
+					data->writable().insert( mainParameterData->readable().begin(), mainParameterData->readable().end() );
+					if( mainParameterData->member( "label" ) )
+					{
+						data->writable()["label"] = mainParameterData->member( "label" );
+					}
+					else
+					{
+						// PxrSplineMap has no label, so we just use the parameter name
+						data->writable()["label"] = new StringData( nameWithoutSuffix );
+					}
 				}
 
 				parameterMetadata->writable()[nameWithoutSuffix] = data;
