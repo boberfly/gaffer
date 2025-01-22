@@ -45,6 +45,8 @@
 #include "IECore/MessageHandler.h"
 #include "IECore/SearchPath.h"
 
+#include "IECoreScene/ShaderNetworkAlgo.h"
+
 #include "OSL/oslquery.h"
 
 #include "boost/algorithm/string.hpp"
@@ -392,7 +394,11 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 		RtParamList()
 	};
 
-	for( const auto &[parameterName, parameterValue] : shader->parameters() )
+	IECore::ConstCompoundDataPtr expandedParameters = IECoreScene::ShaderNetworkAlgo::expandSplineParameters(
+		shader->parametersData(), shader->getType(), shader->getName()
+	);
+
+	for( const auto &[parameterName, parameterValue] : expandedParameters->readable() )
 	{
 		if( std::regex_match( parameterName.string(), g_arrayIndexRegex ) )
 		{
@@ -636,6 +642,7 @@ ShaderNetworkPtr preprocessedNetwork( const IECoreScene::ShaderNetwork *shaderNe
 	ShaderNetworkPtr result = shaderNetwork->copy();
 
 	IECoreRenderMan::ShaderNetworkAlgo::convertUSDShaders( result.get() );
+	IECoreScene::ShaderNetworkAlgo::convertToOSLConventions( result.get(), 10900 );
 
 	return result;
 }

@@ -118,6 +118,16 @@ struct ParameterConverter
 		paramList.SetIntegerArray( name, data->readable().data(), data->readable().size() );
 	}
 
+	void operator()( const FloatVectorData *data, RtUString name, RtParamList &paramList ) const
+	{
+		paramList.SetFloatArray( name, data->readable().data(), data->readable().size() );
+	}
+
+	void operator()( const Color3fVectorData *data, RtUString name, RtParamList &paramList ) const
+	{
+		paramList.SetColorArray( name, reinterpret_cast<const pxrcore::ColorRGB *>( data->readable().data() ), data->readable().size() );
+	}
+
 	void operator()( const Data *data, RtUString name, RtParamList &paramList ) const
 	{
 		IECore::msg(
