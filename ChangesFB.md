@@ -21,6 +21,7 @@ Improvements
   - OpenVDBs will now render and allow shader updates in a live render.
 - Tractor : Ensure username is passed to the spooler
 - GafferUI : OpenGL differences fix with the latest Qt.py
+- Arnold : `ramp_rgb` and `ramp_float` support, with correct USD conversions
 
 Fixes
 -----
