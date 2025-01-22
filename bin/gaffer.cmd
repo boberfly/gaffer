@@ -89,7 +89,16 @@ if "%ARNOLD_ROOT%" NEQ "" (
 	call :appendToPath "%ARNOLD_ROOT%\bin" PATH
 	call :appendToPath "%ARNOLD_ROOT%\python" PYTHONPATH
 
-	if exist "%ARNOLD_ROOT%\include\ai_version.h" (
+	if "%REZ_ARNOLD_MAJOR_VERSION%" NEQ "" (
+		set ARNOLD_VERSION=!REZ_ARNOLD_MAJOR_VERSION!.!REZ_ARNOLD_MINOR_VERSION!
+		if exist "%GAFFER_ROOT%\arnold\%ARNOLD_VERSION%" (
+			call :prependToPath "%GAFFER_ROOT%\arnold\!ARNOLD_VERSION!" GAFFER_EXTENSION_PATHS
+			call :prependToPath "%GAFFER_ROOT%\arnold\!ARNOLD_VERSION!\arnoldPlugins" ARNOLD_PLUGIN_PATH
+			call :prependToPath "%ARNOLD_ROOT%\plugins" ARNOLD_PLUGIN_PATH
+		) else (
+			echo WARNING : GafferArnold extension not available for Arnold %ARNOLD_VERSION%
+		)
+	) else if exist "%ARNOLD_ROOT%\include\ai_version.h" (
 		for /f "tokens=3" %%A in ('findstr /R /C:"#define *AI_VERSION_ARCH_NUM" "%ARNOLD_ROOT%\include\ai_version.h"') do (
 			set /a ARNOLD_ARCH_NUM=%%A
 		)
