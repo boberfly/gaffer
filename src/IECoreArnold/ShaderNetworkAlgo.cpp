@@ -36,12 +36,15 @@
 
 #include "IECoreArnold/ShaderNetworkAlgo.h"
 
+#include "GafferOSL/MaterialXAlgo.h"
 #include "GafferOSL/OSLShader.h"
 
 #include "IECoreArnold/ParameterAlgo.h"
 
 #include "IECoreScene/Shader.h"
 #include "IECoreScene/ShaderNetworkAlgo.h"
+
+#include "IECoreMaterialX/ShaderNetworkAlgo.h"
 
 #include "IECore/AngleConversion.h"
 #include "IECore/MessageHandler.h"
@@ -360,6 +363,8 @@ T parameterValue( const Shader *shader, InternedString parameterName, const T &d
 ShaderNetworkPtr preprocessedNetwork( const IECoreScene::ShaderNetwork *shaderNetwork )
 {
 	ShaderNetworkPtr result = shaderNetwork->copy();
+	/// Convert all MaterialX nodes to OSL nodes.
+	IECoreMaterialX::ShaderNetworkAlgo::convertToOSLNodes( result.get() );
 	/// \todo : pass in the actual OSL version.  We should be able to use a recent enough
 	/// version of OSL that Arnold supports actual component connections, and we don't have
 	/// to force the insertion of old OSL adapters.

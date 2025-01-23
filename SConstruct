@@ -319,6 +319,11 @@ options.Add(
 	"",
 )
 
+options.Add(
+	"MATERIALX_ROOT",
+	"The directory in which the MaterialX library is installed. Used to build IECoreMaterialX",
+)
+
 # general variables
 
 options.Add(
@@ -787,6 +792,8 @@ for option, envVar in {
 	"DELIGHT_ROOT" : "DELIGHT",
 	"ONNX_ROOT" : "ONNX_ROOT",
 	"RENDERMAN_ROOT" : "RMANTREE",
+	"CYCLES_ROOT" : "CYCLES_ROOT",
+	"MATERIALX_ROOT" : "MATERIALX_ROOT",
 }.items() :
 	commandEnv["ENV"][envVar] = commandEnv[option]
 
@@ -939,6 +946,84 @@ if env["ARNOLD_ROOT"] :
 	# Install root
 
 	arnoldInstallRoot = "${{BUILD_DIR}}/arnold/{ARCH}.{MAJOR}".format( **arnoldVersions )
+
+###############################################################################################
+# MaterialX shader generation function before we build it
+###############################################################################################
+
+mtlxShaders = []
+if commandEnv["ENV"]["MATERIALX_ROOT"] :
+
+	skipShaders = [
+		"ND_disney_brdf_2012_surface",
+		"ND_disney_bsdf_2015_surface",
+		"ND_conical_edf",
+		"ND_measured_edf",
+		"ND_absorption_vdf",
+		"ND_mix_vdf",
+		"ND_add_vdf",
+		"ND_multiply_vdfC",
+		"ND_multiply_vdfF",
+		"ND_volumematerial",
+		"ND_mix_displacementshader",
+		"ND_mix_volumeshader",
+		"ND_UsdPrimvarReader_filename",
+		"ND_lama_surface",
+		"ND_constant_filename",
+		"ND_geompropvalueuniform_filename",
+	]
+
+	skipNodeGroup = [
+		"organization",
+		"light",
+		"material",
+	]
+
+	if hasattr( os, "add_dll_directory" ) :
+		os.add_dll_directory( os.path.join( commandEnv["ENV"]["MATERIALX_ROOT"], "bin" ) )
+		os.add_dll_directory( os.path.join( commandEnv["ENV"]["MATERIALX_ROOT"], "lib" ) )
+
+	import MaterialX as mx
+	import MaterialX.PyMaterialXGenShader as mxGenShader
+	import MaterialX.PyMaterialXGenOsl as mxGenOsl
+
+	buildDir = os.path.join( "shaders", "__mtlx" )
+	if os.path.exists( buildDir ):
+		shutil.rmtree( buildDir )
+	os.makedirs( buildDir )
+
+	searchPath = mx.FileSearchPath( os.environ.get( "PXR_MTLX_STDLIB_SEARCH_PATHS", "" ) )
+	libraryFolders = [ "libraries" ]
+
+	mxDoc = mx.createDocument()
+	mx.loadLibraries( libraryFolders, searchPath, mxDoc )
+
+	generator = mxGenOsl.OslShaderGenerator.create()
+	context = mxGenShader.GenContext(generator)
+	context.getOptions().addUpstreamDependencies = False
+	context.registerSourceCodeSearchPath( searchPath )
+	context.getOptions().fileTextureVerticalFlip = True
+
+	index = 0
+	for mxNodeDef in mxDoc.getNodeDefs() :
+		shaderName = mxNodeDef.getName()
+		if shaderName in skipShaders :
+			continue
+		nodeGroup = mxNodeDef.getNodeGroup()
+		if nodeGroup in skipNodeGroup :
+			continue
+		mxNode = mxDoc.addNodeInstance( mxNodeDef, "mtlx_shader_%04d" % index )
+		try :
+			index += 1
+			mxShader = generator.generate( shaderName, mxNode, context )
+			code = mxShader.getSourceCode( "pixel" )
+			outFile = os.path.join( buildDir, "__" + shaderName + ".osl" )
+			with open( outFile, "w" ) as f:
+				f.write(code)
+			mtlxShaders.append( outFile )
+		except :
+			pass # print("No impl for {}".format( shaderName ))
+
 
 ###############################################################################################
 # Definitions for the libraries we wish to build
@@ -1152,12 +1237,29 @@ libraries = {
 		"requiredOptions" : [ "ONNX_ROOT" ],
 	},
 
+	"IECoreMaterialX" : {
+		"envAppends" : {
+			"CPPPATH" : [ "$OSLHOME/include", "$MATERIALX_ROOT/include" ],
+			"LIBPATH" : [ "$MATERIALX_ROOT/lib" ],
+			"LIBS" : [ "OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "Iex$IMATH_LIB_SUFFIX", "IECoreScene$CORTEX_LIB_SUFFIX", "MaterialXCore", "MaterialXFormat", "MaterialXGenShader", "MaterialXGenOsl" ],
+		},
+		"pythonEnvAppends" : {
+			"LIBS" : [ "IECoreScene$CORTEX_LIB_SUFFIX", "IECoreMaterialX" ],
+		},
+		"requiredOptions" : [ "MATERIALX_ROOT" ],
+		"mtlxShaders" : mtlxShaders,
+	},
+
+	"IECoreMaterialXTest" : {
+		"requiredOptions" : [ "MATERIALX_ROOT" ],
+	},
+
 	"IECoreArnold" : {
 		"envAppends" : {
 			"LIBPATH" : [ "$ARNOLD_ROOT/bin" ] if env["PLATFORM"] != "win32" else [ "$ARNOLD_ROOT/bin", "$ARNOLD_ROOT/lib" ],
 			## \todo Remove GafferScene. We need it at present to get access to `IECoreScenePreview::Renderer`,
 			# but IECoreArnold must never depend on Gaffer code; logically it is in the layer below Gaffer.
-			"LIBS" : [ "GafferScene", "ai", "IECoreScene$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX", "openvdb$VDB_LIB_SUFFIX" ],
+			"LIBS" : [ "GafferScene", "ai", "IECoreMaterialX", "IECoreScene$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX", "openvdb$VDB_LIB_SUFFIX" ],
 			"CXXFLAGS" : [ "-DAI_ENABLE_DEPRECATION_WARNINGS" ],
 			"CPPPATH" : [ "$ARNOLD_ROOT/include" ],
 		},
@@ -1238,8 +1340,9 @@ libraries = {
 
 	"GafferOSL" : {
 		"envAppends" : {
-			"CPPPATH" : [ "$OSLHOME/include/OSL" ],
-			"LIBS" : [ "Gaffer", "GafferScene", "GafferImage", "OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "Iex$IMATH_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreScene$CORTEX_LIB_SUFFIX" ],
+			"CPPPATH" : [ "$OSLHOME/include/OSL", "$MATERIALX_ROOT/include" ],
+			"LIBPATH" : [ "$MATERIALX_ROOT/lib" ],
+			"LIBS" : [ "Gaffer", "GafferScene", "GafferImage", "OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "Iex$IMATH_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreScene$CORTEX_LIB_SUFFIX", "MaterialXCore", "MaterialXFormat", "MaterialXGenShader", "MaterialXGenOsl" ],
 		},
 		"pythonEnvAppends" : {
 			"CPPPATH" : [ "$OSLHOME/include/OSL" ],
@@ -1310,7 +1413,7 @@ libraries = {
 		"envAppends" : {
 			"LIBPATH" : [ "$CYCLES_ROOT/lib" ],
 			"LIBS" : [
-				"IECoreScene$CORTEX_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX",
+				"IECoreScene$CORTEX_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX", "IECoreMaterialX",
 				"Gaffer", "GafferScene", "GafferDispatch", "GafferOSL",
 				"cycles_session", "cycles_scene", "cycles_graph", "cycles_bvh", "cycles_device", "cycles_kernel", "cycles_kernel_osl",
 				"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew",
@@ -1791,21 +1894,29 @@ for libraryName, libraryDef in libraries.items() :
 	# osl shaders
 
 	def buildOSL( target, source, env ) :
-		subprocess.check_call(
-			[
-				shutil.which( "oslc", path = env["ENV"]["PATH"] ) if env["PLATFORM"] == "win32" else "oslc",
-				"-I./shaders",
-				"-o",
-				str( target[0] ), str( source[0] )
-			],
-			env = env["ENV"]
-		)
+
+		command = [
+			shutil.which( "oslc", path = env["ENV"]["PATH"] ) if env["PLATFORM"] == "win32" else "oslc",
+			"-I./shaders",
+		]
+
+		if os.path.exists( env["ENV"]["MATERIALX_ROOT"] ) :
+			command.append( "-I" + os.path.join( env["ENV"]["MATERIALX_ROOT"], "libraries", "stdlib", "genosl", "include" ) )
+
+		command += [ "-o", str( target[0] ), str( source[0] ) ]
+
+		subprocess.check_call( command, env = env["ENV"] )
 
 	for oslShader in libraryDef.get( "oslShaders", [] ) :
 		env.Alias( "buildCore", oslShader )
 		compiledFile = commandEnv.Command( os.path.join( installRoot, os.path.splitext( oslShader )[0] + ".oso" ), oslShader, buildOSL )
 		env.Depends( compiledFile, "oslHeaders" )
 		env.Alias( "buildCore", compiledFile )
+
+	for mtlxShader in libraryDef.get( "mtlxShaders", [] ) :
+		env.Alias( "buildCore", mtlxShader )
+		mtlxCompiledFile = commandEnv.Command( os.path.join( installRoot, os.path.splitext( mtlxShader )[0] + ".oso" ), mtlxShader, buildOSL )
+		env.Alias( "buildCore", mtlxCompiledFile )
 
 	# class stubs
 

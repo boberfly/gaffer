@@ -5,12 +5,18 @@ Features
 --------
 
 - USDLight : Added Cycles-specific light parameters.
+- IECoreMaterialX : Added MaterialXAlgo with `convertToOSL()`, `convertToOSO()` and `convertToOSLNodes()` functions for renderers to convert MaterialX nodes into
+  OSL source or bytecode, as well as converting a whole ShaderNetwork of MaterialX nodes into their generated OSL versions in a renderer-agnostic way.
 
 Improvements
 ------------
 
 - 3Delight : Added light muting support.
 - Arnold : Added support for specifying the name of a shader in the node menu using Arnold's `ui.name` metadata. This improves the formatting of the OpenPBR Surface menu item.
+- USDShader :
+  - A namespace prefix is now set for the shader type from the USD source type, except for `USD` and `glslfx` built-ins which correspond to USDLux lights and USDPreviewSurface built-ins
+  - Added a way to register namespace overrides from USD shader source types if the resulting USD source type is undesirable
+  - The correct shader assignment for displacement and volume shaders are now set for shaders which have a context of `displacement` or `volume` set
 
 Fixes
 -----
@@ -24,17 +30,6 @@ Build
 - Cortex : Updated to version 10.5.13.0.
 
 1.5.6.0 (relative to 1.5.5.0)
-=======
-
-Features
---------
-
-- AttributeEditor, LightEditor, RenderPassEditor : Added drag and drop editing. Edits can be created or updated by dropping a value into a cell. Cells representing a set expression or string array can be modified by holding <kbd>Shift</kbd> to append to an existing edit, or <kbd>Control</kbd> may be held to remove from an existing edit.
-
-Improvements
-------------
-
-- ArnoldShader : Moved Arnold 7.3.7.0's new `transmission_shadow_density` parameters to a "Transmission" section of the UI.
 
 Fixes
 -----
@@ -631,10 +626,6 @@ Improvements
 ------------
 
 - Arnold : Added support for Int64Data and UInt64Data custom attributes, allowing USD's `instanceId` to be used as a custom attribute in the Instancer node. Warnings are emitted if values are out of range for Arnold's 32 bit ints.
-- USDShader :
-  - A namespace prefix is now set for the shader type from the USD source type, except for `USD` and `glslfx` built-ins which correspond to USDLux lights and USDPreviewSurface built-ins
-  - Added a way to register namespace overrides from USD shader source types if the resulting USD source type is undesirable
-  - The correct shader assignment for displacement and volume shaders are now set for shaders which have a context of `displacement` or `volume` set
 
 Fixes
 -----

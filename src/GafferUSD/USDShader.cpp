@@ -244,7 +244,7 @@ Plug *loadParameter( InternedString name, const SdfValueTypeName &type, Plug::Di
 	{
 		acquiredPlug = acquireCompoundNumericPlug<Color3fPlug>( name, type, direction, defaultValue, candidatePlug );
 	}
-	else if( type == SdfValueTypeNames->Float4 )
+	else if( type == SdfValueTypeNames->Float4 || type == SdfValueTypeNames->Color4f )
 	{
 		acquiredPlug = acquireCompoundNumericPlug<Color4fPlug>( name, type, direction, defaultValue, candidatePlug );
 	}

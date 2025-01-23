@@ -836,6 +836,9 @@ IECore::InternedString g_oslSurfaceShaderAttributeName( "osl:surface" );
 IECore::InternedString g_oslShaderAttributeName( "osl:shader" );
 IECore::InternedString g_cyclesVolumeShaderAttributeName( "cycles:volume" );
 IECore::InternedString g_surfaceShaderAttributeName( "surface" );
+IECore::InternedString g_mtlxSurfaceShaderAttributeName( "mtlx:surface" );
+IECore::InternedString g_mtlxDisplacementShaderAttributeName( "mtlx:displacement" );
+IECore::InternedString g_mtlxVolumeShaderAttributeName( "mtlx:volume" );
 // Ray visibility
 IECore::InternedString g_cameraVisibilityAttributeName( "cycles:visibility:camera" );
 IECore::InternedString g_diffuseVisibilityAttributeName( "cycles:visibility:diffuse" );
@@ -919,6 +922,9 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 
 			// Surface shader
 			const IECoreScene::ShaderNetwork *surfaceShaderAttribute = attribute<IECoreScene::ShaderNetwork>( g_cyclesSurfaceShaderAttributeName, attributes );
+			surfaceShaderAttribute = surfaceShaderAttribute ? surfaceShaderAttribute : attribute<IECoreScene::ShaderNetwork>( g_mtlxSurfaceShaderAttributeName, attributes );
+			surfaceShaderAttribute = surfaceShaderAttribute ? surfaceShaderAttribute : attribute<IECoreScene::ShaderNetwork>( g_mtlxDisplacementShaderAttributeName, attributes );
+			surfaceShaderAttribute = surfaceShaderAttribute ? surfaceShaderAttribute : attribute<IECoreScene::ShaderNetwork>( g_mtlxVolumeShaderAttributeName, attributes );
 			surfaceShaderAttribute = surfaceShaderAttribute ? surfaceShaderAttribute : attribute<IECoreScene::ShaderNetwork>( g_oslSurfaceShaderAttributeName, attributes );
 			surfaceShaderAttribute = surfaceShaderAttribute ? surfaceShaderAttribute : attribute<IECoreScene::ShaderNetwork>( g_oslShaderAttributeName, attributes );
 			surfaceShaderAttribute = surfaceShaderAttribute ? surfaceShaderAttribute : attribute<IECoreScene::ShaderNetwork>( g_surfaceShaderAttributeName, attributes );

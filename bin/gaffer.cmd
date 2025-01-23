@@ -42,12 +42,14 @@ call :prependToPath "%GAFFER_ROOT%\graphics" GAFFERUI_IMAGE_PATHS
 
 set OSLHOME=%GAFFER_ROOT%
 
-call :prependToPath "%USERPROFILE%\gaffer\shaders;%GAFFER_ROOT%\shaders" OSL_SHADER_PATHS
+call :prependToPath "%USERPROFILE%\gaffer\shaders;%GAFFER_ROOT%\shaders;%GAFFER_ROOT%\materialX\libraries\stdlib\genosl\include" OSL_SHADER_PATHS
 
 set GAFFEROSL_CODE_DIRECTORY=%USERPROFILE%\gaffer\oslCode
 call :prependToPath %GAFFEROSL_CODE_DIRECTORY% PATH
 
 set PYTHONHOME=%GAFFER_ROOT%
+set IECORE_MATERIALX_CODE_DIRECTORY=%USERPROFILE%\gaffer\oslCode
+call :prependToPath %IECORE_MATERIALX_CODE_DIRECTORY% PATH
 
 call :prependToPath "%GAFFER_ROOT%\python" PYTHONPATH
 
