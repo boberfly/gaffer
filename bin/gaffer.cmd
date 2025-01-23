@@ -57,10 +57,13 @@ if "%OSL_ROOT%" EQU "" (
 	set OSLHOME=%OSL_ROOT%
 )
 
-call :prependToPath "%USERPROFILE%\gaffer\shaders;%GAFFER_ROOT%\shaders" OSL_SHADER_PATHS
+call :prependToPath "%USERPROFILE%\gaffer\shaders;%GAFFER_ROOT%\shaders;%GAFFER_ROOT%\materialX\libraries\stdlib\genosl\include" OSL_SHADER_PATHS
 
 set GAFFEROSL_CODE_DIRECTORY=%USERPROFILE%\gaffer\oslCode
 call :prependToPath %GAFFEROSL_CODE_DIRECTORY% PATH
+
+set IECORE_MATERIALX_CODE_DIRECTORY=%USERPROFILE%\gaffer\oslCode
+call :prependToPath %IECORE_MATERIALX_CODE_DIRECTORY% PATH
 
 call :prependToPath "%GAFFER_ROOT%\python" PYTHONPATH
 

@@ -44,12 +44,17 @@
 #include "IECore/LRUCache.h"
 #include "IECore/MessageHandler.h"
 #include "IECore/SearchPath.h"
+#include "IECore/SimpleTypedData.h"
+#include "IECore/VectorTypedData.h"
 
 #include "IECoreScene/ShaderNetworkAlgo.h"
+
+#include "IECoreMaterialX/ShaderNetworkAlgo.h"
 
 #include "OSL/oslquery.h"
 
 #include "boost/algorithm/string.hpp"
+#include "boost/algorithm/string/predicate.hpp"
 #include "boost/container/flat_map.hpp"
 #include "boost/property_tree/xml_parser.hpp"
 
@@ -443,6 +448,11 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 // USD conversion code
 //////////////////////////////////////////////////////////////////////////
 
+const InternedString g_filterTypeParameter( "filterType" );
+const InternedString g_closestFilterName( "closest" );
+const InternedString g_cubicFilterName( "cubic" );
+const InternedString g_linearFilterName( "linear" );
+
 template<typename T>
 T parameterValue( const Shader *shader, InternedString parameterName, const T &defaultValue )
 {
@@ -484,6 +494,39 @@ T parameterValue( const Shader *shader, InternedString parameterName, const T &d
 		if( auto d = shader->parametersData()->member<InternedStringData>( parameterName ) )
 		{
 			return d->readable().string();
+		}
+	}
+	else if constexpr( is_same_v<remove_cv_t<T>, int > )
+	{
+		// String to Enum for special-case `ND_image.filterType` to `PxrTexture.filter`.
+		// PxrTexture's filter enum numbers: 0 == closest, 1 == cubic, 2 == linear.
+		if( boost::starts_with( shader->getName(), "ND_image" ) && parameterName == g_filterTypeParameter )
+		{
+			if( auto d = shader->parametersData()->member<InternedStringData>( parameterName ) )
+			{
+				const InternedString &s = d->readable();
+				if( s == g_closestFilterName )
+				{
+					return 0;
+				}
+				else if( s == g_cubicFilterName )
+				{
+					return 1;
+				}
+				else if( s == g_linearFilterName )
+				{
+					return 2;
+				}
+			}
+		}
+	}
+	else if constexpr( is_same_v<remove_cv_t<T>, float > )
+	{
+		// Conversion of V2f to the first value eg. `ND_normalmap_vector2`
+		if( auto d = shader->parametersData()->member<V2fData>( parameterName ) )
+		{
+			const V2f &v = d->readable();
+			return v[0];
 		}
 	}
 
@@ -695,9 +738,174 @@ void transferUSDShapingParameters( ShaderNetwork *network, InternedString shader
 	}
 }
 
+// standard_surface
+
+const InternedString g_emissionParameter( "emission" );
+const InternedString g_emissionValueParameter( "emission_value" );
+
+const InternedString g_subsurfaceParameter( "subsurface" );
+const InternedString g_subsurfaceValueParameter( "subsurface_value" );
+
+const InternedString g_diffuseRoughnessParameter( "diffuseRoughness" );
+const InternedString g_specularFresnelModeParameter( "specularFresnelMode" );
+const InternedString g_specularExtinctionCoeffParameter( "specularExtinctionCoeff" );
+const InternedString g_specularAnisotropyParameter( "specularAnisotropy" );
+const InternedString g_clearcoatModelTypeParameter( "clearcoatModelType" );
+const InternedString g_clearcoatAnisotropyParameter( "clearcoatAnisotropy" );
+const InternedString g_reflectionGainParameter( "reflectionGain" );
+const InternedString g_refractionColorParameter( "refractionColor" );
+const InternedString g_glassAnisotropyParameter( "glassAnisotropy" );
+const InternedString g_thinGlassParameter( "thinGlass" );
+const InternedString g_ssAlbedoParameter( "ssAlbedo" );
+const InternedString g_extinctionParameter( "extinction" );
+const InternedString g_g0Parameter( "g0" );
+const InternedString g_subsurfaceGainParameter( "subsurfaceGain" );
+const InternedString g_subsurfaceColorParameter( "subsurfaceColor" );
+const InternedString g_subsurfaceDmfpParameter( "subsurfaceDmfp" );
+const InternedString g_subsurfaceDmfpColorParameter( "subsurfaceDmfpColor" );
+const InternedString g_subsurfaceDirectionalityParameter( "subsurfaceDirectionality" );
+const InternedString g_diffuseTransmitGainParameter( "diffuseTransmitGain" );
+const InternedString g_diffuseTransmitColorParameter( "diffuseTransmitColor" );
+const InternedString g_fuzzGainParameter( "fuzzGain" );
+const InternedString g_fuzzColorParameter( "fuzzColor" );
+const InternedString g_fuzzConeAngleParameter( "fuzzConeAngle" );
+const InternedString g_iridescenceModeParameter( "iridescenceMode" );
+const InternedString g_iridescenceFaceGainParameter( "iridescenceFaceGain" );
+const InternedString g_iridescenceEdgeGainParameter( "iridescenceEdgeGain" );
+const InternedString g_iridescenceThicknessParameter( "iridescenceThickness" );
+
+const std::vector<InternedString> g_standardSurfaceParameters = {
+	g_diffuseGainParameter,
+	g_diffuseColorParameter,
+	g_diffuseRoughnessParameter,
+	g_specularFresnelModeParameter,
+	g_specularModelTypeParameter,
+	g_specularFaceColorParameter,
+	g_specularEdgeColorParameter,
+	g_specularRoughnessParameter,
+	g_specularIorParameter,
+	g_specularExtinctionCoeffParameter,
+	g_specularAnisotropyParameter,
+	g_clearcoatModelTypeParameter,
+	g_clearcoatFaceColorParameter,
+	g_clearcoatEdgeColorParameter,
+	g_clearcoatRoughnessParameter,
+	g_clearcoatAnisotropyParameter,
+	g_glowGainParameter,
+	g_glowColorParameter,
+	g_reflectionGainParameter,
+	g_refractionGainParameter,
+	g_refractionColorParameter,
+	g_glassIorParameter,
+	g_glassRoughnessParameter,
+	g_glassAnisotropyParameter,
+	g_thinGlassParameter,
+	g_ssAlbedoParameter,
+	g_extinctionParameter,
+	g_g0Parameter,
+	g_subsurfaceGainParameter,
+	g_subsurfaceColorParameter,
+	g_subsurfaceDmfpParameter,
+	g_subsurfaceDmfpColorParameter,
+	g_subsurfaceDirectionalityParameter,
+	g_diffuseTransmitGainParameter,
+	g_diffuseTransmitColorParameter,
+	g_diffuseDoubleSidedParameter,
+	g_fuzzGainParameter,
+	g_fuzzColorParameter,
+	g_fuzzConeAngleParameter,
+	g_iridescenceModeParameter,
+	g_iridescenceFaceGainParameter,
+	g_iridescenceEdgeGainParameter,
+	g_iridescenceThicknessParameter,
+	g_bumpNormalParameter,
+};
+
+// Lama
+
+const std::unordered_map<std::string, std::string> g_lamaNameMap = {
+	{ "ND_lama_surface", "LamaSurface" },
+	{ "ND_lama_add", "LamaAdd" },
+	{ "ND_lama_mix", "LamaMix" },
+	{ "ND_lama_layer", "LamaLayer" },
+	{ "ND_lama_conductor", "LamaConductor" },
+	{ "ND_lama_dielectric", "LamaDielectric" },
+	{ "ND_lama_diffuse", "LamaDiffuse" },
+	{ "ND_lama_emission", "LamaEmission" },
+	{ "ND_lama_generalized_schlick", "LamaGeneralizedSchlick" },
+	{ "ND_lama_iridescence", "LamaIridescence" },
+	{ "ND_lama_sheen", "LamaSheen" },
+	{ "ND_lama_sss", "LamaSSS" },
+	{ "ND_lama_translucent", "LamaTranslucent" },
+};
+
+// image
+
+const InternedString g_mtlxImageFloatShader( "ND_image_float" );
+const InternedString g_mtlxImageColor3Shader( "ND_image_color3" );
+const InternedString g_mtlxImageColor4Shader( "ND_image_color4" );
+const InternedString g_mtlxImageVector2Shader( "ND_image_vector2" );
+const InternedString g_mtlxImageVector3Shader( "ND_image_vector3" );
+const InternedString g_mtlxImageVector4Shader( "ND_image_vector4" );
+
+const InternedString g_resultAParameter( "resultA" );
+const InternedString g_resultNGParameter( "resultNG" );
+
+const InternedString g_fileParameter( "file" );
+const InternedString g_filenameParameter( "filename" );
+const InternedString g_defaultParameter( "default" );
+const InternedString g_missingColorParameter( "missingColor" );
+const InternedString g_filterParameter( "filter" );
+const InternedString g_missingAlphaParameter( "missingAlpha" );
+const InternedString g_texcoordParameter( "texcoord" );
+const InternedString g_manifoldParameter( "manifold" );
+const InternedString g_manifoldQParameter( "manifold.Q" );
+const InternedString g_nameUvSetParameter( "name_uvSet" );
+
+const InternedString g_resultParameter( "result" );
+const InternedString g_resultNParameter( "resultN" );
+
+const InternedString g_inParameter( "in" );
+const InternedString g_inputRGBParameter( "inputRGB" );
+const InternedString g_scaleParameter( "scale" );
+const InternedString g_bumpScaleParameter( "bumpScale" );
+
+const InternedString g_tangentParameter( "tangent" );
+const InternedString g_bitangentParameter( "bitangent" );
+const InternedString g_flipYParameter( "flipY" );
+
+const std::vector<std::string> g_mtlxImageShaders = {
+	g_mtlxImageFloatShader.string(),
+	g_mtlxImageColor3Shader.string(),
+	g_mtlxImageColor4Shader.string(),
+	g_mtlxImageVector2Shader.string(),
+	g_mtlxImageVector3Shader.string(),
+	g_mtlxImageVector4Shader.string(),
+};
+
 const InternedString remapOutputParameterName( const InternedString name, const InternedString shaderName )
 {
-	if( boost::starts_with( shaderName.string(), "UsdPrimvarReader" ) )
+	if( shaderName == g_mtlxImageFloatShader )
+	{
+		return g_resultAParameter;
+	}
+	else if( shaderName == g_mtlxImageColor3Shader )
+	{
+		return g_resultRGBParameter;
+	}
+	else if( shaderName == g_mtlxImageColor4Shader )
+	{
+		return g_resultRGBParameter;
+	}
+	else if( shaderName == g_mtlxImageVector2Shader ||
+				shaderName == g_mtlxImageVector3Shader ||
+				shaderName == g_mtlxImageVector4Shader )
+	{
+		// There is resultNG but not suitable from my testing eg.
+		// PxrTexture -> PxrNormalMap is a better fit.
+		return g_resultRGBParameter;
+	}
+	else if( boost::starts_with( shaderName.string(), "UsdPrimvarReader" ) )
 	{
 		if( shaderName == g_usdPrimvarReaderFloatShaderName )
 		{
@@ -711,6 +919,14 @@ const InternedString remapOutputParameterName( const InternedString name, const 
 		{
 			return g_resultRGBParameter;
 		}
+	}
+	else if( boost::starts_with( shaderName.string(), "ND_texcoord" ) )
+	{
+		return g_resultParameter;
+	}
+	else if( boost::starts_with( shaderName.string(), "ND_normalmap" ) )
+	{
+		return g_resultNParameter;
 	}
 
 	return name;
@@ -742,8 +958,9 @@ ShaderNetworkPtr preprocessedNetwork( const IECoreScene::ShaderNetwork *shaderNe
 {
 	ShaderNetworkPtr result = shaderNetwork->copy();
 
-	IECoreRenderMan::ShaderNetworkAlgo::convertUSDShaders( result.get() );
 	IECoreScene::ShaderNetworkAlgo::convertToOSLConventions( result.get(), 10900 );
+	IECoreRenderMan::ShaderNetworkAlgo::convertUSDShaders( result.get() );
+	IECoreMaterialX::ShaderNetworkAlgo::convertToOSLNodes( result.get(), "renderman" );
 
 	return result;
 }
@@ -819,7 +1036,7 @@ void convertUSDShaders( ShaderNetwork *shaderNetwork )
 	for( const auto &[handle, shader] : shaderNetwork->shaders() )
 	{
 		ShaderPtr newShader;
-		if( shader->getName() == "UsdPreviewSurface" )
+		if( shader->getName() == "UsdPreviewSurface" || shader->getName() == "ND_UsdPreviewSurface_surfaceshader" )
 		{
 			newShader = new Shader( "__usd/__UsdPreviewSurfaceParameters", "osl:shader" );
 
@@ -937,6 +1154,116 @@ void convertUSDShaders( ShaderNetwork *shaderNetwork )
 				},
 				defaultValue
 			);
+		}
+
+		if( shader->getName() == "standard_surface" || shader->getName() == "ND_standard_surface_surfaceshader" )
+		{
+			newShader = new Shader( "__renderman/__StandardSurfaceParameters.oso", "osl:shader" );
+
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_normalParameter, newShader.get(), g_normalInParameter, V3f( 0.0 ) );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_emissionParameter, newShader.get(), g_emissionValueParameter, 0.0f );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_subsurfaceParameter, newShader.get(), g_subsurfaceValueParameter, 0.0f );
+
+			for( const auto &[name, value] : shader->parameters() )
+			{
+				if( name == g_normalParameter ||
+					name == g_emissionParameter ||
+					name == g_subsurfaceParameter
+				)
+				{
+					continue;
+				}
+
+				newShader->parameters()[name] = value;
+			}
+
+			ShaderPtr pxrSurfaceShader = new Shader( "PxrSurface", "ri:surface" );
+			// Use GGX instead of Beckman specular model.
+			pxrSurfaceShader->parameters()[g_specularModelTypeParameter] = new IECore::IntData( 1 );
+			pxrSurfaceShader->parameters()[g_diffuseDoubleSidedParameter] = new IECore::IntData( 1 );
+			pxrSurfaceShader->parameters()[g_specularDoubleSidedParameter] = new IECore::IntData( 1 );
+			pxrSurfaceShader->parameters()[g_roughSpecularDoubleSidedParameter] = new IECore::IntData( 1 );
+			pxrSurfaceShader->parameters()[g_clearcoatDoubleSidedParameter] = new IECore::IntData( 1 );
+
+			const InternedString pxrSurfaceHandle = shaderNetwork->addShader( handle.string() + "PxrSurface", std::move( pxrSurfaceShader ) );
+
+			for( const auto &p : g_standardSurfaceParameters )
+			{
+				shaderNetwork->addConnection( ShaderNetwork::Connection( { handle, InternedString( p.string() + "Out" ) }, { pxrSurfaceHandle, p } ) );
+			}
+
+			shaderNetwork->setOutput( { pxrSurfaceHandle, "" } );
+		}
+
+		const auto lamaIt = g_lamaNameMap.find( shader->getName() );
+		if( lamaIt != g_lamaNameMap.end() )
+		{
+			newShader = new Shader( lamaIt->second, "ri:surface" );
+			for( const auto &[name, value] : shader->parameters() )
+			{
+				newShader->parameters()[name] = value;
+			}
+		}
+
+		// Currently `file_colorspace` MaterialX GenOSL will error out, so we just swap
+		// them with native PxrTexture. Possible future solution:
+		// https://github.com/AcademySoftwareFoundation/MaterialX/pull/2263
+		for( const std::string &imageShaderName : g_mtlxImageShaders )
+		{
+			if( shader->getName() == imageShaderName )
+			{
+				newShader = new Shader( "PxrTexture", "osl:shader" );
+
+				transferUSDParameter( shaderNetwork, handle, shader.get(), g_fileParameter, newShader.get(), g_filenameParameter, std::string() );
+				//transferUSDParameterRGBA( shaderNetwork, handle, shader.get(), g_defaultParameter, newShader.get(), g_missingColorParameter, g_missingAlphaParameter, Color4f( 0.0f, 0.0f, 0.0f, 1.0f ) );
+				transferUSDParameter( shaderNetwork, handle, shader.get(), g_defaultParameter, newShader.get(), g_missingColorParameter, Color3f( 0.0f ) );
+				transferUSDParameter( shaderNetwork, handle, shader.get(), g_filterTypeParameter, newShader.get(), g_filterParameter, 2 );
+				//transferUSDParameter( shaderNetwork, handle, shader.get(), g_defaultParameter, newShader.get(), g_missingAlphaParameter, 1.0f );
+				transferUSDParameter( shaderNetwork, handle, shader.get(), g_texcoordParameter, newShader.get(), g_manifoldParameter, V3f( 0.0f ) );
+			}
+		}
+
+		if( boost::starts_with( shader->getName(), "ND_texcoord" ) )
+		{
+			newShader = new Shader( "PxrManifold2D", "osl:shader" );
+			newShader->parameters()[g_nameUvSetParameter] = new StringData( "st" );
+		}
+
+		if( boost::starts_with( shader->getName(), "ND_normalmap" ) )
+		{
+			newShader = new Shader( "PxrNormalMap", "osl:shader" );
+
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_inParameter, newShader.get(), g_inputRGBParameter, V3f( 0.0f ) );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_scaleParameter, newShader.get(), g_bumpScaleParameter, 1.0f );
+			newShader->parameters()[g_flipYParameter] = new IntData( 1 );
+
+			if( const ShaderNetwork::Parameter tangentInput = shaderNetwork->input( { handle, g_tangentParameter } ) )
+			{
+				const Shader *inShader = shaderNetwork->getShader( tangentInput.shader );
+				if( boost::starts_with( inShader->getName(), "ND_tangent" ) )
+				{
+					IECore::msg(
+						IECore::Msg::Warning,
+						"IECoreRenderMan",
+						fmt::format( "MaterialX node `{}` is not supported in a name-based renderer.",
+						inShader->getName() ) );
+				}
+				shaderNetwork->removeConnection( { tangentInput, { handle, g_tangentParameter } } );
+			}
+
+			if( const ShaderNetwork::Parameter bitangentInput = shaderNetwork->input( { handle, g_bitangentParameter } ) )
+			{
+				const Shader *inShader = shaderNetwork->getShader( bitangentInput.shader );
+				if( boost::starts_with( inShader->getName(), "ND_bitangent" ) )
+				{
+					IECore::msg(
+						IECore::Msg::Warning,
+						"IECoreRenderMan",
+						fmt::format( "MaterialX node `{}` is not supported in a name-based renderer.",
+						inShader->getName() ) );
+				}
+				shaderNetwork->removeConnection( { bitangentInput, { handle, g_bitangentParameter } } );
+			}
 		}
 
 		if( newShader )

@@ -149,11 +149,16 @@ if [[ -e $GAFFER_ROOT/bin/oslc ]] ; then
 fi
 
 ## \todo: should we rename this to "osl" to match our "glsl" folder?
-prependToPath "$HOME/gaffer/shaders:$GAFFER_ROOT/shaders" OSL_SHADER_PATHS
+prependToPath "$HOME/gaffer/shaders:$GAFFER_ROOT/shaders:$GAFFER_ROOT/materialX/libraries/stdlib/genosl/include" OSL_SHADER_PATHS
 
 if [[ -z $GAFFEROSL_CODE_DIRECTORY ]] ; then
 	export GAFFEROSL_CODE_DIRECTORY="$HOME/gaffer/oslCode"
 	appendToPath "$GAFFEROSL_CODE_DIRECTORY" OSL_SHADER_PATHS
+fi
+
+if [[ -z $IECORE_MATERIALX_CODE_DIRECTORY ]] ; then
+	export IECORE_MATERIALX_CODE_DIRECTORY="$HOME/gaffer/oslCode"
+	appendToPath "$IECORE_MATERIALX_CODE_DIRECTORY" OSL_SHADER_PATHS
 fi
 
 # Get python set up properly

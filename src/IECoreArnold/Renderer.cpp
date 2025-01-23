@@ -1017,11 +1017,13 @@ const std::vector<IECore::InternedString> g_surfaceShaderAttributeNames = {
 	"osl:surface",
 	/// \todo Remove support for interpreting "osl:shader" as a surface shader assignment.
 	"osl:shader",
+	"mtlx:surface",
 	"surface"
 };
 
 const std::vector<IECore::InternedString> g_volumeShaderAttributeNames = {
 	"ai:volume",
+	"mtlx:volume",
 	"volume"
 };
 

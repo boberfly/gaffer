@@ -529,9 +529,9 @@ nodeMenu.append( "/VDB/Volume Scatter", GafferVDB.VolumeScatter, searchText = "V
 import GafferUSD
 import GafferUSDUI
 
-def __usdShaderCreator( shaderName ) :
+def __usdShaderCreator( shaderName, labelName ) :
 
-	node = GafferUSD.USDShader( name = shaderName )
+	node = GafferUSD.USDShader( name = labelName )
 	node.loadShader( shaderName )
 	return node
 
@@ -549,7 +549,7 @@ for menuPath, shader in [
 	[ "Primvar Reader/Vector", "UsdPrimvarReader_vector" ],
 	[ "Primvar Reader/Normal", "UsdPrimvarReader_normal" ],
 ] :
-	nodeMenu.append( "/USD/Shader/{}".format( menuPath ), functools.partial( __usdShaderCreator, shader ), searchText = shader )
+	nodeMenu.append( "/USD/Shader/{}".format( menuPath ), functools.partial( __usdShaderCreator, shader, shader ), searchText = shader )
 
 def __usdLightCreator( lightType ) :
 
@@ -574,6 +574,149 @@ for lightType in [
 nodeMenu.append( "/USD/Attributes", GafferUSD.USDAttributes, searchText = "USDAttributes" )
 nodeMenu.append( "/USD/Layer Writer", GafferUSD.USDLayerWriter, searchText = "USDLayerWriter" )
 nodeMenu.append( "/USD/Promote Instances", GafferUSD.PromotePointInstances, searchText = "PromotePointInstances" )
+
+# USD MaterialX nodes
+
+from pxr import Sdr
+
+# Very odd workaround, there's some race-condition on loading plugins
+# for Windows `Usd_UsdzResolver` so we invoke it here first in a try/except
+# and then run it again which should succeed at the second invocation...
+try:
+	Sdr.Registry()
+except:
+	pass
+
+sdrNodes = list( Sdr.Registry().GetNodesByFamily() )
+sdrNodes.sort( key = lambda a : a.GetName() )
+sdrNodes.sort( key = lambda a : a.GetRole() )
+
+# Shaders that aren't very useful or overlap with existing nodes
+omitLabels = [
+	"UsdPreviewSurface",
+	"UsdUVTexture",
+	"UsdTransform2d",
+	"UsdPrimvarReader",
+]
+
+omitNames = [
+	"ND_disney_brdf_2012_surface",
+	"ND_disney_bsdf_2015_surface",
+	"ND_conical_edf",
+	"ND_measured_edf",
+	"ND_absorption_vdf",
+	"ND_mix_vdf",
+	"ND_add_vdf",
+	"ND_multiply_vdfC",
+	"ND_multiply_vdfF",
+	"ND_volumematerial",
+	"ND_mix_displacementshader",
+	"ND_mix_volumeshader",
+]
+
+omitRoles = [
+	"organization",
+	"light",
+	"material",
+]
+
+# One node can have many category representations that don't make
+# sense to use or are problematic to use in-practice.
+omitCategories = {
+	#"combine2" : [ "color4", "vector4" ],
+}
+
+# Matrixes have issues currently, need to revisit.
+# Vector4 .x/.y/.z/.w hasn't got much use - quaternions?
+omitAllCategories = [
+	"matrix33",
+	"matrix44",
+]
+
+# Cleanup shader info and get what we need to make the menus
+shaderInfo = {}
+categoryInfo = {}
+
+for shader in sdrNodes :
+	sourceType = shader.GetSourceType()
+	if not sourceType == "mtlx" :
+		continue
+
+	name = shader.GetName()
+	if name in omitNames :
+		continue
+
+	nodeType = name.split( "_" )[-1]
+
+	role = shader.GetRole()
+	if role in omitRoles :
+		continue
+
+	label = shader.GetLabel()
+	if label in omitLabels :
+		continue
+
+	category = shader.GetCategory()
+	if category in omitAllCategories :
+		continue
+
+	if label in omitCategories :
+		if category in omitCategories[label] :
+			continue
+
+	shaderInfo[name] = { 'label': label, 'role': role, 'category': category, 'nodeType': nodeType }
+	if not label in categoryInfo :
+		categoryInfo[label] = []
+	
+	categoryInfo[label].append( category )
+
+# Unfortunately with nodes like 'extract', there are many inputs
+# that have a same output, and there doesn't seem to be an elegant
+# way to get this information other than looking at the name of the
+# shader itself.
+for name, value in shaderInfo.items() :
+	label = value['label']
+	category = value['category']
+	nodeType = value['nodeType']
+	categories = categoryInfo[label]
+	if len( categories ) < 2 :
+		continue
+	if not len( categories ) == len( set( categories ) ) :
+		newCategoryName = category
+		if category == "multioutput" or label == "extract" :
+			newCategoryName = nodeType
+		elif category == nodeType == "float" :
+			continue
+		elif category == nodeType == "surfaceshader" :
+			continue
+		elif category == nodeType.upper() == "BSDF" :
+			continue
+		elif category == nodeType.upper() == "EDF" :
+			continue
+		elif category == nodeType.upper() == "VDF" :
+			continue
+		else :
+			newCategoryName = '{}/{}'.format( category, nodeType )
+		shaderInfo[name]['category'] = newCategoryName
+
+# TODO: Other node editors in the wild will have things like switch and
+# combines with drop-down boxes for the input/output type of node you'd want.
+# We could do something similar in the future, or just have them all as
+# explicit nodes from the menu for now.
+
+for name, value in shaderInfo.items() :
+
+	label = value['label']
+	role = value['role']
+	category = value['category']
+
+	menuPath = None
+	if len( categoryInfo[label] ) < 2 :
+		menuPath = "/USD/MaterialX/{}/{}".format( role, label )
+	else :
+		menuPath = "/USD/MaterialX/{}/{}/{}".format( role, label, category )
+
+	nodeMenu.append( menuPath, functools.partial( __usdShaderCreator, name, label ), searchText = label )
 
 # Dispatch nodes
 
