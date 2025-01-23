@@ -43,6 +43,8 @@
 #include "IECoreScene/Shader.h"
 #include "IECoreScene/ShaderNetworkAlgo.h"
 
+#include "IECoreMaterialX/ShaderNetworkAlgo.h"
+
 #include "IECore/AngleConversion.h"
 #include "IECore/MessageHandler.h"
 #include "IECore/SimpleTypedData.h"
@@ -389,6 +391,8 @@ ShaderNetworkPtr preprocessedNetwork( const IECoreScene::ShaderNetwork *shaderNe
 	/// is used.
 	IECoreScene::ShaderNetworkAlgo::convertToOSLConventions( result.get(), 10900 );
 	IECoreArnold::ShaderNetworkAlgo::convertUSDShaders( result.get() );
+	/// Convert all MaterialX nodes to OSL nodes.
+	IECoreMaterialX::ShaderNetworkAlgo::convertToOSLNodes( result.get(), "arnold" );
 
 	/// Convert `quad_light` width and height, if needed.
 	if( result->outputShader()->getName() == "quad_light" )
@@ -1028,6 +1032,28 @@ void IECoreArnold::ShaderNetworkAlgo::convertUSDShaders( ShaderNetwork *shaderNe
 				shaderNetwork->addConnection( ShaderNetwork::Connection( normalInput, { normalHandle, g_inputParameter } ) );
 				shaderNetwork->removeConnection( ShaderNetwork::Connection( normalInput, { handle, g_normalParameter } ) );
 				shaderNetwork->addConnection( ShaderNetwork::Connection( normalHandle, { handle, g_normalParameter } ) );
+			}
+		}
+		// Arnold as of 7.3.5.0 does have the necessary MaterialX closures for the generated OSL
+		// shaders of standard_surface and openpbr_surface to function, however the native shader
+		// types are most likely a better choice to use and not needing MaterialX to translate the
+		// shader is a bonus. There are extra inputs (eg. AOVs) that are not in the MaterialX spec
+		// but do exist on the native Arnold shaders, so these *could* be supported somehow in the
+		// future, perhaps similar to how Lux lights can have renderer-specific schema?
+		else if( shader->getName() == "ND_standard_surface_surfaceshader" )
+		{
+			newShader = new Shader( "standard_surface" );
+			for( const auto &[name, value] : shader->parameters() )
+			{
+				newShader->parameters()[name] = value;
+			}
+		}
+		else if( shader->getName() == "ND_open_pbr_surface_surfaceshader" )
+		{
+			newShader = new Shader( "openpbr_surface" );
+			for( const auto &[name, value] : shader->parameters() )
+			{
+				newShader->parameters()[name] = value;
 			}
 		}
 		else if( shader->getName() == "UsdTransform2d" )

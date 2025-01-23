@@ -120,6 +120,7 @@ const InternedString g_renderManDisplacementAttributeName( "ri:displacement" );
 const InternedString g_renderManLightShaderAttributeName( "ri:light" );
 const InternedString g_renderManSurfaceAttributeName( "ri:surface" );
 const InternedString g_renderManLightFilterAttributeName( "ri:lightFilter" );
+const InternedString g_mtlxSurfaceAttributeName( "mtlx:surface" );
 const InternedString g_surfaceAttributeName( "surface" );
 const RtUString g_userMaterialId( "user:__materialid" );
 
@@ -219,6 +220,7 @@ Attributes::Attributes( const IECore::CompoundObject *attributes, MaterialCache 
 	// Convert shaders.
 
 	const ShaderNetwork *surface = attribute<ShaderNetwork>( attributes->members(), g_renderManSurfaceAttributeName );
+	surface = surface ? surface : attribute<ShaderNetwork>( attributes->members(), g_mtlxSurfaceAttributeName );
 	surface = surface ? surface : attribute<ShaderNetwork>( attributes->members(), g_surfaceAttributeName );
 	m_surfaceMaterial = materialCache->getMaterial( surface ? surface : g_facingRatio.get() );
 
