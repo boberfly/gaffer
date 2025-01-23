@@ -42,6 +42,8 @@
 #include "IECoreScene/Shader.h"
 #include "IECoreScene/ShaderNetworkAlgo.h"
 
+#include "IECoreMaterialX/ShaderNetworkAlgo.h"
+
 #include "IECore/AngleConversion.h"
 #include "IECore/LRUCache.h"
 #include "IECore/MessageHandler.h"
@@ -154,6 +156,7 @@ ccl::ShaderNode *convertWalk( const ShaderNetwork::Parameter &outputParameter, c
 		{
 			ccl::ConvertNode *convertNode = shaderGraph->create_node<ccl::ConvertNode>( getSocketType( split[1] ), getSocketType( split[3] ), true );
 			node = (ccl::ShaderNode*)convertNode;
+			node->set_owner( shaderGraph );
 		}
 	}
 	else if( const ccl::NodeType *nodeType = ccl::NodeType::find( ccl::ustring( shader->getName() ) ) )
@@ -308,6 +311,15 @@ T parameterValue( const IECore::CompoundDataMap &parameters, const IECore::Inter
 
 	return defaultValue;
 }
+
+static const bool g_disableMaterialxUSDShaders = []() -> bool {
+	const char *c = getenv( "GAFFERCYCLES_DISABLE_MATERIALX_USD_SHADERS" );
+	if( !c )
+	{
+		return false;
+	}
+	return strcmp( c, "0" );
+}();
 
 static const bool g_useLegacyLights = []() -> bool {
 	const char *c = getenv( "GAFFERCYCLES_USE_LEGACY_LIGHTS" );
@@ -468,8 +480,15 @@ ccl::ShaderGraph *convertGraph( const IECoreScene::ShaderNetwork *surfaceShader,
 		/// required - even though OSL now supports component connections, the Cycles API AFAIK doesn't.
 		IECoreScene::ShaderNetworkAlgo::convertToOSLConventions( toConvert.get(), 10900 );
 		// The above only added component connection adaptors for OSL. Now add them for native
-		// Cycles shaders.
+		// Cycles shaders, as well as MaterialX ones.
 		IECoreScene::ShaderNetworkAlgo::addComponentConnectionAdapters( toConvert.get() );
+		// Convert all MaterialX nodes to OSL nodes, component connection adapters have already been added above.
+		// For the OSL backend, use the MaterialX OSL implementations of UsdPreviewSurface/UsdUVTexture/etc.
+		// as these would be a better match to the specification, and then pass to convertUSDShaders for the rest.
+		// GAFFERCYCLES_DISABLE_MATERIALX_USD_SHADERS environment variable disables this and uses the same
+		// conversion that the SVM backend uses.
+		const bool usdNodes = shaderManager && shaderManager->use_osl() && !g_disableMaterialxUSDShaders;
+		IECoreMaterialX::ShaderNetworkAlgo::convertToOSLNodes( toConvert.get(), "cycles", /* usdNodes */ usdNodes, /* addAdapters */ false );
 		IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( toConvert.get() );
 		ShaderMap converted;
 		ccl::ShaderNode *node = convertWalk( toConvert->getOutput(), toConvert.get(), namePrefix, shaderManager, graph, converted );
