@@ -42,6 +42,8 @@
 #include "IECoreScene/Shader.h"
 #include "IECoreScene/ShaderNetworkAlgo.h"
 
+#include "IECoreMaterialX/ShaderNetworkAlgo.h"
+
 #include "IECore/AngleConversion.h"
 #include "IECore/LRUCache.h"
 #include "IECore/MessageHandler.h"
@@ -156,6 +158,7 @@ ccl::ShaderNode *convertWalk( const ShaderNetwork::Parameter &outputParameter, c
 		{
 			ccl::ConvertNode *convertNode = shaderGraph->create_node<ccl::ConvertNode>( getSocketType( split[1] ), getSocketType( split[3] ), true );
 			node = (ccl::ShaderNode*)convertNode;
+			node->set_owner( shaderGraph );
 		}
 	}
 	else if( const ccl::NodeType *nodeType = ccl::NodeType::find( ccl::ustring( shader->getName() ) ) )
@@ -307,6 +310,15 @@ T parameterValue( const IECore::CompoundDataMap &parameters, const IECore::Inter
 
 	return defaultValue;
 }
+
+static const bool g_disableMaterialxUSDShaders = []() -> bool {
+	const char *c = getenv( "GAFFERCYCLES_DISABLE_MATERIALX_USD_SHADERS" );
+	if( !c )
+	{
+		return false;
+	}
+	return strcmp( c, "0" );
+}();
 
 static const bool g_useLegacyLights = []() -> bool {
 	const char *c = getenv( "GAFFERCYCLES_USE_LEGACY_LIGHTS" );
@@ -479,8 +491,18 @@ void convertGraph( ccl::ShaderGraph *graph,
 		/// required - even though OSL now supports component connections, the Cycles API AFAIK doesn't.
 		IECoreScene::ShaderNetworkAlgo::convertToOSLConventions( toConvert.get(), 10900 );
 		// The above only added component connection adaptors for OSL. Now add them for native
-		// Cycles shaders.
+		// Cycles shaders, as well as MaterialX ones.
 		IECoreScene::ShaderNetworkAlgo::addComponentConnectionAdapters( toConvert.get() );
+		// Convert MaterialX nodes that are better suited to native Cycles shaders eg.
+		// ND_geomparamvalue_*/ND_image_*.
+		IECoreCycles::ShaderNetworkAlgo::convertMtlxShaders( toConvert.get() );
+		// Convert all MaterialX nodes to OSL nodes, component connection adapters have already been added above.
+		// For the OSL backend, use the MaterialX OSL implementations of UsdPreviewSurface/UsdUVTexture/etc.
+		// as these would be a better match to the specification, and then pass to convertUSDShaders for the rest.
+		// GAFFERCYCLES_DISABLE_MATERIALX_USD_SHADERS environment variable disables this and uses the same
+		// conversion that the SVM backend uses.
+		const bool usdNodes = scene->shader_manager.get() && scene->shader_manager->use_osl() && !g_disableMaterialxUSDShaders;
+		IECoreMaterialX::ShaderNetworkAlgo::convertToOSLNodes( toConvert.get(), "cycles", /* usdNodes */ usdNodes, /* addAdapters */ false );
 		IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( toConvert.get() );
 		ShaderMap converted;
 		ccl::ShaderNode *node = convertWalk( toConvert->getOutput(), toConvert.get(), namePrefix, scene, graph, converted );
@@ -877,6 +899,23 @@ T parameterValue( const Shader *shader, InternedString parameterName, const T &d
 			return d->readable().string();
 		}
 	}
+	else if constexpr( is_same_v<remove_cv_t<T>, V3f> )
+	{
+		// Convert V2f to V3f, UVs from MaterialX are often V2f but Cycles expects V3f.
+		if( auto d = shader->parametersData()->member<V2fData>( parameterName ) )
+		{
+			return V3f( d->readable()[0], d->readable()[1], 0.0f );
+		}
+	}
+	else if constexpr( is_same_v<remove_cv_t<T>, float > )
+	{
+		// Conversion of V2f to the first value eg. `ND_normalmap_vector2`
+		if( auto d = shader->parametersData()->member<V2fData>( parameterName ) )
+		{
+			const V2f &v = d->readable();
+			return v[0];
+		}
+	}
 
 	return defaultValue;
 }
@@ -925,6 +964,7 @@ const InternedString g_exposureParameter( "exposure" );
 const InternedString g_extensionParameter( "extension" );
 const InternedString g_facParameter( "fac" );
 const InternedString g_fileParameter( "file" );
+const InternedString g_fileColorspaceParameter( "file_colorspace" );
 const InternedString g_filenameParameter( "filename" );
 const InternedString g_gParameter( "g" );
 const InternedString g_heightParameter( "height" );
@@ -991,6 +1031,18 @@ const InternedString g_vector3Parameter( "vector3" );
 const InternedString g_widthParameter( "width" );
 const InternedString g_wrapSParameter( "wrapS" );
 const InternedString g_wrapTParameter( "wrapT" );
+
+const InternedString g_interpolationParameter( "interpolation" );
+const InternedString g_filterTypeParameter( "filterType" );
+const InternedString g_uAddressModeParameter( "uaddressmode" );
+const InternedString g_vAddressModeParameter( "vaddressmode" );
+const InternedString g_texcoordParameter( "texcoord" );
+const InternedString g_defaultParameter( "default" );
+const InternedString g_geompropParameter( "geomprop" );
+const InternedString g_indexParameter( "index" );
+const InternedString g_strengthParameter( "strength" );
+const InternedString g_tangentParameter( "tangent" );
+const InternedString g_bitangentParameter( "bitangent" );
 
 const string g_cyclesNamespace( "cycles:" );
 
@@ -1152,6 +1204,17 @@ const std::unordered_map<std::string, InternedString> g_resultParameterMap = {
 	{ "UsdPrimvarReader_point", g_vectorParameter },
 	{ "UsdPrimvarReader_vector", g_vectorParameter },
 	{ "UsdTransform2d", g_vectorParameter },
+	{ "ND_geompropvalue_boolean", g_facParameter },
+	{ "ND_geompropvalue_float", g_facParameter },
+	{ "ND_geompropvalue_integer", g_facParameter },
+	{ "ND_geompropvalue_color3", g_colorParameter },
+	{ "ND_geompropvalue_color4", g_colorParameter },
+	{ "ND_geompropvalue_vector2", g_UVParameter },
+	{ "ND_geompropvalue_vector3", g_colorParameter },
+	{ "ND_geompropvalue_vector4", g_colorParameter },
+	{ "ND_normalmap", g_normalParameter },
+	{ "ND_normalmap_float", g_normalParameter },
+	{ "ND_normalmap_vector2", g_normalParameter },
 };
 
 const InternedString remapOutputParameterName( const InternedString name, const InternedString shaderName )
@@ -1164,6 +1227,10 @@ const InternedString remapOutputParameterName( const InternedString name, const 
 		{
 			return it->second;
 		}
+	}
+	else if( boost::starts_with( shaderName.string(), "ND_image" ) )
+	{
+		return g_colorParameter;
 	}
 	else
 	{
@@ -1298,6 +1365,42 @@ void convertUSDUVTextures( ShaderNetwork *network )
 			network->addConnection( ShaderNetwork::Connection( { handle, g_colorParameter }, { multiplyAddHandle, g_vector1Parameter } ) );
 			network->addConnection( ShaderNetwork::Connection( { handle, g_alphaParameter }, { alphaMultiplyAddHandle, g_value1Parameter } ) );
 		}
+
+		replaceUSDShader( network, handle, std::move( imageShader ) );
+	}
+}
+
+void convertMtlxTextures( ShaderNetwork *network )
+{
+	for( const auto &[handle, shader] : network->shaders() )
+	{
+		if( !boost::starts_with( shader->getName(), "ND_image" ) )
+		{
+			continue;
+		}
+
+		ShaderPtr imageShader = new Shader( "image_texture", "cycles:shader" );
+		transferUSDParameter( network, handle, shader.get(), g_fileParameter, imageShader.get(), g_filenameParameter, string() );
+		transferUSDParameter( network, handle, shader.get(), g_fileColorspaceParameter, imageShader.get(), g_colorspaceParameter, string() );
+
+		// ND_image has the same matching names as Cycles for `closest`, `linear`, `cubic`
+		imageShader->parameters()[g_interpolationParameter] = new StringData( parameterValue( shader.get(), g_filterTypeParameter, string( "linear" ) ) );
+
+		// Cycles has a single "extension" parameter for wrapping a texture in
+		// both directions, so we take the first wrap parameter with a value.
+		// All seem to match Cycles except `constant`, which we will map to `black`.
+		string mode = parameterValue( shader.get(), g_uAddressModeParameter, string() );
+		if( mode.empty() )
+		{
+			mode = parameterValue( shader.get(), g_vAddressModeParameter, string( "periodic" ) );
+		}
+		if( mode == "constant" )
+		{
+			mode = "black";
+		}
+		imageShader->parameters()[g_extensionParameter] = new StringData( mode );
+
+		transferUSDParameter( network, handle, shader.get(), g_texcoordParameter, imageShader.get(), g_vectorParameter, V3f( 0.0f ) );
 
 		replaceUSDShader( network, handle, std::move( imageShader ) );
 	}
@@ -1493,6 +1596,132 @@ void IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( ShaderNetwork *shaderNe
 			transferUSDParameter( shaderNetwork, handle, shader.get(), g_widthParameter, newShader.get(), g_widthParameter, 1.0f );
 			transferUSDParameter( shaderNetwork, handle, shader.get(), g_heightParameter, newShader.get(), g_heightParameter, 1.0f );
 			transferUSDTextureFile( shaderNetwork, handle, shader.get(), newShader.get() );
+		}
+
+		if( newShader )
+		{
+			replaceUSDShader( shaderNetwork, handle, std::move( newShader ) );
+		}
+	}
+
+	IECoreScene::ShaderNetworkAlgo::removeUnusedShaders( shaderNetwork );
+}
+
+void IECoreCycles::ShaderNetworkAlgo::convertMtlxShaders( ShaderNetwork *shaderNetwork )
+{
+	// Must convert these first.
+	// Cycles doesn't allow us to use UDIMs on any other shaders except
+	// the built-in `image_texture` node, so we convert those.
+	// Unfortunately the biggest drawback here is there's no `default`
+	// or `missingColor` fallback so those cases will fail...
+	convertMtlxTextures( shaderNetwork );
+
+	for( const auto &[handle, shader] : shaderNetwork->shaders() )
+	{
+		ShaderPtr newShader;
+		if( shader->getName() == "ND_geompropvalue_vector2" )
+		{
+			// Cycles seems to do some extra plumbing to get UV reading to work that
+			// free-form calls to `getattribute` in OSL would fail on, so we swap it
+			// in the Cycles `uvmap` node.
+			newShader = new Shader( "uvmap", "cycles:shader" );
+
+			if( parameterValue<string>( shader.get(), g_geompropParameter, "" ) == "st" )
+			{
+				newShader->parameters()[g_attributeParameter] = new StringData( "uv" );
+			}
+			else
+			{
+				transferUSDParameter( shaderNetwork, handle, shader.get(), g_geompropParameter, newShader.get(), g_attributeParameter, string() );
+			}
+		}
+		else if( boost::starts_with( shader->getName(), "ND_geompropvalue" ) )
+		{
+			// Same story for geompropvalue, we swap these for a Cycles `attribute`.
+			newShader = new Shader( "attribute", "cycles:shader" );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_geompropParameter, newShader.get(), g_attributeParameter, string() );
+		}
+		else if( boost::starts_with( shader->getName(), "ND_texcoord" ) )
+		{
+			// This shader is an index, most likely for the GLSL backend of MaterialX
+			// which GenOSL essentially just maps u and v builtins of OSL and ignores
+			// the index number entirely. This isn't quite what we expect, so just default
+			// to the default UVs of the model and ignore the index number.
+			// Maya's LookdevX will make a similar warning that the node isn't supported
+			// for name-based renderers.
+			newShader = new Shader( "uvmap", "cycles:shader" );
+			newShader->parameters()[g_attributeParameter] = new StringData( "uv" );
+
+			if( parameterValue<int>( shader.get(), g_indexParameter, 0 ) != 0 )
+			{
+				msg(
+					Msg::Warning, "IECoreCycles::ShaderNetworkAlgo",
+					fmt::format( "MaterialX node \"{}\" is not supported in a name-based renderer and will use the default UVs.", shader->getName() )
+				);
+			}
+		}
+		else if( boost::starts_with( shader->getName(), "ND_geomcolor" ) )
+		{
+			msg(
+				Msg::Warning, "IECoreCycles::ShaderNetworkAlgo",
+				fmt::format( "MaterialX node \"{}\" is not supported in a name-based renderer.", shader->getName() )
+			);
+		}
+		/*
+		else if( boost::starts_with( shader->getName(), "ND_normalmap" ) )
+		{
+			newShader = new Shader( "normal_map", "cycles:shader" );
+
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_inParameter, newShader.get(), g_colorParameter, V3f( 0.5f, 0.5, 1.0f ) );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_scaleParameter, newShader.get(), g_strengthParameter, 1.0f );
+
+			if( const ShaderNetwork::Parameter tangentInput = shaderNetwork->input( { handle, g_tangentParameter } ) )
+			{
+				const Shader *inShader = shaderNetwork->getShader( tangentInput.shader );
+				if( boost::starts_with( inShader->getName(), "ND_tangent" ) )
+				{
+					IECore::msg(
+						IECore::Msg::Warning,
+						"IECoreCycles",
+						fmt::format( "MaterialX node `{}` is not supported in a name-based renderer.",
+						inShader->getName() ) );
+				}
+				shaderNetwork->removeConnection( { tangentInput, { handle, g_tangentParameter } } );
+			}
+
+			if( const ShaderNetwork::Parameter bitangentInput = shaderNetwork->input( { handle, g_bitangentParameter } ) )
+			{
+				const Shader *inShader = shaderNetwork->getShader( bitangentInput.shader );
+				if( boost::starts_with( inShader->getName(), "ND_bitangent" ) )
+				{
+					IECore::msg(
+						IECore::Msg::Warning,
+						"IECoreCycles",
+						fmt::format( "MaterialX node `{}` is not supported in a name-based renderer.",
+						inShader->getName() ) );
+				}
+				shaderNetwork->removeConnection( { bitangentInput, { handle, g_bitangentParameter } } );
+			}
+		}
+		*/
+
+		for( const auto &c : shaderNetwork->inputConnections( handle ) )
+		{
+			const Shader *inShader = shaderNetwork->getShader( c.source.shader );
+			if( boost::starts_with( shader->getName(), "ND_geompropvalueuniform" ) )
+			{
+				const std::string paramValue = parameterValue<string>( inShader, g_geompropParameter, std::string() );
+				if( !paramValue.empty() )
+				{
+					newShader->parameters()[c.destination.name] = new StringData( fmt::format( "<attr:{}>", paramValue ) );
+					msg(
+						Msg::Debug, "IECoreCycles::ShaderNetworkAlgo",
+						fmt::format( "MaterialX node \"{}\" of shader \"{}\" has been converted to a string substitution onto \"{}.{}\" but will ignore the default fallback value.",
+						inShader->getName(), c.source.shader.string(), handle.string(), c.destination.name.string() )
+					);
+				}
+				shaderNetwork->removeConnection( c );
+			}
 		}
 
 		if( newShader )
