@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2024, Cinesite VFX Ltd. All rights reserved.
+#  Copyright (c) 2019, John Haddon. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -15,7 +15,7 @@
 #        disclaimer in the documentation and/or other materials provided with
 #        the distribution.
 #
-#      * Neither the name of Cinesite VFX Ltd. nor the names of
+#      * Neither the name of John Haddon nor the names of
 #        any other contributors to this software may be used to endorse or
 #        promote products derived from this software without specific prior
 #        written permission.
@@ -34,37 +34,24 @@
 #
 ##########################################################################
 
-import sys
-import functools
+import Gaffer
 
-import IECore
-import GafferScene
-
-# Register functions to load renderers on demand. This allows us to find a renderer
-# even if the relevant Python module hasn't been imported (in `gaffer execute` for instance).
-
-def __creator( renderType, fileName, messageHandler, renderer, module ) :
-
- 	# Import module to replace ourselves with the true renderer creation function.
-	__import__( module )
-	# And then call `create()` again to use it.
-	return GafferScene.Private.IECoreScenePreview.Renderer.create( renderer, renderType, fileName, messageHandler )
-
-for renderer, module in [
-	( "Cycles", "GafferCycles" ),
-	( "Arnold", "IECoreArnold" ),
-	( "3Delight", "IECoreDelight" ),
-	( "3Delight Cloud", "IECoreDelight" ),
-	( "RenderMan", "IECoreRenderMan" ),
+for type in [
+	"PxrCyclinderLight", "PxrDomeLight", "PxrDiskLight", "PxrDistantLight",
+	"PxrMeshLight",  "PxrRectLight", "PxrSphereLight",
 ] :
-	if renderer in GafferScene.Private.IECoreScenePreview.Renderer.types() :
-		# Already registered
-		continue
-	if not IECore.SearchPath( sys.path ).find( module ) :
-		# Renderer not available
-		continue
 
-	# Register creator that will load module to provide renderer on demand.
-	GafferScene.Private.IECoreScenePreview.Renderer.registerType(
-		renderer, functools.partial( __creator, renderer = renderer, module = module )
-	)
+	Gaffer.Metadata.registerValue( "ri:light:" + type, "intensityParameter", "intensity" )
+	Gaffer.Metadata.registerValue( "ri:light:" + type, "exposureParameter", "exposure" )
+	Gaffer.Metadata.registerValue( "ri:light:" + type, "colorParameter", "lightColor" )
+
+Gaffer.Metadata.registerValue( "ri:light:PxrCylinderLight", "type", "cylinder" )
+Gaffer.Metadata.registerValue( "ri:light:PxrDomeLight", "type", "environment" )
+Gaffer.Metadata.registerValue( "ri:light:PxrDiskLight", "type", "disk" )
+Gaffer.Metadata.registerValue( "ri:light:PxrDistantLight", "type", "distant" )
+Gaffer.Metadata.registerValue( "ri:light:PxrMeshLight", "type", "mesh" )
+Gaffer.Metadata.registerValue( "ri:light:PxrPortalLight", "type", "portal" )
+Gaffer.Metadata.registerValue( "ri:light:PxrRectLight", "type", "quad" )
+Gaffer.Metadata.registerValue( "ri:light:PxrSphereLight", "type", "point" )
+
+Gaffer.Metadata.registerValue( "ri:light:PxrDomeLight", "textureNameParameter", "lightColorMap" )

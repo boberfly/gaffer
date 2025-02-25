@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2018, John Haddon. All rights reserved.
+//  Copyright (c) 2019, John Haddon. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -34,22 +34,32 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#pragma once
+#include "GafferRenderMan/RenderManIntegrator.h"
 
-namespace GafferRenderMan
+using namespace GafferRenderMan;
+
+IE_CORE_DEFINERUNTIMETYPED( RenderManIntegrator );
+
+RenderManIntegrator::RenderManIntegrator( const std::string &name )
+	:	GlobalShader( name )
 {
+}
 
-enum TypeId
+RenderManIntegrator::~RenderManIntegrator()
 {
-	RenderManAttributesTypeId = 110400,
-	RenderManOptionsTypeId = 110401,
-	RenderManShaderTypeId = 110402,
-	RenderManLightTypeId = 110403,
-	RenderManIntegratorTypeId = 110404,
-	TagPlugTypeId = 110405,
-	RenderManMeshLightTypeId = 110406,
-	RenderManLightFilterTypeId = 110407,
-	LastTypeId = 110450
-};
+}
 
-} // namespace GafferRenderMan
+bool RenderManIntegrator::affectsOptionName( const Gaffer::Plug *input ) const
+{
+	return false;
+}
+
+void RenderManIntegrator::hashOptionName( const Gaffer::Context *context, IECore::MurmurHash &h ) const
+{
+	// No need to hash anything, because our option name is constant
+}
+
+std::string RenderManIntegrator::computeOptionName( const Gaffer::Context *context ) const
+{
+	return "ri:integrator";
+}

@@ -37,6 +37,11 @@
 from .ModuleTest import ModuleTest
 from .RenderManAttributesTest import RenderManAttributesTest
 from .RenderManOptionsTest import RenderManOptionsTest
+from .RenderManShaderTest import RenderManShaderTest
+from .RenderManLightTest import RenderManLightTest
+from .InteractiveRenderManRenderTest import InteractiveRenderManRenderTest
+from .RenderManRenderTest import RenderManRenderTest
+from .TagPlugTest import TagPlugTest
 
 if __name__ == "__main__":
 	import unittest

@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2018, John Haddon. All rights reserved.
+//  Copyright (c) 2019, John Haddon. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -34,22 +34,63 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#pragma once
+#include "GafferRenderMan/TagPlug.h"
 
-namespace GafferRenderMan
+using namespace Gaffer;
+using namespace GafferRenderMan;
+
+IE_CORE_DEFINERUNTIMETYPED( TagPlug );
+
+TagPlug::TagPlug( const std::string &name, Direction direction, const Tags &tags, unsigned flags )
+	:	Plug( name, direction, flags ), m_tags( tags )
 {
+}
 
-enum TypeId
+TagPlug::~TagPlug()
 {
-	RenderManAttributesTypeId = 110400,
-	RenderManOptionsTypeId = 110401,
-	RenderManShaderTypeId = 110402,
-	RenderManLightTypeId = 110403,
-	RenderManIntegratorTypeId = 110404,
-	TagPlugTypeId = 110405,
-	RenderManMeshLightTypeId = 110406,
-	RenderManLightFilterTypeId = 110407,
-	LastTypeId = 110450
-};
+}
 
-} // namespace GafferRenderMan
+const TagPlug::Tags &TagPlug::tags() const
+{
+	return m_tags;
+}
+
+bool TagPlug::acceptsChild( const GraphComponent *potentialChild ) const
+{
+	return false;
+}
+
+Gaffer::PlugPtr TagPlug::createCounterpart( const std::string &name, Direction direction ) const
+{
+	return new TagPlug( name, direction, m_tags, getFlags() );
+}
+
+bool TagPlug::acceptsInput( const Gaffer::Plug *input ) const
+{
+	if( !Plug::acceptsInput( input ) )
+	{
+		return false;
+	}
+
+	if( !input )
+	{
+		return true;
+	}
+
+	auto typedInput = IECore::runTimeCast<const TagPlug>( input );
+	if( !typedInput )
+	{
+		return false;
+	}
+
+	const auto &inputTags = typedInput->tags();
+	for( const auto &tag : tags() )
+	{
+		if( inputTags.find( tag ) != inputTags.end() )
+		{
+			return true;
+		}
+	}
+
+	return false;
+}

@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2024, Cinesite VFX Ltd. All rights reserved.
+#  Copyright (c) 2019, John Haddon. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -15,7 +15,7 @@
 #        disclaimer in the documentation and/or other materials provided with
 #        the distribution.
 #
-#      * Neither the name of Cinesite VFX Ltd. nor the names of
+#      * Neither the name of John Haddon nor the names of
 #        any other contributors to this software may be used to endorse or
 #        promote products derived from this software without specific prior
 #        written permission.
@@ -34,37 +34,44 @@
 #
 ##########################################################################
 
-import sys
-import functools
+import unittest
 
-import IECore
-import GafferScene
+import Gaffer
+import GafferSceneTest
+import GafferRenderMan
 
-# Register functions to load renderers on demand. This allows us to find a renderer
-# even if the relevant Python module hasn't been imported (in `gaffer execute` for instance).
+class TagPlugTest( GafferSceneTest.SceneTestCase ) :
 
-def __creator( renderType, fileName, messageHandler, renderer, module ) :
+	def testConstructor( self ) :
 
- 	# Import module to replace ourselves with the true renderer creation function.
-	__import__( module )
-	# And then call `create()` again to use it.
-	return GafferScene.Private.IECoreScenePreview.Renderer.create( renderer, renderType, fileName, messageHandler )
+		p = GafferRenderMan.TagPlug( name = "p", direction = Gaffer.Plug.Direction.Out, tags = { "one", "two" }, flags = Gaffer.Plug.Flags.Default | Gaffer.Plug.Flags.Dynamic )
+		self.assertEqual( p.getName(), "p" )
+		self.assertEqual( p.direction(), Gaffer.Plug.Direction.Out )
+		self.assertEqual( p.getFlags(), Gaffer.Plug.Flags.Default | Gaffer.Plug.Flags.Dynamic )
+		self.assertEqual( p.tags(), { "one", "two" } )
 
-for renderer, module in [
-	( "Cycles", "GafferCycles" ),
-	( "Arnold", "IECoreArnold" ),
-	( "3Delight", "IECoreDelight" ),
-	( "3Delight Cloud", "IECoreDelight" ),
-	( "RenderMan", "IECoreRenderMan" ),
-] :
-	if renderer in GafferScene.Private.IECoreScenePreview.Renderer.types() :
-		# Already registered
-		continue
-	if not IECore.SearchPath( sys.path ).find( module ) :
-		# Renderer not available
-		continue
+	def testCreateCounterpart( self ) :
 
-	# Register creator that will load module to provide renderer on demand.
-	GafferScene.Private.IECoreScenePreview.Renderer.registerType(
-		renderer, functools.partial( __creator, renderer = renderer, module = module )
-	)
+		p = GafferRenderMan.TagPlug( name = "p", direction = Gaffer.Plug.Direction.Out, tags = { "one", "two" }, flags = Gaffer.Plug.Flags.Default | Gaffer.Plug.Flags.Dynamic )
+		p2 = p.createCounterpart( "p2", Gaffer.Plug.Direction.In )
+
+		self.assertEqual( p2.getName(), "p2" )
+		self.assertEqual( p2.direction(), Gaffer.Plug.Direction.In )
+		self.assertEqual( p2.getFlags(), p.getFlags() )
+		self.assertEqual( p2.tags(), p.tags() )
+
+	def testAcceptsInput( self ) :
+
+		a = GafferRenderMan.TagPlug( tags = { "a" } )
+		b = GafferRenderMan.TagPlug( tags = { "b" } )
+		ab = GafferRenderMan.TagPlug( tags = { "a", "b" } )
+
+		self.assertTrue( ab.acceptsInput( a ) )
+		self.assertTrue( ab.acceptsInput( b ) )
+		self.assertTrue( a.acceptsInput( ab ) )
+		self.assertTrue( b.acceptsInput( ab ) )
+		self.assertFalse( b.acceptsInput( a ) )
+		self.assertFalse( a.acceptsInput( b ) )
+
+if __name__ == "__main__":
+	unittest.main()

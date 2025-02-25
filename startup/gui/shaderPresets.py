@@ -84,6 +84,17 @@ with IECore.IgnoredExceptions( ImportError ) :
 
 	] )
 
+with IECore.IgnoredExceptions( ImportError ) :
+
+	import GafferRenderMan
+
+	__registerShaderPresets( [
+
+		( "RenderMan Surface", "ri:surface" ),
+		( "RenderMan Light", "ri:light" ),
+
+	] )
+
 __registerShaderPresets( [
 
 		( "OpenGL Surface", "gl:surface" ),

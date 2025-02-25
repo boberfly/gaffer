@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2018, John Haddon. All rights reserved.
+//  Copyright (c) 2019, John Haddon. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -36,20 +36,36 @@
 
 #pragma once
 
+#include "GafferRenderMan/Export.h"
+#include "GafferRenderMan/TypeIds.h"
+
+#include "GafferScene/GlobalShader.h"
+
 namespace GafferRenderMan
 {
 
-enum TypeId
+class GAFFERRENDERMAN_API RenderManIntegrator : public GafferScene::GlobalShader
 {
-	RenderManAttributesTypeId = 110400,
-	RenderManOptionsTypeId = 110401,
-	RenderManShaderTypeId = 110402,
-	RenderManLightTypeId = 110403,
-	RenderManIntegratorTypeId = 110404,
-	TagPlugTypeId = 110405,
-	RenderManMeshLightTypeId = 110406,
-	RenderManLightFilterTypeId = 110407,
-	LastTypeId = 110450
+
+	public :
+
+		RenderManIntegrator( const std::string &name=defaultName<RenderManIntegrator>() );
+		~RenderManIntegrator() override;
+
+		IE_CORE_DECLARERUNTIMETYPEDEXTENSION( GafferRenderMan::RenderManIntegrator, RenderManIntegratorTypeId, GafferScene::GlobalShader );
+
+	protected :
+
+		bool affectsOptionName( const Gaffer::Plug *input ) const override;
+		void hashOptionName( const Gaffer::Context *context, IECore::MurmurHash &h ) const override;
+		std::string computeOptionName( const Gaffer::Context *context ) const override;
+
+	private :
+
+		static size_t g_firstPlugIndex;
+
 };
+
+IE_CORE_DECLAREPTR( RenderManIntegrator )
 
 } // namespace GafferRenderMan

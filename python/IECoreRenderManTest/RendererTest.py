@@ -649,7 +649,7 @@ class RendererTest( GafferTest.TestCase ) :
 			renderer.attributes( IECore.CompoundObject( {
 				"ri:light" : IECoreScene.ShaderNetwork(
 					shaders = {
-						"output" : IECoreScene.Shader( "PxrPortalLight", "ri:light", {} ),
+						"output" : IECoreScene.Shader( "PxrPortalLight", "ri:light", { "exposure" : 4.0 } ),
 					},
 					output = "output",
 				),
@@ -1375,6 +1375,51 @@ class RendererTest( GafferTest.TestCase ) :
 
 		renderer.command( "ai:unknown", {} ) # Shouldn't warn, because command is for another renderer.
 		self.assertEqual( len( messageHandler.messages ), 2 )
+
+	def testNoOutputs( self ) :
+
+		messageHandler = IECore.CapturingMessageHandler()
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			"RenderMan",
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch,
+			messageHandler = messageHandler
+		)
+
+		renderer.render()
+
+		self.assertEqual( len( messageHandler.messages ), 1 )
+		self.assertEqual( messageHandler.messages[0].level, IECore.Msg.Level.Warning )
+		self.assertEqual( messageHandler.messages[0].context, "IECoreRenderMan" )
+		self.assertEqual( messageHandler.messages[0].message, "No outputs defined." )
+
+	def testLPELobeOptions( self ) :
+
+		with IECoreRenderManTest.RileyCapture() as capture :
+
+			renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+				"RenderMan",
+				GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+			)
+
+			renderer.option( "ri:lpe:user1", IECore.StringData( "test" ) )
+			renderer.option( "ri:lpe:diffuse3", None )
+
+			renderer.object(
+				"sphere", IECoreScene.SpherePrimitive(), renderer.attributes( IECore.CompoundObject() )
+			)
+
+			del renderer
+
+		options = next(
+			x for x in capture.json if x["method"] == "SetOptions"
+		)["sceneOptions"]["params"]
+
+		# Default.
+		self.__assertParameterEqual( options, "lpe:diffuse2", [ "Diffuse,HairDiffuse,diffuse,translucent,hair4,irradiance" ] )
+		# Set explicitly.
+		self.__assertParameterEqual( options, "lpe:user1", [ "test" ] )
+		# Set to default explicitly.
+		self.__assertParameterEqual( options, "lpe:diffuse3", [ "Subsurface,subsurface" ] )
 
 	def __assertParameterEqual( self, paramList, name, data ) :
 

@@ -165,6 +165,43 @@ with IECore.IgnoredExceptions( ImportError ) :
 			columnName = parameter.replace( "arnold:", "" )
 		)
 
+# RenderMan lights
+
+with IECore.IgnoredExceptions( ImportError ) :
+
+	# This import appears unused, but it is intentional; it prevents us from
+	# registering when RenderMan isn't available.
+	import GafferRenderMan
+
+	Gaffer.Metadata.registerValue( GafferSceneUI.LightEditor.Settings, "attribute", "preset:RenderMan", "ri:light" )
+	# If RenderMan is available, then assume it is the renderer of choice.
+	Gaffer.Metadata.registerValue( GafferSceneUI.LightEditor.Settings, "attribute", "userDefault", "ri:light" )
+
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "lightColor" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "intensity" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "exposure" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "temperature" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "enableTemperature" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "areaNormalize" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "diffuse" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "specular" )
+
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "lightColorMap", "Texture" )
+
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "coneAngle", "Shaping" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "coneSoftness", "Shaping" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "emissionFocus", "Shaping" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "emissionFocusTint", "Shaping" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "iesProfile", "Shaping" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "iesProfileScale", "Shaping" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "iesProfileNormalize", "Shaping" )
+
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "enableShadows", "Shadow" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "shadowColor", "Shadow" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "shadowDistance", "Shadow" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "shadowFalloff", "Shadow" )
+	GafferSceneUI.LightEditor.registerParameter( "ri:light", "shadowFalloffGamma", "Shadow" )
+
 # Register generic light attributes
 for attributeName in [
 	"gl:visualiser:scale",

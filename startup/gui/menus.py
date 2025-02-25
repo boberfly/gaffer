@@ -237,6 +237,26 @@ if os.environ.get( "CYCLES_ROOT" ) and moduleSearchPath.find( "GafferCycles" ) :
 		stacktrace = traceback.format_exc()
 		IECore.msg( IECore.Msg.Level.Error, "startup/gui/menus.py", "Error loading Cycles module - \"%s\".\n %s" % ( m, stacktrace ) )
 
+# RenderMan nodes
+
+if "RMANTREE" in os.environ :
+
+	try :
+
+		import GafferRenderMan
+		import GafferRenderManUI
+
+		GafferRenderManUI.RenderManShaderUI.appendShaders( nodeMenu.definition() )
+
+		nodeMenu.append( "/RenderMan/Attributes", GafferRenderMan.RenderManAttributes, searchText = "RenderManAttributes" )
+		nodeMenu.append( "/RenderMan/Integrator", GafferRenderMan.RenderManIntegrator, searchText = "RenderManIntegrator" )
+		nodeMenu.append( "/RenderMan/Options", GafferRenderMan.RenderManOptions, searchText = "RenderManOptions" )
+
+	except Exception as m :
+
+		stacktrace = traceback.format_exc()
+		IECore.msg( IECore.Msg.Level.Error, "startup/gui/menus.py", "Error loading RenderMan module - \"%s\".\n %s" % ( m, stacktrace ) )
+
 # Scene nodes
 
 nodeMenu.append( "/Scene/File/Reader", GafferScene.SceneReader, searchText = "SceneReader" )

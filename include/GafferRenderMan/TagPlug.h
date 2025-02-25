@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2018, John Haddon. All rights reserved.
+//  Copyright (c) 2019, John Haddon. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -36,20 +36,40 @@
 
 #pragma once
 
+#include "GafferRenderMan/Export.h"
+#include "GafferRenderMan/TypeIds.h"
+
+#include "Gaffer/Plug.h"
+
+#include "boost/container/flat_set.hpp"
+
 namespace GafferRenderMan
 {
 
-enum TypeId
+class GAFFERRENDERMAN_API TagPlug : public Gaffer::Plug
 {
-	RenderManAttributesTypeId = 110400,
-	RenderManOptionsTypeId = 110401,
-	RenderManShaderTypeId = 110402,
-	RenderManLightTypeId = 110403,
-	RenderManIntegratorTypeId = 110404,
-	TagPlugTypeId = 110405,
-	RenderManMeshLightTypeId = 110406,
-	RenderManLightFilterTypeId = 110407,
-	LastTypeId = 110450
+
+	public :
+
+		using Tags = boost::container::flat_set<IECore::InternedString>;
+
+		TagPlug( const std::string &name=defaultName<TagPlug>(), Direction direction=In, const Tags &tags = Tags(), unsigned flags=Default );
+		~TagPlug() override;
+
+		IE_CORE_DECLARERUNTIMETYPEDEXTENSION( GafferRenderMan::TagPlug, TagPlugTypeId, Plug );
+
+		const Tags &tags() const;
+
+		bool acceptsChild( const Gaffer::GraphComponent *potentialChild ) const override;
+		Gaffer::PlugPtr createCounterpart( const std::string &name, Direction direction ) const override;
+		bool acceptsInput( const Gaffer::Plug *input ) const override;
+
+	private :
+
+		Tags m_tags;
+
 };
+
+IE_CORE_DECLAREPTR( TagPlug );
 
 } // namespace GafferRenderMan

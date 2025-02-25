@@ -172,6 +172,8 @@ if "%RMANTREE%" NEQ "" (
 	call :appendToPath "%RMANTREE%\lib\plugins" RMAN_RIXPLUGINPATH
 	call :appendToPath "%RMANTREE%\lib\shaders" OSL_SHADER_PATHS
 	call :appendToPath "%GAFFER_ROOT%\renderManPlugins" RMAN_DISPLAYS_PATH
+	call :appendToPath "%RMANTREE%\lib\usd_plugins\usdRiPxr\Resources" PXR_PLUGINPATH_NAME
+	call :appendToPath "%RMANTREE%\lib\shaders" OSL_SHADER_PATHS
 )
 
 rem Set up 3rd party extensions
