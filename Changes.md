@@ -11,12 +11,17 @@ Improvements
 
 - 3Delight : Added light muting support.
 - Arnold : Added support for specifying the name of a shader in the node menu using Arnold's `ui.name` metadata. This improves the formatting of the OpenPBR Surface menu item.
+- USDShader :
+  - A namespace prefix is now set for the shader type from the USD source type, except for `USD` and `glslfx` built-ins which correspond to USDLux lights and USDPreviewSurface built-ins
+  - Added a way to register namespace overrides from USD shader source types if the resulting USD source type is undesirable
+  - The correct shader assignment for displacement and volume shaders are now set for shaders which have a context of `displacement` or `volume` set
 
 Fixes
 -----
 
 - SceneWriter : Fixed writing of animated attributes and bounds to USD.
 - NumericPlug : Fixed serialisation of plugs with infinite min/max values, for example the promoted outputs of an ImageStats node.
+- USDShader : Fixed default preset values on IntPlugs that are intended to be enum indexes instead of string values.
 
 Build
 -----
