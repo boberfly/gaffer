@@ -176,7 +176,7 @@ boost::container::flat_map<string, string> g_nameOverrides = {
 #endif
 };
 
-array<InternedString, 3> g_colorComponents = { { "in1", "in2", "in3" } };
+array<InternedString, 3> g_inComponents = { { "in1", "in2", "in3" } };
 
 using ParamMap = std::map<InternedString, vector<const OSL::OSLQuery::Parameter*>>;
 using StructParamMap = std::map<InternedString, const OSL::OSLQuery::Parameter*>;
@@ -280,9 +280,9 @@ void replaceMtlxShader( ShaderNetwork *network, InternedString handle, ShaderPtr
 				fs::path combinePath = g_shaderSearchPathCache.get( g_mtlxCombine3Color3Shader );
 				ShaderPtr combine = new Shader( combinePath.replace_extension().generic_string(), g_oslShader );
 				InternedString combineHandle = network->addShader( g_combineColorShaderName, std::move( combine ) );
-				for( size_t i = 0; i < typeIt->second.size() && i < g_colorComponents.size(); ++i )
+				for( size_t i = 0; i < typeIt->second.size() && i < g_inComponents.size(); ++i )
 				{
-					network->addConnection( { { outParameter.shader, typeIt->second[i]->name.c_str() }, { combineHandle, g_colorComponents[i] } } );
+					network->addConnection( { { outParameter.shader, typeIt->second[i]->name.c_str() }, { combineHandle, g_inComponents[i] } } );
 				}
 				outParameter.shader = combineHandle;
 				outParameter.name = g_outParameter;
@@ -756,7 +756,7 @@ void IECoreMaterialX::ShaderNetworkAlgo::convertToOSLNodes( ShaderNetwork *netwo
 						const Shader *inShader = originalNetwork->getShader( c.source.shader );
 						if( inShader->getName() == g_mtlxUsdTransform2dShader ||
 							( usdNodes && ( inShader->getName() == g_usdTransform2dShader || inShader->getName() == g_usdPrimvarReaderFloat2Shader ) ) ||
-							( boost::starts_with( inShader->getType(), g_mtlxPrefix ) && boost::ends_with( inShader->getName(), g_mtlxVector2Suffix ) ) )
+							( isNDPrefix && boost::ends_with( inShader->getName(), g_mtlxVector2Suffix ) ) )
 						{
 							network->addConnection( { { c.source.shader, g_outDotxParameter }, { handle, it->second[0]->name.c_str() } } );
 							network->addConnection( { { c.source.shader, g_outDotyParameter }, { handle, it->second[1]->name.c_str() } } );

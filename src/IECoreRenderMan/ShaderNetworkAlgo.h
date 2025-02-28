@@ -51,4 +51,6 @@ std::vector<riley::ShadingNode> convert( const IECoreScene::ShaderNetwork *netwo
 riley::DisplayFilterId convertDisplayFilter( const IECoreScene::ShaderNetwork *network, Session *session );
 riley::SampleFilterId convertSampleFilter( const IECoreScene::ShaderNetwork *network, Session *session );
 
+void convertUSDShaders( IECoreScene::ShaderNetwork *network );
+
 } // namespace IECoreRenderMan::ShaderNetworkAlgo
