@@ -137,8 +137,6 @@ using SharedCLightPtr = std::shared_ptr<ccl::Light>;
 using SharedCGeometryPtr = std::shared_ptr<ccl::Geometry>;
 // Need to defer shader assignments to the scene lock
 typedef std::pair<ccl::Node*, ccl::array<ccl::Node*>> ShaderAssignPair;
-// Defer adding the created nodes to the scene lock
-using NodesCreated = tbb::concurrent_vector<ccl::Node *>;
 // Defer creation of volumes to the scene lock
 typedef std::tuple<const IECoreVDB::VDBObject*, ccl::Volume*, int> VolumeToConvert;
 
@@ -419,10 +417,10 @@ class CyclesShader : public IECore::RefCounted
 
 		// Default shader
 		CyclesShader( ccl::Scene *scene )
-			:	m_shader( ShaderNetworkAlgo::createDefaultShader() ),
-				m_hash( IECore::MurmurHash() )
+			:	m_hash( IECore::MurmurHash() )
 		{
-			m_shader->set_owner( scene );
+			std::scoped_lock sceneLock( scene->mutex );
+			m_shader = ShaderNetworkAlgo::createDefaultShader( scene );
 		}
 
 		CyclesShader(
@@ -438,18 +436,23 @@ class CyclesShader : public IECore::RefCounted
 		)
 			:	m_hash( h )
 		{
-			ccl::ShaderGraph *graph = ShaderNetworkAlgo::convertGraph( surfaceShader, displacementShader, volumeShader, scene->shader_manager, name );
+			ccl::unique_ptr<ccl::ShaderGraph> graph = ccl::make_unique<ccl::ShaderGraph>();
+			ShaderNetworkAlgo::convertGraph( graph.get(), surfaceShader, displacementShader, volumeShader, scene->shader_manager.get(), name );
 			if( surfaceShader && singleSided )
 			{
-				ShaderNetworkAlgo::setSingleSided( graph );
+				ShaderNetworkAlgo::setSingleSided( graph.get() );
 			}
 
 			for( const IECoreScene::ShaderNetwork *aovShader : aovShaders )
 			{
-				ShaderNetworkAlgo::convertAOV( aovShader, graph, scene->shader_manager, name );
+				ShaderNetworkAlgo::convertAOV( aovShader, graph.get(), scene->shader_manager.get(), name );
 			}
 
-			m_shader = new ccl::Shader();
+			{
+				std::scoped_lock sceneLock( scene->mutex );
+				m_shader = scene->create_node<ccl::Shader>();
+			}
+
 			if( surfaceShader )
 			{
 				string shaderName( name + surfaceShader->getOutput().shader.string() );
@@ -461,8 +464,7 @@ class CyclesShader : public IECore::RefCounted
 				m_shader->name = ccl::ustring( shaderName.c_str() );
 			}
 			m_shader->set_displacement_method( displacementMethod );
-			m_shader->set_owner( scene );
-			m_shader->set_graph( graph );
+			m_shader->set_graph( std::move( graph ) );
 			m_shader->tag_update( scene );
 		}
 
@@ -479,15 +481,6 @@ class CyclesShader : public IECore::RefCounted
 		ccl::Shader *shader() const
 		{
 			return m_shader;
-		}
-
-		void nodesCreated( NodesCreated &nodes )
-		{
-			// Only get the first instance
-			if( this->refCount() == 2 )
-			{
-				nodes.push_back( m_shader );
-			}
 		}
 
 	private :
@@ -511,7 +504,6 @@ class ShaderCache : public IECore::RefCounted
 		ShaderCache( ccl::Scene *scene )
 			: m_scene( scene )
 		{
-			m_numDefaultShaders = m_scene->shaders.size();
 			m_defaultSurface = new CyclesShader( m_scene );
 		}
 
@@ -519,9 +511,9 @@ class ShaderCache : public IECore::RefCounted
 		{
 		}
 
-		void update( NodesCreated &shaders )
+		void update()
 		{
-			updateShaders( shaders );
+			updateShaders();
 		}
 
 		CyclesShaderPtr get( const IECoreScene::ShaderNetwork *surfaceShader )
@@ -684,32 +676,14 @@ class ShaderCache : public IECore::RefCounted
 			return;
 		}
 
-		// Must not be called concurrently with anything.
-		void nodesCreated( NodesCreated &nodes )
-		{
-			nodes.push_back( m_defaultSurface->shader() );
-			for( Cache::const_iterator it = m_cache.begin(), eIt = m_cache.end(); it != eIt; ++it )
-			{
-				if( it->second->shader() )
-				{
-					nodes.push_back( it->second->shader() );
-				}
-			}
-		}
-
 		void addShaderAssignment( ShaderAssignPair shaderAssign )
 		{
 			m_shaderAssignPairs.push_back( shaderAssign );
 		}
 
-		uint32_t numDefaultShaders()
-		{
-			return m_numDefaultShaders;
-		}
-
 	private :
 
-		void updateShaders( NodesCreated &nodes )
+		void updateShaders()
 		{
 			// We need to update all of these, it seems as though being fine-grained causes
 			// graphical glitches unfortunately.
@@ -785,23 +759,9 @@ class ShaderCache : public IECore::RefCounted
 					}
 				}
 			}
-
-			ccl::vector<ccl::Shader *> &shaders = m_scene->shaders;
-			if( nodes.size() + m_numDefaultShaders > shaders.size() )
-			{
-				shaders.resize( m_numDefaultShaders );
-				for( ccl::Node *node : nodes )
-				{
-					ccl::Shader *shader = static_cast<ccl::Shader *>( node );
-					shaders.push_back( shader );
-				}
-				m_scene->shader_manager->tag_update( m_scene, ccl::ShaderManager::SHADER_ADDED );
-			}
-			nodes.clear();
 		}
 
 		ccl::Scene *m_scene;
-		int m_numDefaultShaders;
 		typedef tbb::concurrent_hash_map<IECore::MurmurHash, CyclesShaderPtr> Cache;
 		Cache m_cache;
 		CyclesShaderPtr m_defaultSurface;
@@ -1213,11 +1173,6 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			return true;
 		}
 
-		void nodesCreated( NodesCreated &nodes )
-		{
-			m_shader->nodesCreated( nodes );
-		}
-
 		int getVolumePrecision() const
 		{
 			return m_volume.precision ? nameToVolumePrecisionEnum( m_volume.precision.value() ) : 0;
@@ -1481,33 +1436,19 @@ class Instance
 			return m_geometry.get();
 		}
 
-		void objectsCreated( NodesCreated &nodes ) const
-		{
-			nodes.push_back( m_object.get() );
-		}
-
-		void geometryCreated( NodesCreated &nodes ) const
-		{
-			if( m_prototype )
-			{
-				nodes.push_back( m_geometry.get() );
-			}
-		}
-
 	private :
 
 		// Constructors are private as they are only intended for use in
 		// `InstanceCache::get()`. See comment in `nodesCreated()`.
 		friend class InstanceCache;
 
-		Instance( const SharedCObjectPtr &object, const SharedCGeometryPtr &geometry, const bool prototype )
-			:	m_object( object ), m_geometry( geometry ), m_prototype( prototype )
+		Instance( const SharedCObjectPtr &object, const SharedCGeometryPtr &geometry )
+			:	m_object( object ), m_geometry( geometry )
 		{
 		}
 
 		SharedCObjectPtr m_object;
 		SharedCGeometryPtr m_geometry;
-		bool m_prototype;
 
 };
 
@@ -1521,11 +1462,9 @@ class InstanceCache : public IECore::RefCounted
 		{
 		}
 
-		void update( NodesCreated &object, NodesCreated &geometry )
+		void update()
 		{
 			updateVolumes();
-			updateObjects( object );
-			updateGeometry( geometry );
 		}
 
 		// Can be called concurrently with other get() calls.
@@ -1537,10 +1476,8 @@ class InstanceCache : public IECore::RefCounted
 			{
 				SharedCGeometryPtr geometry = convert( object, cyclesAttributes, nodeName );
 				m_uniqueGeometry.push_back( geometry );
-				return makeInstance( geometry, nodeName, /* prototype = */ true );
+				return makeInstance( geometry, nodeName );
 			}
-
-			bool isPrototype = false;
 
 			IECore::MurmurHash h = object->hash();
 			cyclesAttributes->hashGeometry( object, h );
@@ -1557,13 +1494,12 @@ class InstanceCache : public IECore::RefCounted
 				Geometry::accessor writeAccessor;
 				if( m_geometry.insert( writeAccessor, h ) )
 				{
-					isPrototype = true;
 					writeAccessor->second = convert( object, cyclesAttributes, nodeName );
 				}
 				cgeo = writeAccessor->second;
 			}
 
-			return makeInstance( cgeo, nodeName, isPrototype );
+			return makeInstance( cgeo, nodeName );
 		}
 
 		// Can be called concurrently with other get() calls.
@@ -1581,10 +1517,8 @@ class InstanceCache : public IECore::RefCounted
 			{
 				SharedCGeometryPtr geometry = convert( samples, times, frameIdx, cyclesAttributes, nodeName );
 				m_uniqueGeometry.push_back( geometry );
-				return makeInstance( geometry, nodeName, true );
+				return makeInstance( geometry, nodeName );
 			}
-
-			bool isPrototype = false;
 
 			IECore::MurmurHash h;
 			for( std::vector<const IECore::Object *>::const_iterator it = samples.begin(), eIt = samples.end(); it != eIt; ++it )
@@ -1609,13 +1543,12 @@ class InstanceCache : public IECore::RefCounted
 				Geometry::accessor writeAccessor;
 				if( m_geometry.insert( writeAccessor, h ) )
 				{
-					isPrototype = true;
 					writeAccessor->second = convert( samples, times, frameIdx, cyclesAttributes, nodeName );
 				}
 				cgeo = writeAccessor->second;
 			}
 
-			return makeInstance( cgeo, nodeName, isPrototype );
+			return makeInstance( cgeo, nodeName );
 		}
 
 		// Must not be called concurrently with anything.
@@ -1676,21 +1609,11 @@ class InstanceCache : public IECore::RefCounted
 			m_scene->delete_nodes( toEraseGeos, m_scene );
 		}
 
-		void nodesCreated( NodesCreated &objects, NodesCreated &geometry )
-		{
-			objectsCreated( objects );
-			geometryCreated( geometry );
-		}
-
 	private :
 
 		SharedCGeometryPtr convert( const IECore::Object *object, const CyclesAttributes *attributes, const std::string &nodeName )
 		{
 			ccl::Geometry *geometry = GeometryAlgo::convert( object, nodeName, m_scene );
-			if( geometry )
-			{
-				geometry->set_owner( m_scene );
-			}
 
 			if( object->typeId() == IECoreVDB::VDBObject::staticTypeId() )
 			{
@@ -1709,10 +1632,6 @@ class InstanceCache : public IECore::RefCounted
 		)
 		{
 			ccl::Geometry *geometry = GeometryAlgo::convert( samples, times, frame, nodeName, m_scene );
-			if( geometry )
-			{
-				geometry->set_owner( m_scene );
-			}
 
 			if( samples.front()->typeId() == IECoreVDB::VDBObject::staticTypeId() )
 			{
@@ -1722,20 +1641,20 @@ class InstanceCache : public IECore::RefCounted
 			return SharedCGeometryPtr( geometry, nullNodeDeleter );
 		}
 
-		Instance makeInstance( const SharedCGeometryPtr &geometry, const std::string &name, bool prototype )
+		Instance makeInstance( const SharedCGeometryPtr &geometry, const std::string &name )
 		{
 			SharedCObjectPtr object;
 			if( geometry )
 			{
-				object = SharedCObjectPtr( new ccl::Object(), nullNodeDeleter );
+				std::scoped_lock sceneLock( m_scene->mutex );
+				object = SharedCObjectPtr( m_scene->create_node<ccl::Object>(), nullNodeDeleter );
 				object->name = ccl::ustring( name.c_str() );
 				object->set_random_id( std::hash<string>()( name ) );
-				object->set_owner( m_scene );
 				object->set_geometry( geometry.get() );
 				m_objects.push_back( object );
 			}
 
-			return Instance( object, geometry, prototype );
+			return Instance( object, geometry );
 		}
 
 		void updateVolumes()
@@ -1745,67 +1664,6 @@ class InstanceCache : public IECore::RefCounted
 				GeometryAlgo::convertVoxelGrids( std::get<0>( volume ), std::get<1>( volume ), m_scene );
 			}
 			m_volumesToConvert.clear();
-		}
-
-		void updateObjects( NodesCreated &nodes )
-		{
-			if( nodes.size() )
-			{
-				ccl::vector<ccl::Object *> &objects = m_scene->objects;
-				for( ccl::Node *node : nodes )
-				{
-					ccl::Object *obj = static_cast<ccl::Object *>( node );
-					objects.push_back( obj );
-					obj->tag_update( m_scene );
-				}
-				m_scene->object_manager->tag_update( m_scene, ccl::ObjectManager::OBJECT_ADDED );
-				nodes.clear();
-			}
-		}
-
-		void updateGeometry( NodesCreated &nodes )
-		{
-			if( nodes.size() )
-			{
-				ccl::vector<ccl::Geometry *> &geometry = m_scene->geometry;
-				for( ccl::Node *node : nodes )
-				{
-					ccl::Geometry *geo = static_cast<ccl::Geometry *>( node );
-					geometry.push_back( geo );
-					geo->tag_update( m_scene, true );
-				}
-				m_scene->object_manager->tag_update( m_scene, ccl::GeometryManager::GEOMETRY_ADDED );
-				nodes.clear();
-			}
-		}
-
-		void objectsCreated( NodesCreated &nodes ) const
-		{
-			for( Objects::const_iterator it = m_objects.begin(), eIt = m_objects.end(); it != eIt; ++it )
-			{
-				if( it->get() )
-				{
-					nodes.push_back( it->get() );
-				}
-			}
-		}
-
-		void geometryCreated( NodesCreated &nodes ) const
-		{
-			for( UniqueGeometry::const_iterator it = m_uniqueGeometry.begin(), eIt = m_uniqueGeometry.end(); it != eIt; ++it )
-			{
-				if( it->get() )
-				{
-					nodes.push_back( it->get() );
-				}
-			}
-			for( Geometry::const_iterator it = m_geometry.begin(), eIt = m_geometry.end(); it != eIt; ++it )
-			{
-				if( it->second )
-				{
-					nodes.push_back( it->second.get() );
-				}
-			}
 		}
 
 		ccl::Scene *m_scene;
@@ -1841,15 +1699,11 @@ class LightCache : public IECore::RefCounted
 		{
 		}
 
-		void update( NodesCreated &nodes )
-		{
-			updateLights( nodes );
-		}
-
 		// Can be called concurrently with other get() calls.
 		SharedCLightPtr get( const std::string &nodeName )
 		{
-			ccl::Light *light = new ccl::Light();
+			std::scoped_lock sceneLock( m_scene->mutex );
+			ccl::Light *light = m_scene->create_node<ccl::Light>();
 			light->name = nodeName.c_str();
 			light->set_owner( m_scene );
 			// All lights are always in the first set, which we use for objects
@@ -1886,32 +1740,7 @@ class LightCache : public IECore::RefCounted
 			m_scene->delete_nodes( toErase, m_scene );
 		}
 
-		void nodesCreated( NodesCreated &nodes ) const
-		{
-			for( Lights::const_iterator it = m_lights.begin(), eIt = m_lights.end(); it != eIt; ++it )
-			{
-				if( it->get() )
-				{
-					nodes.push_back( it->get() );
-				}
-			}
-		}
-
 	private :
-
-		void updateLights( NodesCreated &nodes )
-		{
-			if( nodes.size() )
-			{
-				ccl::vector<ccl::Light *> &lights = m_scene->lights;
-				for( ccl::Node *node : nodes )
-				{
-					lights.push_back( static_cast<ccl::Light *>( node ) );
-				}
-				m_scene->light_manager->tag_update( m_scene, ccl::LightManager::LIGHT_ADDED );
-				nodes.clear();
-			}
-		}
 
 		ccl::Scene *m_scene;
 		using Lights = tbb::concurrent_vector<SharedCLightPtr>;
@@ -2099,7 +1928,7 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 
 			object->set_motion( motion );
 
-			object->tag_update( m_session->scene );
+			object->tag_update( m_session->scene.get() );
 		}
 
 		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override
@@ -2123,7 +1952,7 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 					motion[i] = object->get_tfm();
 					object->set_motion( motion );
 				}
-				object->tag_update( m_session->scene );
+				object->tag_update( m_session->scene.get() );
 				return;
 			}
 
@@ -2132,7 +1961,7 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 			if( numSamples == 1 )
 			{
 				object->set_tfm( SocketAlgo::setTransform( samples.front() ) );
-				object->tag_update( m_session->scene );
+				object->tag_update( m_session->scene.get() );
 				return;
 			}
 
@@ -2222,7 +2051,7 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 				}
 			}
 
-			object->tag_update( m_session->scene );
+			object->tag_update( m_session->scene.get() );
 		}
 
 		bool attributes( const IECoreScenePreview::Renderer::AttributesInterface *attributes ) override
@@ -2235,7 +2064,7 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 				m_attributes = cyclesAttributes;
 				if( object )
 				{
-					object->tag_update( m_session->scene );
+					object->tag_update( m_session->scene.get() );
 				}
 				return true;
 			}
@@ -2297,7 +2126,7 @@ class CyclesLight : public IECoreScenePreview::Renderer::ObjectInterface
 			ccl::Transform tfm = SocketAlgo::setTransform( transform );
 			light->set_tfm( tfm );
 
-			light->tag_update( m_session->scene );
+			light->tag_update( m_session->scene.get() );
 		}
 
 		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override
@@ -2314,16 +2143,11 @@ class CyclesLight : public IECoreScenePreview::Renderer::ObjectInterface
 			if( !light || cyclesAttributes->applyLight( light, m_attributes.get() ) )
 			{
 				m_attributes = cyclesAttributes;
-				light->tag_update( m_session->scene );
+				light->tag_update( m_session->scene.get() );
 				return true;
 			}
 
 			return false;
-		}
-
-		void nodesCreated( NodesCreated &nodes ) const
-		{
-			nodes.push_back( m_light.get() );
 		}
 
 		void assignID( uint32_t id ) override
@@ -2826,9 +2650,9 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			// calls `cancel()` internally, but the session can emit progress updates
 			// on other threads during cancellation, and our `progress()` method accesses
 			// member data that needs to be intact when that happens.
-			if( m_session )
+			if( ccl::Session *session = m_session.get() )
 			{
-				m_session->cancel();
+				session->cancel();
 			}
 		}
 
@@ -2923,8 +2747,6 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			CyclesLightPtr result = new CyclesLight( m_session.get(), clight );
 			result->attributes( attributes );
 
-			result->nodesCreated( m_lightsCreated );
-
 			return result;
 		}
 
@@ -2956,10 +2778,6 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			ObjectInterfacePtr result = new CyclesObject( m_session.get(), instance, frame(), &m_lightLinker );
 			result->attributes( attributes );
 
-			instance.objectsCreated( m_objectsCreated );
-			// These will only accumulate if it's the prototype
-			instance.geometryCreated( m_geometryCreated );
-
 			return result;
 		}
 
@@ -2982,6 +2800,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			{
 				frameIdx = times.size()-1;
 			}
+
 			Instance instance = m_instanceCache->get( samples, times, frameIdx, attributes, name );
 			if( !instance.object() )
 			{
@@ -2990,10 +2809,6 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 
 			ObjectInterfacePtr result = new CyclesObject( m_session.get(), instance, frame(), &m_lightLinker );
 			result->attributes( attributes );
-
-			instance.objectsCreated( m_objectsCreated );
-			// These will only accumulate if it's the prototype
-			instance.geometryCreated( m_geometryCreated );
 
 			return result;
 		}
@@ -3179,7 +2994,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 
 			m_session = std::make_unique<ccl::Session>( sessionParams, sceneParams );
 			m_session->progress.set_update_callback( std::bind( &CyclesRenderer::progress, this ) );
-			m_scene = m_session->scene;
+			m_scene = m_session->scene.get();
 
 			/// \todo Determine why this is here, or remove it.
 			m_scene->camera->need_flags_update = true;
@@ -3203,12 +3018,8 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 
 		void updateSceneObjects()
 		{
-			// Add every shader each time, less issues
-			m_shaderCache->nodesCreated( m_shadersCreated );
-
-			m_lightCache->update( m_lightsCreated );
-			m_instanceCache->update( m_objectsCreated, m_geometryCreated );
-			m_shaderCache->update( m_shadersCreated );
+			m_instanceCache->update();
+			m_shaderCache->update();
 		}
 
 		void updateOptions()
@@ -3788,16 +3599,6 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 		InstanceCachePtr m_instanceCache;
 		AttributesCachePtr m_attributesCache;
 		LightLinker m_lightLinker;
-
-		// Nodes created to update to Cycles
-		/// \todo I don't see why these need to be state on the Renderer.
-		/// I think they could either be private data within `InstanceCache`
-		/// etc, or we could just stop deferring the addition of objects to
-		/// the `ccl::Scene`.
-		NodesCreated m_objectsCreated;
-		NodesCreated m_lightsCreated;
-		NodesCreated m_geometryCreated;
-		NodesCreated m_shadersCreated;
 
 		// Outputs
 		OutputMap m_outputs;
