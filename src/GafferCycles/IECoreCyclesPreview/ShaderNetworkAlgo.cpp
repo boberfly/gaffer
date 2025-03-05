@@ -60,6 +60,7 @@ IECORE_PUSH_DEFAULT_VISIBILITY
 #include "scene/shader_nodes.h"
 #include "scene/osl.h"
 #include "util/path.h"
+#include "util/unique_ptr.h"
 IECORE_POP_DEFAULT_VISIBILITY
 
 #include "fmt/format.h"
@@ -158,10 +159,9 @@ ccl::ShaderNode *convertWalk( const ShaderNetwork::Parameter &outputParameter, c
 	}
 	else if( const ccl::NodeType *nodeType = ccl::NodeType::find( ccl::ustring( shader->getName() ) ) )
 	{
-		if( nodeType->type == ccl::NodeType::SHADER && nodeType->create )
+		if( nodeType->type == ccl::NodeType::SHADER )
 		{
-			node = static_cast<ccl::ShaderNode *>( nodeType->create( nodeType ) );
-			node->set_owner( shaderGraph );
+			node = shaderGraph->create_node( nodeType );
 		}
 	}
 
@@ -172,8 +172,6 @@ ccl::ShaderNode *convertWalk( const ShaderNetwork::Parameter &outputParameter, c
 	}
 
 	// Add node to graph
-
-	node = shaderGraph->add( node );
 
 	string nodeName(
 		namePrefix +
@@ -430,7 +428,7 @@ ccl::ShaderOutput *output( ccl::ShaderNode *node, IECore::InternedString name )
 	{
 		if( node->outputs.size() )
 		{
-			return node->outputs.front();
+			return node->outputs[0];
 		}
 	}
 
@@ -441,14 +439,13 @@ ccl::ShaderOutput *output( ccl::ShaderNode *node, IECore::InternedString name )
 	return nullptr;
 }
 
-ccl::ShaderGraph *convertGraph( const IECoreScene::ShaderNetwork *surfaceShader,
-								const IECoreScene::ShaderNetwork *displacementShader,
-								const IECoreScene::ShaderNetwork *volumeShader,
-								ccl::ShaderManager *shaderManager,
-								const std::string &namePrefix )
+void convertGraph( ccl::ShaderGraph *graph,
+				   const IECoreScene::ShaderNetwork *surfaceShader,
+				   const IECoreScene::ShaderNetwork *displacementShader,
+				   const IECoreScene::ShaderNetwork *volumeShader,
+				   ccl::ShaderManager *shaderManager,
+				   const std::string &namePrefix )
 {
-	ccl::ShaderGraph *graph = new ccl::ShaderGraph();
-
 	using NamedNetwork = std::pair<std::string, const IECoreScene::ShaderNetwork *>;
 	for( const auto &[name, network] : { NamedNetwork( "surface", surfaceShader ), NamedNetwork( "displacement", displacementShader ), NamedNetwork( "volume", volumeShader ) } )
 	{
@@ -484,8 +481,6 @@ ccl::ShaderGraph *convertGraph( const IECoreScene::ShaderNetwork *surfaceShader,
 			}
 		}
 	}
-
-	return graph;
 }
 
 void convertAOV( const IECoreScene::ShaderNetwork *shaderNetwork, ccl::ShaderGraph *graph, ccl::ShaderManager *shaderManager, const std::string &namePrefix )
@@ -499,9 +494,9 @@ void setSingleSided( ccl::ShaderGraph *graph )
 	// Cycles doesn't natively support setting single-sided on objects, however we can build
 	// a shader which does it for us by checking for backfaces and using a transparentBSDF
 	// to emulate the effect.
-	ccl::ShaderNode *mixClosure = graph->add( (ccl::ShaderNode*)graph->create_node<ccl::MixClosureNode>() );
-	ccl::ShaderNode *transparentBSDF = graph->add( (ccl::ShaderNode*)graph->create_node<ccl::TransparentBsdfNode>() );
-	ccl::ShaderNode *geometry = graph->add( (ccl::ShaderNode*)graph->create_node<ccl::GeometryNode>() );
+	ccl::ShaderNode *mixClosure = graph->create_node<ccl::MixClosureNode>();
+	ccl::ShaderNode *transparentBSDF = graph->create_node<ccl::TransparentBsdfNode>();
+	ccl::ShaderNode *geometry = graph->create_node<ccl::GeometryNode>();
 
 	if( ccl::ShaderOutput *shaderOutput = ShaderNetworkAlgo::output( geometry, "backfacing" ) )
 		if( ccl::ShaderInput *shaderInput = ShaderNetworkAlgo::input( mixClosure, "fac" ) )
@@ -528,25 +523,23 @@ void setSingleSided( ccl::ShaderGraph *graph )
 	}
 }
 
-ccl::Shader *createDefaultShader()
+ccl::Shader *createDefaultShader( ccl::Scene *scene )
 {
 	// This creates a camera dot-product shader/facing ratio.
-	ccl::Shader *cshader = new ccl::Shader();
-	ccl::ShaderGraph *cgraph = new ccl::ShaderGraph();
+	ccl::Shader *cshader = scene->create_node<ccl::Shader>();
+	ccl::unique_ptr<ccl::ShaderGraph> cgraph = ccl::make_unique<ccl::ShaderGraph>();
 	cshader->name = ccl::ustring( "defaultSurfaceShader" );
-	ccl::ShaderNode *outputNode = (ccl::ShaderNode*)cgraph->output();
+	ccl::ShaderNode *output = (ccl::ShaderNode*)cgraph->output();
 	ccl::VectorMathNode *vecMath = cgraph->create_node<ccl::VectorMathNode>();
 	vecMath->set_math_type( ccl::NODE_VECTOR_MATH_DOT_PRODUCT );
 	ccl::GeometryNode *geo = cgraph->create_node<ccl::GeometryNode>();
-	ccl::ShaderNode *vecMathNode = cgraph->add( (ccl::ShaderNode*)vecMath );
-	ccl::ShaderNode *geoNode = cgraph->add( (ccl::ShaderNode*)geo );
-	cgraph->connect( ShaderNetworkAlgo::output( geoNode, "normal" ),
-						ShaderNetworkAlgo::input( vecMathNode, "vector1" ) );
-	cgraph->connect( ShaderNetworkAlgo::output( geoNode, "incoming" ),
-						ShaderNetworkAlgo::input( vecMathNode, "vector2" ) );
-	cgraph->connect( ShaderNetworkAlgo::output( vecMathNode, "value" ),
-						ShaderNetworkAlgo::input( outputNode, "surface" ) );
-	cshader->set_graph( cgraph );
+	cgraph->connect( ShaderNetworkAlgo::output( geo, "normal" ),
+						ShaderNetworkAlgo::input( vecMath, "vector1" ) );
+	cgraph->connect( ShaderNetworkAlgo::output( geo, "incoming" ),
+						ShaderNetworkAlgo::input( vecMath, "vector2" ) );
+	cgraph->connect( ShaderNetworkAlgo::output( vecMath, "value" ),
+						ShaderNetworkAlgo::input( output, "surface" ) );
+	cshader->set_graph( std::move( cgraph ) );
 
 	return cshader;
 }
