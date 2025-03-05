@@ -47,6 +47,9 @@ IECORE_PUSH_DEFAULT_VISIBILITY
 #include "scene/pointcloud.h"
 IECORE_POP_DEFAULT_VISIBILITY
 
+// std::scoped_lock
+#include <mutex>
+
 using namespace std;
 using namespace Imath;
 using namespace IECore;
@@ -72,11 +75,17 @@ void warnIfUnsupported( const IECoreScene::SpherePrimitive *sphere )
 	}
 }
 
-ccl::PointCloud *convertCommon( const IECoreScene::SpherePrimitive *sphere )
+ccl::PointCloud *createNode( ccl::Scene *scene )
+{
+	std::scoped_lock sceneLock( scene->mutex );
+	return scene->create_node<ccl::PointCloud>();
+}
+
+ccl::PointCloud *convertCommon( const IECoreScene::SpherePrimitive *sphere, ccl::Scene *scene )
 {
 	assert( sphere->typeId() == IECoreScene::SpherePrimitive::staticTypeId() );
 	warnIfUnsupported( sphere );
-	ccl::PointCloud *pointcloud = new ccl::PointCloud();
+	ccl::PointCloud *pointcloud = createNode( scene );
 
 	//pointcloud->set_point_style( ccl::POINT_CLOUD_POINT_SPHERE );
 	pointcloud->reserve( 1 );
@@ -101,14 +110,14 @@ ccl::PointCloud *convertCommon( const IECoreScene::SpherePrimitive *sphere )
 
 ccl::Geometry *convert( const IECoreScene::SpherePrimitive *sphere, const std::string &nodeName, ccl::Scene *scene )
 {
-	ccl::Geometry *result = convertCommon( sphere );
+	ccl::Geometry *result = convertCommon( sphere, scene );
 	result->name = ccl::ustring( nodeName.c_str() );
 	return result;
 }
 
 ccl::Geometry *convert( const vector<const IECoreScene::SpherePrimitive *> &samples, const std::vector<float> &times, const int frameIdx, const std::string &nodeName, ccl::Scene *scene )
 {
-	ccl::Geometry *result = convertCommon( samples.front() );
+	ccl::Geometry *result = convertCommon( samples.front(), scene );
 	result->name = ccl::ustring( nodeName.c_str() );
 	return result;
 }
