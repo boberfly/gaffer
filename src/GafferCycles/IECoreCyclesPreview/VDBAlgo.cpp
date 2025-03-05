@@ -47,7 +47,13 @@ IECORE_POP_DEFAULT_VISIBILITY
 // Cycles
 IECORE_PUSH_DEFAULT_VISIBILITY
 #include "scene/volume.h"
+#include "util/param.h"
+#include "util/types.h"
+#include "util/unique_ptr.h"
 IECORE_POP_DEFAULT_VISIBILITY
+
+// std::scoped_lock
+#include <mutex>
 
 using namespace std;
 using namespace Imath;
@@ -58,9 +64,16 @@ using namespace IECoreCycles;
 namespace
 {
 
+ccl::Volume *createNode( ccl::Scene *scene )
+{
+	std::scoped_lock sceneLock( scene->mutex );
+	return scene->create_node<ccl::Volume>();
+}
+
 ccl::Geometry *convert( const IECoreVDB::VDBObject *vdbObject, const std::string &nodeName, ccl::Scene *scene )
 {
-	ccl::Volume *volume = new ccl::Volume();
+	ccl::Volume *volume = createNode( scene );
+	volume->set_object_space( true );
 	volume->name = ccl::ustring( nodeName.c_str() );
 	return volume;
 }
