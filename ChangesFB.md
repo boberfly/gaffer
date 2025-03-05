@@ -19,6 +19,7 @@ Improvements
   - Set ZSTD library to `zstd_static` for windows builds
 - Cycles :
   - OpenVDBs will now render and allow shader updates in a live render.
+  - Update to 4.4 which required a refactor of how all objects are created/destroyed using unique_ptr, we now use Cycles scene mutex to lock and create the initial objects instead of defer-creating and transferring in the render scene lock, which heavily simplifies the code.
 - Tractor : Ensure username is passed to the spooler
 - GafferUI : OpenGL differences fix with the latest Qt.py
 - Arnold : `ramp_rgb` and `ramp_float` support, with correct USD conversions
