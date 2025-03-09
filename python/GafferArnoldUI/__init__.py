@@ -56,6 +56,7 @@ from . import ArnoldLightFilterUI
 from . import ArnoldColorManagerUI
 from . import ArnoldImagerUI
 from . import ArnoldProceduralUI
+from . import ArnoldOperatorUI
 from . import CacheMenu
 from . import GPUCache
 
