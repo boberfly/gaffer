@@ -63,11 +63,11 @@ IECORECYCLES_API void convertGraph(
 	const IECoreScene::ShaderNetwork *surfaceShader,
 	const IECoreScene::ShaderNetwork *displacementShader,
 	const IECoreScene::ShaderNetwork *volumeShader,
-	ccl::ShaderManager *shaderManager,
+	ccl::Scene *scene,
 	const std::string &namePrefix = ""
 );
 
-IECORECYCLES_API void convertAOV( const IECoreScene::ShaderNetwork *shaderNetwork, ccl::ShaderGraph *graph, ccl::ShaderManager *shaderManager, const std::string &namePrefix = "" );
+IECORECYCLES_API void convertAOV( const IECoreScene::ShaderNetwork *shaderNetwork, ccl::ShaderGraph *graph, ccl::Scene *scene, const std::string &namePrefix = "" );
 IECORECYCLES_API void setSingleSided( ccl::ShaderGraph *graph );
 IECORECYCLES_API ccl::Shader *createDefaultShader( ccl::Scene *scene );
 IECORECYCLES_API bool hasOSL( const ccl::Shader *cshader );
@@ -85,8 +85,8 @@ IECORECYCLES_API bool hasOSL( const ccl::Shader *cshader );
 // combinining them in to the single `strength` parameter in Cycles. Where these parameters have input connections,
 // we instead combine them into a Cycles shader suitable for providing emission to the `shader` socket.
 
-// Converts all non-connected light parameters on to the provided `cyclesLight` node.
-IECORECYCLES_API void convertLight( const IECoreScene::ShaderNetwork *light, ccl::Light *cyclesLight );
+// Converts all non-connected light parameters on to the provided cycles light `object` node.
+IECORECYCLES_API void convertLight( const IECoreScene::ShaderNetwork *light, ccl::Object *object );
 // Builds a ShaderNetwork suitable for connection to the `shader` socket on a `ccl::Light`.
 /// \todo It's not 100% clear why we need this separate method rather than having `convertLight()` just
 /// create and assign the shader itself. It _does_ allow CyclesRenderer to reuse shaders between lights via
