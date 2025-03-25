@@ -47,6 +47,7 @@
 
 #include "IECoreScene/Camera.h"
 #include "IECoreScene/CurvesPrimitive.h"
+#include "IECoreScene/Light.h"
 #include "IECoreScene/MeshPrimitive.h"
 #include "IECoreScene/Shader.h"
 #include "IECoreScene/SpherePrimitive.h"
@@ -102,7 +103,6 @@ IECORE_PUSH_DEFAULT_VISIBILITY
 #include "scene/volume.h"
 #include "subd/dice.h"
 #include "util/array.h"
-#include "util/function.h"
 #include "util/log.h"
 #include "util/murmurhash.h"
 #include "util/path.h"
@@ -133,7 +133,6 @@ using CFilmPtr = std::unique_ptr<ccl::Film>;
 using CLightPtr = std::unique_ptr<ccl::Light>;
 using SharedCCameraPtr = std::shared_ptr<ccl::Camera>;
 using SharedCObjectPtr = std::shared_ptr<ccl::Object>;
-using SharedCLightPtr = std::shared_ptr<ccl::Light>;
 using SharedCGeometryPtr = std::shared_ptr<ccl::Geometry>;
 // Need to defer shader assignments to the scene lock
 typedef std::pair<ccl::Node*, ccl::array<ccl::Node*>> ShaderAssignPair;
@@ -434,7 +433,7 @@ class CyclesShader : public IECore::RefCounted
 			:	m_hash( h )
 		{
 			ccl::unique_ptr<ccl::ShaderGraph> graph = ccl::make_unique<ccl::ShaderGraph>();
-			ShaderNetworkAlgo::convertGraph( graph.get(), surfaceShader, displacementShader, volumeShader, scene->shader_manager.get(), name );
+			ShaderNetworkAlgo::convertGraph( graph.get(), surfaceShader, displacementShader, volumeShader, scene, name );
 			if( surfaceShader && singleSided )
 			{
 				ShaderNetworkAlgo::setSingleSided( graph.get() );
@@ -442,7 +441,7 @@ class CyclesShader : public IECore::RefCounted
 
 			for( const IECoreScene::ShaderNetwork *aovShader : aovShaders )
 			{
-				ShaderNetworkAlgo::convertAOV( aovShader, graph.get(), scene->shader_manager.get(), name );
+				ShaderNetworkAlgo::convertAOV( aovShader, graph.get(), scene, name );
 			}
 
 			{
@@ -478,6 +477,11 @@ class CyclesShader : public IECore::RefCounted
 		ccl::Shader *shader() const
 		{
 			return m_shader;
+		}
+
+		const IECore::MurmurHash getHash() const
+		{
+			return m_hash;
 		}
 
 	private :
@@ -710,20 +714,6 @@ class ShaderCache : public IECore::RefCounted
 						geo->clear_modified();
 					}
 				}
-				else if( shaderAssignPair.first->is_a( ccl::Light::get_node_type() ) )
-				{
-					ccl::Light *light = static_cast<ccl::Light*>( shaderAssignPair.first );
-					if( shaderAssignPair.second[0] )
-					{
-						ccl::Shader *shader = static_cast<ccl::Shader *>( shaderAssignPair.second[0] );
-						shader->tag_used( m_scene );
-						light->set_shader( shader );
-					}
-					else
-					{
-						light->set_shader( m_scene->default_light );
-					}
-				}
 			}
 			m_shaderAssignPairs.clear();
 
@@ -736,21 +726,38 @@ class ShaderCache : public IECore::RefCounted
 			///   doing it even when the transform hasn't changed. Can't we just do this in `CyclesLight::transform()`?
 			/// - The light shader was created via `ShaderCache::get()`, and could therefore be shared
 			///   between several lights, so we're not at liberty to clobber the shader anyway.
-			for( ccl::Light *light : m_scene->lights )
+			for( ccl::Object *object : m_scene->objects )
 			{
+				if( !object->get_geometry() )
+				{
+					continue;
+				}
+
+				if( !object->get_geometry()->is_light() )
+				{
+					continue;
+				}
+
+				if( object->get_geometry()->get_used_shaders().size() == 0 )
+				{
+					continue;
+				}
+
+				ccl::Light *light = (ccl::Light*)object->get_geometry();
 				if( light->get_light_type() == ccl::LIGHT_BACKGROUND )
 				{
 					// Set environment map rotation
-					Imath::M44f transform =  SocketAlgo::getTransform( light->get_tfm() );
+					Imath::M44f transform = SocketAlgo::getTransform( object->get_tfm() );
 					Imath::Eulerf euler( transform, Imath::Eulerf::Order::XZY );
 
-					for( ccl::ShaderNode *node : light->get_shader()->graph->nodes )
+					ccl::Shader *shader = (ccl::Shader*)light->get_used_shaders()[0];
+					for( ccl::ShaderNode *node : shader->graph->nodes )
 					{
 						if ( node->type == ccl::EnvironmentTextureNode::node_type )
 						{
 							ccl::EnvironmentTextureNode *env = (ccl::EnvironmentTextureNode *)node;
 							env->tex_mapping.rotation = ccl::make_float3( -euler.x, -euler.y, -euler.z );
-							light->get_shader()->tag_update( m_scene );
+							shader->tag_update( m_scene );
 							break;
 						}
 					}
@@ -990,30 +997,22 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 				{
 					ccl::Shader *shader = m_shader->shader();
 					ccl::Shader *prevShader = previousAttributes->m_shader->shader();
-					if( prevShader->has_displacement && prevShader->get_displacement_method() != ccl::DISPLACE_BUMP )
+					if( m_shader->getHash() != previousAttributes->m_shader->getHash() &&
+						shader->has_displacement || prevShader->has_displacement )
 					{
-						const char *oldHash = (prevShader->graph) ? prevShader->graph->displacement_hash.c_str() : "";
-						const char *newHash = (shader->graph) ? shader->graph->displacement_hash.c_str() : "";
+						shader->need_update_displacement = true;
+						return false;
+					}
 
-						if( strcmp( oldHash, newHash ) != 0 )
+					// Re-issue a new mesh on all shader changes (expensive, but more stable)
+					if( object->get_geometry() && object->get_geometry()->is_mesh() )
+					{
+						if( ccl::Mesh *mesh = (ccl::Mesh*)object->get_geometry() )
 						{
-							//m_shader->need_update_uvs = true;
-							//m_shader->need_update_attribute = true;
-							shader->need_update_displacement = true;
-							// Returning false will make Gaffer re-issue a fresh mesh
-							return false;
-						}
-						else
-						{
-							// In Blender a shader->set_graph(graph); is called which handles the hashing similar to the code above. In GafferCycles
-							// we re-create a fresh shader which is easier to manage, however it misses this call to set need_update_mesh to false.
-							// We set false here, but we also need to make sure all the attribute requests are the same to prevent the flag to be set
-							// to true in another place of the code inside of Cycles. If we have made it this far in this area, we are just updating
-							// the same shader so this should be safe.
-							shader->attributes = prevShader->attributes;
-							//m_shader->need_update_uvs = false;
-							//m_shader->need_update_attribute = false;
-							shader->need_update_displacement = false;
+							if( mesh->get_num_subd_faces() && m_shader->getHash() != previousAttributes->m_shader->getHash() )
+							{
+								return false;
+							}
 						}
 					}
 				}
@@ -1022,13 +1021,12 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 				{
 					if( ccl::Mesh *mesh = (ccl::Mesh*)object->get_geometry() )
 					{
-						if( mesh->get_subd_params() )
+						if( mesh->get_num_subd_faces() && 
+							( previousAttributes->m_maxLevel != m_maxLevel ) ||
+							( previousAttributes->m_dicingRate != m_dicingRate ) )
 						{
-							if( ( previousAttributes->m_maxLevel != m_maxLevel ) || ( previousAttributes->m_dicingRate != m_dicingRate ) )
-							{
-								// Get a new mesh
-								return false;
-							}
+							// Get a new mesh
+							return false;
 						}
 					}
 				}
@@ -1058,20 +1056,41 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 
 			if( object->get_geometry() )
 			{
-				ccl::Mesh *mesh = nullptr;
-				if( object->get_geometry()->geometry_type == ccl::Geometry::MESH )
-					mesh = (ccl::Mesh*)object->get_geometry();
-
-				if( mesh )
+				if( object->get_geometry()->is_mesh() )
 				{
-					if( mesh->get_subd_params() )
+					ccl::Mesh *mesh = (ccl::Mesh*)object->get_geometry();
+					mesh->set_subd_dicing_rate( m_dicingRate );
+					mesh->set_subd_max_level( m_maxLevel );
+				}
+				else if( object->get_geometry() && object->get_geometry()->is_light() )
+				{
+					ccl::Light *light = (ccl::Light*)object->get_geometry();
+					if( m_lightAttribute )
 					{
-						mesh->set_subd_dicing_rate( m_dicingRate );
-						mesh->set_subd_max_level( m_maxLevel );
+						ShaderNetworkAlgo::convertLight( m_lightAttribute.get(), object );
+						ShaderAssignPair pair = ShaderAssignPair( light, ccl::array<ccl::Node*>() );
+						pair.second.push_back_slow( m_lightShader->shader() );
+						m_shaderCache->addShaderAssignment( pair );
+
+						light->set_is_enabled( !m_muteLight );
+					}
+					else
+					{
+						// No `cycles:light` shader assignment. Most likely a light
+						// intended for another renderer, so we turn off the Cycles
+						// light.
+						light->set_is_enabled( false );
+					}
+
+					if( !light->get_is_enabled() )
+					{
+						// Alas, `ccl::LightManager::test_enabled_lights()` will
+						// re-enable the light unless we also set its strength to zero.
+						light->set_strength( ccl::zero_float3() );
 					}
 				}
 
-				if( m_shader->shader() )
+				if( !object->get_geometry()->is_light() && m_shader->shader() )
 				{
 					ShaderAssignPair pair = ShaderAssignPair( object->get_geometry(), ccl::array<ccl::Node*>() );
 					pair.second.push_back_slow( m_shader->shader() );
@@ -1085,35 +1104,6 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 
 			// Custom attributes.
 			object->attributes = m_custom;
-
-			return true;
-		}
-
-		bool applyLight( ccl::Light *light, const CyclesAttributes *previousAttributes ) const
-		{
-			if( m_lightAttribute )
-			{
-				ShaderNetworkAlgo::convertLight( m_lightAttribute.get(), light );
-				ShaderAssignPair pair = ShaderAssignPair( light, ccl::array<ccl::Node*>() );
-				pair.second.push_back_slow( m_lightShader->shader() );
-				m_shaderCache->addShaderAssignment( pair );
-
-				light->set_is_enabled( !m_muteLight );
-			}
-			else
-			{
-				// No `cycles:light` shader assignment. Most likely a light
-				// intended for another renderer, so we turn off the Cycles
-				// light.
-				light->set_is_enabled( false );
-			}
-
-			if( !light->get_is_enabled() )
-			{
-				// Alas, `ccl::LightManager::test_enabled_lights()` will
-				// re-enable the light unless we also set its strength to zero.
-				light->set_strength( ccl::zero_float3() );
-			}
 
 			return true;
 		}
@@ -1149,6 +1139,12 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 		// Returns true if the given geometry can be instanced.
 		bool canInstanceGeometry( const IECore::Object *object ) const
 		{
+			if( !object )
+			{
+				// Most likely a light, so don't instance.
+				return false;
+			}
+
 			if( !IECore::runTimeCast<const IECoreScene::VisibleRenderable>( object ) )
 			{
 				return false;
@@ -1538,6 +1534,13 @@ class InstanceCache : public IECore::RefCounted
 			return makeInstance( cgeo, nodeName );
 		}
 
+		Instance getLight( const std::string &nodeName )
+		{
+			SharedCGeometryPtr geometry = convertLight( nodeName );
+			m_uniqueGeometry.push_back( geometry );
+			return makeInstance( geometry, nodeName );
+		}
+
 		// Must not be called concurrently with anything.
 		void clearUnused()
 		{
@@ -1616,6 +1619,15 @@ class InstanceCache : public IECore::RefCounted
 			return SharedCGeometryPtr( geometry, nullNodeDeleter );
 		}
 
+		SharedCGeometryPtr convertLight( const std::string &nodeName )
+		{
+			std::scoped_lock sceneLock( m_scene->mutex );
+			ccl::Geometry *geometry = (ccl::Geometry*)m_scene->create_node<ccl::Light>();
+			geometry->name = ccl::ustring( nodeName.c_str() );
+
+			return SharedCGeometryPtr( geometry, nullNodeDeleter );
+		}
+
 		Instance makeInstance( const SharedCGeometryPtr &geometry, const std::string &name )
 		{
 			SharedCObjectPtr object;
@@ -1645,71 +1657,6 @@ class InstanceCache : public IECore::RefCounted
 };
 
 IE_CORE_DECLAREPTR( InstanceCache )
-
-} // namespace
-
-//////////////////////////////////////////////////////////////////////////
-// LightCache
-//////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-
-class LightCache : public IECore::RefCounted
-{
-
-	public :
-
-		LightCache( ccl::Scene *scene )
-			: m_scene( scene )
-		{
-		}
-
-		// Can be called concurrently with other get() calls.
-		SharedCLightPtr get( const std::string &nodeName )
-		{
-			std::scoped_lock sceneLock( m_scene->mutex );
-			ccl::Light *light = m_scene->create_node<ccl::Light>();
-			light->name = nodeName.c_str();
-			light->set_owner( m_scene );
-			light->tag_update( m_scene );
-			auto clight = SharedCLightPtr( light, nullNodeDeleter );
-
-			m_lights.push_back( clight );
-
-			return clight;
-		}
-
-		// Must not be called concurrently with anything.
-		void clearUnused()
-		{
-			ccl::set<ccl::Light*> toErase;
-
-			for( Lights::iterator it = m_lights.begin(), eIt = m_lights.end(); it != eIt; ++it )
-			{
-				if( it->use_count() == 1 )
-				{
-					// Only one reference - this is ours, so
-					// nothing outside of the cache is using the
-					// node.
-					//toErase.push_back( it->first );
-					toErase.insert( it->get() );
-				}
-			}
-
-			removeNodesInSet( toErase, m_lights );
-			m_scene->delete_nodes( toErase, m_scene );
-		}
-
-	private :
-
-		ccl::Scene *m_scene;
-		using Lights = tbb::concurrent_vector<SharedCLightPtr>;
-		Lights m_lights;
-
-};
-
-IE_CORE_DECLAREPTR( LightCache )
 
 } // namespace
 
@@ -1812,8 +1759,10 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 			{
 				if( mesh->geometry_type == ccl::Geometry::MESH )
 				{
-					if( mesh->get_subd_params() )
+					if( mesh->get_num_subd_faces() )
+					{
 						mesh->set_subd_objecttoworld( object->get_tfm() );
+					}
 				}
 			}
 
@@ -1947,8 +1896,10 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 			{
 				if( mesh->geometry_type == ccl::Geometry::MESH )
 				{
-					if( mesh->get_subd_params() )
+					if( mesh->get_num_subd_faces() )
+					{
 						mesh->set_subd_objecttoworld( object->get_tfm() );
+					}
 				}
 			}
 
@@ -1992,79 +1943,6 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 
 } // namespace
 
-//////////////////////////////////////////////////////////////////////////
-// CyclesLight
-//////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-
-class CyclesLight : public IECoreScenePreview::Renderer::ObjectInterface
-{
-
-	public :
-
-		CyclesLight( ccl::Session *session, SharedCLightPtr &light )
-			: m_session( session ), m_light( light ), m_attributes( nullptr )
-		{
-		}
-
-		~CyclesLight() override
-		{
-		}
-
-		void link( const IECore::InternedString &type, const IECoreScenePreview::Renderer::ConstObjectSetPtr &objects ) override
-		{
-		}
-
-		void transform( const Imath::M44f &transform ) override
-		{
-			ccl::Light *light = m_light.get();
-			if( !light )
-				return;
-			ccl::Transform tfm = SocketAlgo::setTransform( transform );
-			light->set_tfm( tfm );
-
-			light->tag_update( m_session->scene.get() );
-		}
-
-		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override
-		{
-			// Cycles doesn't support motion samples on lights (yet)
-			transform( samples[0] );
-		}
-
-		bool attributes( const IECoreScenePreview::Renderer::AttributesInterface *attributes ) override
-		{
-			const CyclesAttributes *cyclesAttributes = static_cast<const CyclesAttributes *>( attributes );
-
-			ccl::Light *light = m_light.get();
-			if( !light || cyclesAttributes->applyLight( light, m_attributes.get() ) )
-			{
-				m_attributes = cyclesAttributes;
-				light->tag_update( m_session->scene.get() );
-				return true;
-			}
-
-			return false;
-		}
-
-		void assignID( uint32_t id ) override
-		{
-			/// \todo Implement me
-		}
-
-	private :
-
-		ccl::Session *m_session;
-		SharedCLightPtr m_light;
-		ConstCyclesAttributesPtr m_attributes;
-
-};
-
-IE_CORE_DECLAREPTR( CyclesLight )
-
-} // namespace
 
 //////////////////////////////////////////////////////////////////////////
 // CyclesCamera
@@ -2540,13 +2418,13 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			const IECore::MessageHandler::Scope s( m_messageHandler.get() );
 			acquireSession();
 
-			SharedCLightPtr clight = m_lightCache->get( name );
-			if( !clight )
+			Instance instance = m_instanceCache->getLight( name );
+			if( !instance.object() )
 			{
 				return nullptr;
 			}
 
-			CyclesLightPtr result = new CyclesLight( m_session.get(), clight );
+			ObjectInterfacePtr result = new CyclesObject( m_session.get(), instance, frame() );
 			result->attributes( attributes );
 
 			return result;
@@ -2804,7 +2682,6 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 
 			m_scene->background->set_transparent( true );
 
-			m_lightCache = new LightCache( m_scene );
 			m_shaderCache = new ShaderCache( m_scene );
 			m_instanceCache = new InstanceCache( m_scene );
 			m_attributesCache = new AttributesCache( m_shaderCache );
@@ -2814,7 +2691,6 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 		{
 			m_cameraCache->clearUnused();
 			m_instanceCache->clearUnused();
-			m_lightCache->clearUnused();
 			m_attributesCache->clearUnused();
 		}
 
@@ -2966,17 +2842,28 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 				/// every render. This might be much easier if attribute edits
 				/// were performed by a renderer method instead of an ObjectInterface
 				/// method. Or can we use `scene->light_manager->need_update()`?
-				ccl::Light *backgroundLight = nullptr;
-				for( ccl::Light *light : m_scene->lights )
+				ccl::Shader *backgroundShader = nullptr;
+				ccl::ustring lightgroup( "" );
+				for( ccl::Object *object : m_scene->objects )
 				{
-					if( light->get_light_type() == ccl::LIGHT_BACKGROUND )
+					if( !object->get_geometry() )
 					{
-						backgroundLight = light;
+						continue;
+					}
+					if( !object->get_geometry()->is_light() )
+					{
+						continue;
+					}
+					ccl::Light *light = (ccl::Light*)object->get_geometry();
+					if( light->get_light_type() == ccl::LIGHT_BACKGROUND && light->get_used_shaders().size() != 0 )
+					{
+						backgroundShader = (ccl::Shader*)light->get_used_shaders()[0];
+						lightgroup = object->get_lightgroup();
 						break;
 					}
 				}
-				m_scene->background->set_shader( backgroundLight ? backgroundLight->get_shader() : m_scene->default_background );
-				m_scene->background->set_lightgroup( backgroundLight ? backgroundLight->get_lightgroup() : ccl::ustring( "" ) );
+				m_scene->background->set_shader( backgroundShader ? backgroundShader : m_scene->default_background );
+				m_scene->background->set_lightgroup( lightgroup );
 			}
 
 			// Note : this is also responsible for tagging any changes
@@ -3340,7 +3227,6 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 		{
 			m_cameraCache.reset();
 			m_instanceCache.reset();
-			m_lightCache.reset();
 			m_shaderCache.reset();
 			m_attributesCache.reset();
 		}
@@ -3396,7 +3282,6 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 		// Caches
 		CameraCachePtr m_cameraCache;
 		ShaderCachePtr m_shaderCache;
-		LightCachePtr m_lightCache;
 		InstanceCachePtr m_instanceCache;
 		AttributesCachePtr m_attributesCache;
 

@@ -6,6 +6,7 @@ Improvements
 
 - DeleteAttributes : Optimised case where all attributes are deleted. The input attributes are no longer accessed at all in this case.
 - Cycles : Update to 4.4 which required a refactor of how all objects are created/destroyed using unique_ptr, we now use Cycles scene mutex to lock and create the initial objects instead of defer-creating and transferring in the render scene lock, which heavily simplifies the code.
+- Cycles : Update to 4.5 now has lights as objects/geometry, simplifying code. Subdivision is a lot more stable with small refactor tweaks.
 
 Breaking Changes
 ----------------
