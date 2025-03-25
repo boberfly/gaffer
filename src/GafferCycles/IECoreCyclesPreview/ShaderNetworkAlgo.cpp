@@ -57,7 +57,9 @@
 
 // Cycles
 IECORE_PUSH_DEFAULT_VISIBILITY
+#include "kernel/types.h"
 #include "scene/shader_nodes.h"
+#include "scene/object.h"
 #include "scene/osl.h"
 #include "util/path.h"
 #include "util/unique_ptr.h"
@@ -111,7 +113,7 @@ ccl::SocketType::Type getSocketType( const std::string &name )
 
 typedef boost::unordered_map<ShaderNetwork::Parameter, ccl::ShaderNode *> ShaderMap;
 
-ccl::ShaderNode *convertWalk( const ShaderNetwork::Parameter &outputParameter, const IECoreScene::ShaderNetwork *shaderNetwork, const std::string &namePrefix, ccl::ShaderManager *shaderManager, ccl::ShaderGraph *shaderGraph, ShaderMap &converted )
+ccl::ShaderNode *convertWalk( const ShaderNetwork::Parameter &outputParameter, const IECoreScene::ShaderNetwork *shaderNetwork, const std::string &namePrefix, ccl::Scene *scene, ccl::ShaderGraph *shaderGraph, ShaderMap &converted )
 {
 	// Reuse previously created node if we can.
 	const IECoreScene::Shader *shader = shaderNetwork->getShader( outputParameter.shader );
@@ -128,11 +130,10 @@ ccl::ShaderNode *convertWalk( const ShaderNetwork::Parameter &outputParameter, c
 
 	if( isOSLShader )
 	{
-		if( shaderManager && shaderManager->use_osl() )
+		if( scene->shader_manager->use_osl() )
 		{
-			ccl::OSLShaderManager *manager = (ccl::OSLShaderManager*)shaderManager;
 			std::string shaderFileName = g_shaderSearchPathCache.get( shader->getName() );
-			node = manager->osl_node( shaderGraph, shaderManager, shaderFileName.c_str() );
+			node = ccl::OSLShaderManager::osl_node( shaderGraph, scene, shaderFileName.c_str() );
 		}
 		else
 		{
@@ -255,7 +256,7 @@ ccl::ShaderNode *convertWalk( const ShaderNetwork::Parameter &outputParameter, c
 
 	for( const auto &connection : shaderNetwork->inputConnections( outputParameter.shader ) )
 	{
-		ccl::ShaderNode *sourceNode = convertWalk( connection.source, shaderNetwork, namePrefix, shaderManager, shaderGraph, converted );
+		ccl::ShaderNode *sourceNode = convertWalk( connection.source, shaderNetwork, namePrefix, scene, shaderGraph, converted );
 		if( !sourceNode )
 		{
 			continue;
@@ -381,6 +382,19 @@ Imath::Color3f constantLightStrength( const IECoreScene::ShaderNetwork *light )
 	return strength;
 }
 
+int updateVisibility( const IECore::Data *data, const IECore::InternedString &name, const int rayType, int visibility )
+{
+	if( parameterValue<bool>( data, name, true ) )
+	{
+		visibility |= rayType;
+	}
+	else
+	{
+		visibility = visibility & ~rayType;
+	}
+	return visibility;
+}
+
 const InternedString g_empty( "" );
 const InternedString g_out( "out" );
 
@@ -443,7 +457,7 @@ void convertGraph( ccl::ShaderGraph *graph,
 				   const IECoreScene::ShaderNetwork *surfaceShader,
 				   const IECoreScene::ShaderNetwork *displacementShader,
 				   const IECoreScene::ShaderNetwork *volumeShader,
-				   ccl::ShaderManager *shaderManager,
+				   ccl::Scene *scene,
 				   const std::string &namePrefix )
 {
 	using NamedNetwork = std::pair<std::string, const IECoreScene::ShaderNetwork *>;
@@ -469,7 +483,7 @@ void convertGraph( ccl::ShaderGraph *graph,
 		IECoreScene::ShaderNetworkAlgo::addComponentConnectionAdapters( toConvert.get() );
 		IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( toConvert.get() );
 		ShaderMap converted;
-		ccl::ShaderNode *node = convertWalk( toConvert->getOutput(), toConvert.get(), namePrefix, shaderManager, graph, converted );
+		ccl::ShaderNode *node = convertWalk( toConvert->getOutput(), toConvert.get(), namePrefix, scene, graph, converted );
 
 		if( node )
 		{
@@ -483,10 +497,10 @@ void convertGraph( ccl::ShaderGraph *graph,
 	}
 }
 
-void convertAOV( const IECoreScene::ShaderNetwork *shaderNetwork, ccl::ShaderGraph *graph, ccl::ShaderManager *shaderManager, const std::string &namePrefix )
+void convertAOV( const IECoreScene::ShaderNetwork *shaderNetwork, ccl::ShaderGraph *graph, ccl::Scene *scene, const std::string &namePrefix )
 {
 	ShaderMap converted;
-	convertWalk( shaderNetwork->getOutput(), shaderNetwork, namePrefix, shaderManager, graph, converted );
+	convertWalk( shaderNetwork->getOutput(), shaderNetwork, namePrefix, scene, graph, converted );
 }
 
 void setSingleSided( ccl::ShaderGraph *graph )
@@ -554,8 +568,15 @@ bool hasOSL( const ccl::Shader *cshader )
 	return false;
 }
 
-void convertLight( const IECoreScene::ShaderNetwork *light, ccl::Light *cyclesLight )
+void convertLight( const IECoreScene::ShaderNetwork *light, ccl::Object *object )
 {
+	if( !object->get_geometry()->is_light() )
+	{
+		msg( Msg::Warning, "IECoreCycles::ShaderNetworkAlgo::convertLight", "Cycles object is not a light" );
+		return;
+	}
+
+	ccl::Light *cyclesLight = (ccl::Light*)object->get_geometry();
 	const IECoreScene::Shader *lightShader = light->outputShader();
 	if( !lightShader )
 	{
@@ -603,6 +624,8 @@ void convertLight( const IECoreScene::ShaderNetwork *light, ccl::Light *cyclesLi
 		cyclesLight->set_light_type( ccl::LIGHT_POINT );
 	}
 
+	int visibility = (int)(ccl::PATH_RAY_ALL_VISIBILITY & ~ccl::PATH_RAY_CAMERA);
+
 	// Convert parameters
 
 	for( const auto &[name, value] : lightShader->parameters() )
@@ -610,6 +633,33 @@ void convertLight( const IECoreScene::ShaderNetwork *light, ccl::Light *cyclesLi
 		if( contributesToLightStrength( name ) )
 		{
 			continue;
+		}
+
+		// Accumulate the visibility flags and set at the end.
+		if( name == "use_camera" )
+		{
+			visibility = updateVisibility( value.get(), name, (int)ccl::PATH_RAY_CAMERA, visibility );
+		}
+		else if( name == "use_diffuse" )
+		{
+			visibility = updateVisibility( value.get(), name, (int)ccl::PATH_RAY_DIFFUSE, visibility );
+		}
+		else if( name == "use_glossy" )
+		{
+			visibility = updateVisibility( value.get(), name, (int)ccl::PATH_RAY_GLOSSY, visibility );
+		}
+		else if( name == "use_transmit" )
+		{
+			visibility = updateVisibility( value.get(), name, (int)ccl::PATH_RAY_TRANSMIT, visibility );
+		}
+		else if( name == "use_scatter" )
+		{
+			visibility = updateVisibility( value.get(), name, (int)ccl::PATH_RAY_VOLUME_SCATTER, visibility );
+		}
+		else if( name == "lightgroup" )
+		{
+			// At the object-level this can be set, but setting it from the light shader has precedence.
+			object->set_lightgroup( ccl::ustring( parameterValue<string>( value.get(), name, std::string() ).c_str() ) );
 		}
 		// Convert angle-based parameters, where we use degress and Cycles uses radians.
 		else if( name == "angle" )
@@ -656,6 +706,9 @@ void convertLight( const IECoreScene::ShaderNetwork *light, ccl::Light *cyclesLi
 	{
 		cyclesLight->set_strength( ccl::one_float3() );
 	}
+
+	// Set visibility for the light onto the object.
+	object->set_visibility( visibility );
 }
 
 IECoreScene::ShaderNetworkPtr convertLightShader( const IECoreScene::ShaderNetwork *light )
