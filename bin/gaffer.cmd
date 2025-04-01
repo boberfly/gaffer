@@ -199,9 +199,9 @@ for /f "tokens=1* delims=;" %%A in ("%EXTENSION_PATH%") do (
 )
 
 if "%GAFFER_DEBUG%" NEQ "" (
-	%GAFFER_DEBUGGER% "%GAFFER_PYTHON%" "%GAFFER_ROOT%"/bin/__gaffer.py %*
+	%GAFFER_DEBUGGER% "%GAFFER_PYTHON%" "%GAFFER_ROOT%"/bin/_gaffer.py %*
 ) else (
-	"%GAFFER_PYTHON%" "%GAFFER_ROOT%"/bin/__gaffer.py %*
+	"%GAFFER_PYTHON%" "%GAFFER_ROOT%"/bin/_gaffer.py %*
 )
 
 ENDLOCAL
