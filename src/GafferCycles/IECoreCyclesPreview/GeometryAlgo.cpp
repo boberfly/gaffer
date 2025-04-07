@@ -386,6 +386,10 @@ void convertPrimitiveVariable( const std::string &name, const IECoreScene::Primi
 	{
 		attr->std = ccl::ATTR_STD_UV_TANGENT;
 	}
+	else if( name == "Pref" && attr->element == ccl::ATTR_ELEMENT_VERTEX && attr->type == ccl::TypeDesc::TypePoint )
+	{
+		attr->std = ccl::ATTR_STD_GENERATED;
+	}
 }
 
 void convertVoxelGrids( const IECoreVDB::VDBObject *vdbObject, ccl::Volume *volume, ccl::Scene *scene, const int precision )
