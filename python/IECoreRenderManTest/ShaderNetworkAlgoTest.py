@@ -130,7 +130,6 @@ class ShaderNetworkAlgoTest( unittest.TestCase ) :
 
 		for usdDataType, fallback, riType, riDefaultParameter, riDefault, readerOut, surfaceIn in [
 			( "float", 2.0, "float", "defaultFloat", 2.0, "resultF", "metallic" ),
-			( "float2", imath.V2f( 1, 2 ), "float2", "defaultFloat3", imath.Color3f( 1, 2, 0 ), "resultRGB", "diffuseColor" ),
 			( "float3", imath.V3f( 1, 2, 3 ), "vector", "defaultFloat3", imath.Color3f( 1, 2, 3 ), "resultRGB", "diffuseColor" ),
 			( "normal", imath.V3f( 1, 2, 3 ), "normal", "defaultFloat3", imath.Color3f( 1, 2, 3 ), "resultRGB", "diffuseColor" ),
 			( "point", imath.V3f( 1, 2, 3 ), "point", "defaultFloat3", imath.Color3f( 1, 2, 3 ), "resultRGB", "diffuseColor" ),
@@ -485,6 +484,145 @@ class ShaderNetworkAlgoTest( unittest.TestCase ) :
 		self.assertEqual( output.parameters["lightColorMap"].value, "myFile.tx" )
 		self.assertEqual( output.parameters["lightColor"].value, imath.Color3f( 1, 2, 3 ) )
 
+	def testConvertSimpleUSDUVTexture( self ) :
+
+		for usdOutput, riOutput in [
+			( "rgb", "resultRGB" ),
+			( "r", "resultR" ),
+			( "g", "resultG" ),
+			( "b", "resultB" ),
+			( "a", "resultA" ),
+		] :
+
+			with self.subTest( usdOutput = usdOutput, riOutput = riOutput ) :
+				network = IECoreScene.ShaderNetwork(
+					shaders = {
+						"previewSurface" : IECoreScene.Shader( "UsdPreviewSurface" ),
+						"texture" : IECoreScene.Shader(
+							"UsdUVTexture", "shader",
+							{
+								"file" : "test.png",
+								"sourceColorSpace" : "raw",
+								"fallback" : IECore.Color4fData( imath.Color4f( 0.1, 0.2, 0.3, 1.0 ) ),
+								"scale" : IECore.Color4fData( imath.Color4f( 0.4, 0.5, 0.6, 1.0 ) ),
+								"bias" : IECore.Color4fData( imath.Color4f( 0.7, 0.8, 0.9, 1.0 ) ),
+							}
+						),
+					},
+					connections = [
+						( ( "texture", usdOutput ), ( "previewSurface", "diffuseColor" ) ),
+					],
+					output = "previewSurface",
+				)
+
+				IECoreRenderMan.ShaderNetworkAlgo.convertUSDShaders( network )
+
+				self.assertEqual( network.input( ( "previewSurface", "diffuseColor" ) ), ( "texture", riOutput ) )
+
+				texture = network.getShader( "texture" )
+				self.assertEqual( texture.name, "PxrTexture" )
+				self.assertEqual( texture.parameters["filename"].value, "test.png" )
+				self.assertEqual( texture.parameters["missingColor"].value, imath.Color3f( 0.1, 0.2, 0.3 ) )
+				self.assertEqual( texture.parameters["colorScale"].value, imath.Color3f( 0.4, 0.5, 0.6 ) )
+				self.assertEqual( texture.parameters["colorOffset"].value, imath.Color3f( 0.7, 0.8, 0.9 ) )
+
+	def testConvertUSDUVTextureColorSpace( self ) :
+
+		for sourceColorSpace, linearizeValue, warningMessage in [
+			( "raw", 0, None ),
+			( "sRGB", 1, None ),
+			( "auto", 0, "\"sourceColorSpace\" must be \"raw\" or \"sRGB\". Defaulting to \"raw\"." )
+		] :
+			with self.subTest( sourceColorSpace = sourceColorSpace, linearizeValue = linearizeValue, warningMessage = warningMessage ) :
+				network = IECoreScene.ShaderNetwork(
+					shaders = {
+						"previewSurface" : IECoreScene.Shader( "UsdPreviewSurface" ),
+						"texture" : IECoreScene.Shader(
+							"UsdUVTexture", "shader",
+							{
+								"sourceColorSpace" : sourceColorSpace,
+							}
+						),
+					},
+					connections = [
+						( ( "texture", "rgb" ), ( "previewSurface", "diffuseColor" ) ),
+					],
+					output = "previewSurface",
+				)
+
+				with IECore.CapturingMessageHandler() as mh :
+					IECoreRenderMan.ShaderNetworkAlgo.convertUSDShaders( network )
+
+				self.assertEqual( network.input( ( "previewSurface", "diffuseColor" ) ), ( "texture", "resultRGB" ) )
+
+				texture = network.getShader( "texture" )
+
+				self.assertEqual( texture.parameters["linearize"].value, linearizeValue )
+
+				if warningMessage is not None :
+					self.assertEqual( len( mh.messages ), 1 )
+					self.assertEqual( mh.messages[0].level, IECore.MessageHandler.Level.Warning )
+					self.assertEqual( mh.messages[0].context, "IECoreRenderMan::ShaderNetworkAlgo::convertUSDShaders" )
+					self.assertEqual( mh.messages[0].message, warningMessage )
+
+	def testConvertUSDUVTextureST( self ) :
+
+		for uvPrimvar in ( "st", "customUV" ) :
+			with self.subTest( uvPrimvar = uvPrimvar ) :
+				network = IECoreScene.ShaderNetwork(
+					shaders = {
+						"texture" : IECoreScene.Shader(
+							"UsdUVTexture", "shader",
+							{
+								"sourceColorSpace" : "raw",
+							}
+						),
+						"uvReader" : IECoreScene.Shader(
+							"UsdPrimvarReader_float2", "shader",
+							{
+								"varname" : uvPrimvar
+							}
+						),
+					},
+					connections = [
+						( ( "uvReader", "result" ), ( "texture", "st" ) ),
+					],
+					output = "texture",
+				)
+
+				IECoreRenderMan.ShaderNetworkAlgo.convertUSDShaders( network )
+
+				self.assertEqual( len( network), 2 )
+				uvManifold = network.getShader( "uvReader" )
+				self.assertEqual( uvManifold.name, "PxrManifold2D" )
+				self.assertEqual( uvManifold.type, "ri:surface" )
+				self.assertEqual( uvManifold.parameters["name_uvSet"].value, uvPrimvar )
+				self.assertEqual( network.input( ( "texture", "manifold" ) ), ( "uvReader", "result" ) )
+
+	def testConvertUSDPrimvarReaderFloat2( self ) :
+
+		network = IECoreScene.ShaderNetwork(
+			shaders = {
+				"reader" : IECoreScene.Shader(
+					"UsdPrimvarReader_float2", "shader",
+					{
+						"varname" : "test",
+						"fallback" : imath.V2f( 2 ),
+					}
+				),
+			},
+			output = "reader",
+		)
+
+		IECoreRenderMan.ShaderNetworkAlgo.convertUSDShaders( network )
+
+		reader = network.getShader( "reader" )
+		self.assertEqual( reader.name, "PxrManifold2D" )
+		self.assertEqual( reader.parameters["name_uvSet"].value, "test" )
+
+		output = network.outputShader()
+		self.assertEqual( output.name, "PxrRectLight" )
+		self.assertEqual( output.parameters["lightColorMap"].value, "myFile.tx" )
 
 if __name__ == "__main__" :
 	unittest.main()
