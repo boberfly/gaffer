@@ -2094,7 +2094,7 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 		// Used by LightLinker
 		// ===================
 
-		uint64_t getLightSetMembership( LightLinker::SetType setType ) const
+		uint64_t getLightSetMembership( LightLinker::SetType setType )
 		{
 			return setType == LightLinker::SetType::Light ? m_instance.object()->get_light_set_membership() : m_instance.object()->get_shadow_set_membership();
 		}
@@ -2711,7 +2711,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 				return nullptr;
 			}
 
-			ObjectInterfacePtr result = new CyclesObject( m_session.get(), instance, frame() );
+			ObjectInterfacePtr result = new CyclesObject( m_session.get(), instance, frame(), &m_lightLinker );
 			result->attributes( attributes );
 
 			return result;
