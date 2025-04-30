@@ -2049,14 +2049,21 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 		// Used by LightLinker
 		// ===================
 
-		uint64_t getLightSetMembership() const
+		uint64_t getLightSetMembership()
 		{
-			return m_instance.object()->get_light_set_membership();
+			if( m_instance.object() )
+			{
+				return m_instance.object()->get_light_set_membership();
+			}
+			return 0;
 		}
 
 		void setLightSetMembership( uint64_t membership )
 		{
-			m_instance.object()->set_light_set_membership( membership );
+			if( m_instance.object() )
+			{
+				m_instance.object()->set_light_set_membership( membership );
+			}
 		}
 
 	private :
@@ -2635,7 +2642,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 				return nullptr;
 			}
 
-			ObjectInterfacePtr result = new CyclesObject( m_session.get(), instance, frame() );
+			ObjectInterfacePtr result = new CyclesObject( m_session.get(), instance, frame(), &m_lightLinker );
 			result->attributes( attributes );
 
 			return result;
