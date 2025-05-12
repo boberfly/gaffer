@@ -347,7 +347,12 @@ IECoreGL::Shader::SetupPtr displayTransformToFramebufferShader( const OCIO_NAMES
 			unsigned height = 0;
 			OCIO_NAMESPACE::GpuShaderDesc::TextureType channel = OCIO_NAMESPACE::GpuShaderDesc::TEXTURE_RGB_CHANNEL;
 			OCIO_NAMESPACE::Interpolation interpolation = OCIO_NAMESPACE::INTERP_LINEAR;
+#if OCIO_VERSION_HEX >= 0x02030000
+			OCIO_NAMESPACE::GpuShaderDesc::TextureDimensions dimensions;
+			shaderDesc->getTexture(idx, textureName, samplerName, width, height, channel, dimensions, interpolation);
+#else
 			shaderDesc->getTexture(idx, textureName, samplerName, width, height, channel, interpolation);
+#endif
 			if (
 				!textureName || !*textureName || !samplerName || !*samplerName || width == 0
 			)
