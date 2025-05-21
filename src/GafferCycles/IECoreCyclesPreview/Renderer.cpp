@@ -2099,7 +2099,7 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 			return setType == LightLinker::SetType::Light ? m_instance.object()->get_light_set_membership() : m_instance.object()->get_shadow_set_membership();
 		}
 
-		void setLightSetMembership( uint64_t membership )
+		void setLightSetMembership( LightLinker::SetType setType, uint64_t membership )
 		{
 			if( setType == LightLinker::SetType::Light )
 			{
