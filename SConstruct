@@ -453,11 +453,14 @@ env = Environment(
 
 systemIncludeArgument = "/external:I" if env[ "PLATFORM" ] == "win32" else "-isystem"
 
-for path in [
-		"$BUILD_DIR/include",
-		"$BUILD_DIR/include/Imath",
-		"$BUILD_DIR/include/GL",
-	] + env["LOCATE_DEPENDENCY_SYSTEMPATH"] :
+# had to remove these to shorten the path on windows (ughhhh)
+#for path in [
+#		"$BUILD_DIR/include",
+#		"$BUILD_DIR/include/Imath",
+#		"$BUILD_DIR/include/GL",
+#	] + env["LOCATE_DEPENDENCY_SYSTEMPATH"] :
+
+for path in env["LOCATE_DEPENDENCY_SYSTEMPATH"] :
 
 	env.Append(
 		CXXFLAGS = [ systemIncludeArgument, path ]
