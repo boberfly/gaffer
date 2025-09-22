@@ -375,11 +375,13 @@ void convertPrimitiveVariable( const std::string &name, const IECoreScene::Primi
 	{
 		attr->std = ccl::ATTR_STD_VERTEX_NORMAL;
 	}
+#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
 	else if( name == "N" && attr->element == ccl::ATTR_ELEMENT_FACE && attr->type == ccl::TypeNormal )
 	{
 		attr->std = ccl::ATTR_STD_FACE_NORMAL;
 		attr->name = ccl::Attribute::standard_name( attr->std ); // Cycles calls this `Ng`.
 	}
+#endif
 	else if( name == "uv" && attr->type == ccl::TypeFloat2 )
 	{
 		attr->std = ccl::ATTR_STD_UV;
@@ -391,6 +393,10 @@ void convertPrimitiveVariable( const std::string &name, const IECoreScene::Primi
 	else if( name == "uv.tangent" && attr->element == ccl::ATTR_ELEMENT_CORNER && attr->type == ccl::TypeVector )
 	{
 		attr->std = ccl::ATTR_STD_UV_TANGENT;
+	}
+	else if( name == "Pref" && attr->element == ccl::ATTR_ELEMENT_VERTEX && attr->type == ccl::TypeDesc::TypePoint )
+	{
+		attr->std = ccl::ATTR_STD_GENERATED;
 	}
 }
 

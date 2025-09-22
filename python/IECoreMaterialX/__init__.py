@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2012, John Haddon. All rights reserved.
+#  Copyright (c) 2025 Alex Fuller. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -34,31 +34,13 @@
 #
 ##########################################################################
 
-from .ArnoldShaderTest import ArnoldShaderTest
-from .ArnoldRenderTest import ArnoldRenderTest
-from .ArnoldOptionsTest import ArnoldOptionsTest
-from .ArnoldAttributesTest import ArnoldAttributesTest
-from .ArnoldVDBTest import ArnoldVDBTest
-from .ArnoldLightTest import ArnoldLightTest
-from .ArnoldMeshLightTest import ArnoldMeshLightTest
-from .InteractiveArnoldRenderTest import InteractiveArnoldRenderTest
-from .ArnoldDisplacementTest import ArnoldDisplacementTest
-from .LightToCameraTest import LightToCameraTest
-from .ArnoldAOVShaderTest import ArnoldAOVShaderTest
-from .ArnoldAtmosphereTest import ArnoldAtmosphereTest
-from .ArnoldBackgroundTest import ArnoldBackgroundTest
-from .ArnoldTextureBakeTest import ArnoldTextureBakeTest
-from .ModuleTest import ModuleTest
-from .ArnoldShaderBallTest import ArnoldShaderBallTest
-from .ArnoldCameraShadersTest import ArnoldCameraShadersTest
-from .ArnoldLightFilterTest import ArnoldLightFilterTest
-from .ArnoldColorManagerTest import ArnoldColorManagerTest
-from .ArnoldImagerTest import ArnoldImagerTest
-from .ArnoldOperatorTest import ArnoldOperatorTest
-from .USDLightTest import USDLightTest
-from .RenderPassAdaptorTest import RenderPassAdaptorTest
-from .USDProceduralTest import USDProceduralTest
+import os
+import pathlib
 
-if __name__ == "__main__":
-	import unittest
-	unittest.main()
+if hasattr( os, "add_dll_directory" ) :
+	os.add_dll_directory( ( pathlib.Path( os.environ["MATERIALX_ROOT"] ) / "lib" / "python" ).resolve() )
+del os, pathlib # Don't pollute the namespace
+
+from ._IECoreMaterialX import *
+
+__import__( "IECore" ).loadConfig( "GAFFER_STARTUP_PATHS", subdirectory = "IECoreMaterialX" )

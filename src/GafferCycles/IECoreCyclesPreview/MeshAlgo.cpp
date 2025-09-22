@@ -131,9 +131,19 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *sc
 
 		cmesh->reserve_mesh( numVerts, numFaces );
 		for( size_t i = 0; i < numVerts; i++ )
+		{
 			cmesh->add_vertex( ccl::make_float3( points[i].x, points[i].y, points[i].z ) );
+		}
 
 		const std::vector<int> &vertsPerFace = mesh->verticesPerFace()->readable();
+#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
+		size_t ncorners = 0;
+		for( size_t i = 0; i < vertsPerFace.size(); i++ )
+		{
+			ncorners += vertsPerFace[i];
+		}
+		cmesh->reserve_subd_faces(numFaces, ncorners);
+#else
 		size_t ngons = 0;
 		size_t ncorners = 0;
 		for( size_t i = 0; i < vertsPerFace.size(); i++ )
@@ -142,6 +152,7 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *sc
 			ncorners += vertsPerFace[i];
 		}
 		cmesh->reserve_subd_faces(numFaces, ngons, ncorners);
+#endif
 
 		int indexOffset = 0;
 		for( size_t i = 0; i < vertsPerFace.size(); i++ )

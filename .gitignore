@@ -30,3 +30,6 @@ contrib/openColorIOPandemonium/luts/*.cube
 
 # clang compile commands
 compile_commands.json
+
+# MaterialX auto-gen shaders
+shaders/__mtlx/__ND*.osl

@@ -43,12 +43,14 @@
 #include "Gaffer/CompoundNumericPlug.h"
 #include "Gaffer/NumericPlug.h"
 #include "Gaffer/PlugAlgo.h"
+#include "Gaffer/SplinePlug.h"
 #include "Gaffer/StringPlug.h"
 
 #include "IECore/SearchPath.h"
 #include "IECore/MessageHandler.h"
 
 #include "boost/algorithm/string.hpp"
+#include "boost/algorithm/string/predicate.hpp"
 #include "boost/lexical_cast.hpp"
 #include "boost/property_tree/xml_parser.hpp"
 
@@ -372,6 +374,191 @@ Gaffer::Plug *loadParameter( const boost::property_tree::ptree &parameter, Plug 
 	return acquiredPlug.get();
 }
 
+vector<float> parseFloatArray( const string &s )
+{
+	typedef boost::tokenizer<boost::char_separator<char> > Tokenizer;
+	vector<float> result( 0 );
+	for( auto token : Tokenizer( s, boost::char_separator<char>( " " ) ) )
+	{
+		result.push_back( boost::lexical_cast<float>( token ) );
+	}
+
+	return result;
+}
+
+void updatePoints(
+	Splineff::PointContainer &points,
+	const boost::property_tree::ptree *positionsParameter,
+	const boost::property_tree::ptree *valuesParameter )
+{
+	const vector<float> &positions = parseFloatArray( positionsParameter->get( "<xmlattr>.default", "0 0 1 1" ) );
+	const vector<float> &values = parseFloatArray( valuesParameter->get( "<xmlattr>.default", "0 0 1 1" ) );
+
+	for( size_t i = 0; ( i < positions.size() ) && ( i < values.size() ); ++i )
+	{
+		points.insert( Splineff::Point( positions[i], values[i] ) );
+	}
+}
+
+void updatePoints(
+	SplinefColor3f::PointContainer &points,
+	const boost::property_tree::ptree *positionsParameter,
+	const boost::property_tree::ptree *valuesParameter )
+{
+	const vector<float> &positions = parseFloatArray( positionsParameter->get( "<xmlattr>.default", "0 0 1 1" ) );
+	const vector<float> &values = parseFloatArray( valuesParameter->get( "<xmlattr>.default", "0 0 0 0 0 0 1 1 1 1 1 1" ) );
+
+	for( size_t i = 0; i < positions.size() && i*3+2 < values.size(); ++i )
+	{
+		points.insert(
+			SplinefColor3f::Point(
+				positions[i],
+				Color3f(
+					values[i*3],
+					values[i*3+1],
+					values[i*3+2]
+				)
+			)
+		);
+	}
+}
+
+SplineDefinitionInterpolation basisFromString( const std::string &basis )
+{
+	if( basis == "bspline" )
+	{
+		return SplineDefinitionInterpolationBSpline;
+	}
+	else if( basis == "linear" )
+	{
+		return SplineDefinitionInterpolationLinear;
+	}
+	else if( basis == "constant" )
+	{
+		return SplineDefinitionInterpolationConstant;
+	}
+	else if( basis == "monotonecubic" )
+	{
+		return SplineDefinitionInterpolationMonotoneCubic;
+	}
+
+	return SplineDefinitionInterpolationCatmullRom;
+}
+
+template <typename PlugType>
+Plug *loadSplineParameters(
+	const boost::property_tree::ptree *positionsParameter,
+	const boost::property_tree::ptree *valuesParameter,
+	const boost::property_tree::ptree *basisParameter,
+	const InternedString &name,
+	Gaffer::Plug *parent
+)
+{
+	typename PlugType::ValueType defaultValue;
+
+	defaultValue.interpolation = basisFromString( basisParameter->get<string>( "<xmlattr>.default" ) );
+
+	updatePoints( defaultValue.points, positionsParameter, valuesParameter );
+
+	// The Renderman spline representation includes the need for duplicated end points in order to hit the
+	// end, much like what OSL splines also have. We need to remove these. 
+	// We ignore the success or failure of trimming because some renderers have
+	// default values that are already trimmed.
+	defaultValue.trimEndPoints();
+
+	PlugType *existingPlug = parent->getChild<PlugType>( name );
+	if( existingPlug && existingPlug->defaultValue() == defaultValue )
+	{
+		return existingPlug;
+	}
+
+	typename PlugType::Ptr plug = new PlugType( name, parent->direction(), defaultValue, Plug::Default );
+	parent->setChild( name, plug );
+
+	return plug.get();
+}
+
+bool findSplineParameters(
+	const boost::property_tree::ptree &tree,
+	const boost::property_tree::ptree &parameter,
+	std::string &nameWithoutSuffix,
+	const boost::property_tree::ptree * &positionsParameter,
+	const boost::property_tree::ptree * &valuesParameter,
+	const boost::property_tree::ptree * &basisParameter
+)
+{
+	const char *suffixes[] = { "_Knots", "_Colors", "_Floats", "_Interpolation", nullptr };
+	const char *suffix = nullptr;
+	for( const char **suffixPtr = suffixes; *suffixPtr; ++suffixPtr )
+	{
+		if( boost::ends_with( parameter.get<string>( "<xmlattr>.name" ), *suffixPtr ) )
+		{
+			suffix = *suffixPtr;
+			break;
+		}
+	}
+
+	if( !suffix )
+	{
+		return false;
+	}
+
+	nameWithoutSuffix = parameter.get<string>( "<xmlattr>.name" ).substr( 0, parameter.get<string>( "<xmlattr>.name" ).size() - strlen( suffix ) );
+
+	msg(
+		IECore::Msg::Warning, "RenderManShader::loadShader",
+		fmt::format( "Parameter \"{}\"", nameWithoutSuffix )
+	);
+
+	for( const auto &child : tree )
+	{
+		if( child.first == "param" )
+		{
+			if( child.second.get<string>( "<xmlattr>.name" ) == fmt::format( "{}_Knots", nameWithoutSuffix ) )
+			{
+				positionsParameter = &child.second;
+			}
+			else if( child.second.get<string>( "<xmlattr>.name" ) == fmt::format( "{}_Floats", nameWithoutSuffix ) )
+			{
+				valuesParameter = &child.second;
+			}
+			else if( child.second.get<string>( "<xmlattr>.name" ) == fmt::format( "{}_Colors", nameWithoutSuffix ) )
+			{
+				valuesParameter = &child.second;
+			}
+			else if( child.second.get<string>( "<xmlattr>.name" ) == fmt::format( "{}_Interpolation", nameWithoutSuffix ) )
+			{
+				basisParameter = &child.second;
+			}
+		}
+	}
+
+	return positionsParameter && valuesParameter && basisParameter;
+}
+
+Plug *loadSplineParameter( const boost::property_tree::ptree &tree, const boost::property_tree::ptree &parameter, Gaffer::Plug *parent )
+{
+
+	string nameWithoutSuffix;
+	const boost::property_tree::ptree *positionsParameter = nullptr;
+	const boost::property_tree::ptree *valuesParameter = nullptr;
+	const boost::property_tree::ptree *basisParameter = nullptr;
+
+	if( !findSplineParameters( tree, parameter, nameWithoutSuffix, positionsParameter, valuesParameter, basisParameter ) )
+	{
+		return nullptr;
+	}
+
+	if( valuesParameter->get<string>( "<xmlattr>.type" ) == "color" )
+	{
+		return loadSplineParameters<SplinefColor3fPlug>( positionsParameter, valuesParameter, basisParameter, nameWithoutSuffix, parent );
+	}
+	else
+	{
+		return loadSplineParameters<SplineffPlug>( positionsParameter, valuesParameter, basisParameter, nameWithoutSuffix, parent );
+	}
+}
+
 void loadParameters( const boost::property_tree::ptree &tree, Plug *parent, const ParameterSet *omit, std::unordered_set<const Plug *> &validPlugs )
 {
 	for( const auto &child : tree )
@@ -382,7 +569,12 @@ void loadParameters( const boost::property_tree::ptree &tree, Plug *parent, cons
 			{
 				continue;
 			}
-			if( Plug *p = loadParameter( child.second, parent ) )
+
+			if( Plug *p = loadSplineParameter( tree, child.second, parent ) )
+			{
+				validPlugs.insert( p );
+			}
+			else if( Plug *p = loadParameter( child.second, parent ) )
 			{
 				validPlugs.insert( p );
 			}
