@@ -75,9 +75,14 @@ def prependToPath( pathToPrepend, envVar ) :
 	os.environ[envVar] = os.pathsep.join( path )
 
 gafferRoot = pathlib.Path( __file__ ).resolve().parents[1]
+cortexRoot = pathlib.Path( os.environ.get( "CORTEX_ROOT", "" ) ).resolve()
 
 # Cortex Setup
 # ============
+
+prependToPath( cortexRoot / "glsl", "IECOREGL_SHADER_PATHS" )
+prependToPath( cortexRoot / "glsl", "IECOREGL_SHADER_INCLUDE_PATHS" )
+prependToPath( cortexRoot / "ops", "IECORE_OP_PATHS" )
 
 prependToPath( gafferRoot / "glsl", "IECOREGL_SHADER_PATHS" )
 prependToPath( gafferRoot / "glsl", "IECOREGL_SHADER_INCLUDE_PATHS" )
@@ -87,6 +92,8 @@ prependToPath( pathlib.Path.home() / "gaffer" / "ops", "IECORE_OP_PATHS" )
 prependToPath( pathlib.Path.home() / "gaffer" / "opPresets", "IECORE_OP_PRESET_PATHS" )
 prependToPath( pathlib.Path.home() / "gaffer" / "startup", "CORTEX_STARTUP_PATHS" )
 appendToPath( gafferRoot / "startup", "CORTEX_STARTUP_PATHS" )
+
+
 
 if "CORTEX_POINTDISTRIBUTION_TILESET" not in os.environ :
 	os.environ["CORTEX_POINTDISTRIBUTION_TILESET"] = str( gafferRoot / "resources" / "cortex" / "tileset_2048.dat" )
@@ -132,6 +139,8 @@ elif sys.platform == "win32" :
 oslcPath = gafferRoot / "bin" / ( "oslc.exe" if sys.platform == "win32" else "oslc" )
 if oslcPath.exists() :
 	os.environ["OSLHOME"] = str( gafferRoot )
+else:
+	os.environ["OSLHOME"] = os.environ.get( "REZ_OSL_ROOT", "" )
 
 ## \todo Should we rename these to "osl" to match our "glsl" folder?
 prependToPath( gafferRoot / "shaders", "OSL_SHADER_PATHS" )

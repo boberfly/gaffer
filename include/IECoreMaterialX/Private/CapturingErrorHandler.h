@@ -1,7 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2012, John Haddon. All rights reserved.
-//  Copyright (c) 2013, Image Engine Design Inc. All rights reserved.
+//  Copyright (c) 2016, Image Engine Design Inc. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -37,41 +36,31 @@
 
 #pragma once
 
-#include <boost/type_traits/is_abstract.hpp>
+#include "OpenImageIO/errorhandler.h"
 
-namespace GafferBindings
+namespace IECoreMaterialX
 {
 
-namespace Detail
+namespace Private
 {
 
-// node constructor bindings
-
-template<typename T, typename TWrapper>
-void defNodeConstructor( NodeClass<T, TWrapper> &cls, typename boost::enable_if<boost::mpl::not_< boost::is_abstract<TWrapper> > >::type *enabler = nullptr )
+class CapturingErrorHandler : public OIIO::ErrorHandler
 {
-	cls.def( boost::python::init< const std::string & >( boost::python::arg( "name" ) = Gaffer::GraphComponent::defaultName<T>() ) );
-}
 
-template<typename T, typename TWrapper>
-void defNodeConstructor( NodeClass<T, TWrapper> &cls, typename boost::enable_if<boost::is_abstract<TWrapper> >::type *enabler = nullptr )
-{
-	// nothing to bind for abstract classes
-}
+	public :
 
-} // namespace Detail
+		CapturingErrorHandler();
 
-template<typename T, typename TWrapper>
-NodeClass<T, TWrapper>::NodeClass( const char *docString )
-	:	GraphComponentClass<T, TWrapper>( docString )
-{
-	Detail::defNodeConstructor( *this );
-}
+		void operator()( int errorCode, const std::string &message ) override;
 
-template<typename T, typename TWrapper>
-NodeClass<T, TWrapper>::NodeClass( const char *docString, boost::python::no_init_t )
-	:	GraphComponentClass<T, TWrapper>( docString )
-{
-}
+		const std::string &errors();
 
-} // namespace GafferBindings
+	private :
+
+		std::string m_errors;
+
+};
+
+} // namespace Private
+
+} // namespace IECoreMaterialX

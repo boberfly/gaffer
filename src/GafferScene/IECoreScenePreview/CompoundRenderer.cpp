@@ -45,6 +45,8 @@
 #include <mutex>
 #include <array>
 
+#include <array>
+
 using namespace std;
 using namespace IECoreScenePreview;
 

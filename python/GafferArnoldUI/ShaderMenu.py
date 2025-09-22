@@ -58,7 +58,7 @@ def appendShaders( menuDefinition, prefix="/Arnold" ) :
 	uncategorisedMenuItems = []
 	with IECoreArnold.UniverseBlock( writable = False ) :
 
-		it = arnold.AiUniverseGetNodeEntryIterator( arnold.AI_NODE_SHADER | arnold.AI_NODE_LIGHT | arnold.AI_NODE_COLOR_MANAGER | arnold.AI_NODE_IMAGER )
+		it = arnold.AiUniverseGetNodeEntryIterator( arnold.AI_NODE_SHADER | arnold.AI_NODE_LIGHT | arnold.AI_NODE_COLOR_MANAGER | arnold.AI_NODE_OPERATOR | arnold.AI_NODE_IMAGER )
 
 		while not arnold.AiNodeEntryIteratorFinished( it ) :
 
@@ -91,6 +91,9 @@ def appendShaders( menuDefinition, prefix="/Arnold" ) :
 				menuPath = "Globals/Color Manager"
 				nodeCreator = functools.partial( __colorManagerCreator, shaderName, nodeName )
 				displayName = displayName.replace( "Color Manager ", "" )
+			elif arnold.AiNodeEntryGetType( nodeEntry ) == arnold.AI_NODE_OPERATOR :
+				menuPath = "Globals/Operators"
+				nodeCreator = functools.partial( __shaderCreator, shaderName, GafferArnold.ArnoldShader, nodeName )
 			else :
 				assert( arnold.AiNodeEntryGetType( nodeEntry ) == arnold.AI_NODE_IMAGER )
 				menuPath = "Globals/Imagers"

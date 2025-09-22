@@ -56,6 +56,7 @@ enum TypeId
 	ArnoldLightFilterTypeId = 122311,
 	ArnoldColorManagerTypeId = 122312,
 	ArnoldImagerTypeId = 122313,
+	ArnoldOperatorTypeId = 122314,
 
 	LastTypeId = 122499
 };

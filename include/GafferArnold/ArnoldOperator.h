@@ -1,7 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2012, John Haddon. All rights reserved.
-//  Copyright (c) 2013, Image Engine Design Inc. All rights reserved.
+//  Copyright (c) 2024, Cinesite VFX Ltd. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -37,41 +36,53 @@
 
 #pragma once
 
-#include <boost/type_traits/is_abstract.hpp>
+#include "GafferArnold/Export.h"
+#include "GafferArnold/TypeIds.h"
 
-namespace GafferBindings
+#include "GafferScene/GlobalsProcessor.h"
+#include "GafferScene/ShaderPlug.h"
+
+namespace GafferArnold
 {
 
-namespace Detail
+class GAFFERARNOLD_API ArnoldOperator : public GafferScene::GlobalsProcessor
 {
 
-// node constructor bindings
+	public :
 
-template<typename T, typename TWrapper>
-void defNodeConstructor( NodeClass<T, TWrapper> &cls, typename boost::enable_if<boost::mpl::not_< boost::is_abstract<TWrapper> > >::type *enabler = nullptr )
-{
-	cls.def( boost::python::init< const std::string & >( boost::python::arg( "name" ) = Gaffer::GraphComponent::defaultName<T>() ) );
-}
+		explicit ArnoldOperator( const std::string &name=defaultName<ArnoldOperator>() );
+		~ArnoldOperator() override;
 
-template<typename T, typename TWrapper>
-void defNodeConstructor( NodeClass<T, TWrapper> &cls, typename boost::enable_if<boost::is_abstract<TWrapper> >::type *enabler = nullptr )
-{
-	// nothing to bind for abstract classes
-}
+		GAFFER_NODE_DECLARE_TYPE( GafferArnold::ArnoldOperator, ArnoldOperatorTypeId, GafferScene::GlobalsProcessor );
 
-} // namespace Detail
+		void affects( const Gaffer::Plug *input, AffectedPlugsContainer &outputs ) const override;
 
-template<typename T, typename TWrapper>
-NodeClass<T, TWrapper>::NodeClass( const char *docString )
-	:	GraphComponentClass<T, TWrapper>( docString )
-{
-	Detail::defNodeConstructor( *this );
-}
+		enum class Mode
+		{
+			Replace,
+			InsertFirst,
+			InsertLast
+		};
 
-template<typename T, typename TWrapper>
-NodeClass<T, TWrapper>::NodeClass( const char *docString, boost::python::no_init_t )
-	:	GraphComponentClass<T, TWrapper>( docString )
-{
-}
+		GafferScene::ShaderPlug *operatorPlug();
+		const GafferScene::ShaderPlug *operatorPlug() const;
 
-} // namespace GafferBindings
+		Gaffer::IntPlug *modePlug();
+		const Gaffer::IntPlug *modePlug() const;
+
+	protected :
+
+		bool acceptsInput( const Gaffer::Plug *plug, const Gaffer::Plug *inputPlug ) const override;
+
+		void hashProcessedGlobals( const Gaffer::Context *context, IECore::MurmurHash &h ) const override;
+		IECore::ConstCompoundObjectPtr computeProcessedGlobals( const Gaffer::Context *context, IECore::ConstCompoundObjectPtr inputGlobals ) const override;
+
+	private :
+
+		static size_t g_firstPlugIndex;
+
+};
+
+IE_CORE_DECLAREPTR( ArnoldOperator )
+
+} // namespace GafferArnold
