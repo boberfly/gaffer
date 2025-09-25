@@ -578,7 +578,7 @@ Gaffer::Plug *ParameterHandler::setupPlug( const AtNodeEntry *node, const AtPara
 				"GafferArnold::ParameterHandler::setupPlug",
 				fmt::format(
 					"Unsupported plug type \"{}\" for parameter \"{}\"",
-					plugTypeOverride,
+					plugTypeOverride.c_str(),
 					name.c_str()
 				)
 			);
@@ -743,7 +743,7 @@ Gaffer::Plug *ParameterHandler::setupPlug( const AtNodeEntry *node, const AtPara
 			"GafferArnold::ParameterHandler::setupPlug",
 			fmt::format(
 				"Unsupported parameter \"{}\" of type \"{}\" on node \"{}\" of type \"{}\"",
-				AiParamGetName( parameter ),
+				AiParamGetName( parameter ).c_str(),
 				AiParamGetTypeName( AiParamGetType( parameter ) ),
 				nodeName( plugParent ),
 				AiNodeEntryGetName( node )
