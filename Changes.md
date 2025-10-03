@@ -1,7 +1,26 @@
-1.6.x.x (relative to 1.6.2.0)
+1.6.x.x (relative to 1.6.2.1)
 =======
 
+Fixes
+-----
 
+- Arnold : Fixed `options.frame` value, which was previously always `0`. This fixes the `arnold/frame` EXR metadata.
+
+API
+---
+
+- Metadata : The `registerNode()` function now accepts dictionaries containing plug metadata. This should be preferred to the previous list-based values.
+
+1.6.2.1 (relative to 1.6.2.0)
+=======
+
+Fixes
+-----
+
+- LightEditor : Fixed bug that could cause filter evaluation in an invalid context.
+- Outputs : Custom `gaffer:renderID` parameters are now preserved, allowing custom "netrender" style workflows to be implemented.
+- RenderPassEditor : Fixed bug that could cause duplicate tabs to appear when registering custom columns to an existing section via a different group key.
+- LightEditor, RenderPassEditor, AttributeEditor : Column width adjustments are now preserved when switching tabs.
 
 1.6.2.0 (relative to 1.6.1.0)
 =======
@@ -282,10 +301,19 @@ Build
 - Qt.py : Updated to version 1.4.6.
 - USD : Updated to version 25.05.01.
 
-1.5.x.x (relative to 1.5.16.2)
-=======
+1.5.16.x (relative to 1.5.16.3)
+========
 
 
+
+1.5.16.3 (relative to 1.5.16.2)
+========
+
+Fixes
+-----
+
+- Outputs : Custom `gaffer:renderID` parameters are now preserved, allowing custom "netrender" style workflows to be implemented.
+- RenderPassEditor : Fixed bug that could cause duplicate tabs to appear when registering custom columns to an existing section via a different group key.
 
 1.5.16.2 (relative to 1.5.16.1)
 ========
