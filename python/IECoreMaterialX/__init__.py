@@ -38,7 +38,7 @@ import os
 import pathlib
 
 if hasattr( os, "add_dll_directory" ) :
-	os.add_dll_directory( ( pathlib.Path( os.environ["MATERIALX_ROOT"] ) / "lib" / "python" ).resolve() )
+	os.add_dll_directory( ( pathlib.Path( os.environ["MATERIALX_ROOT"] ) / "bin" ).resolve() )
 del os, pathlib # Don't pollute the namespace
 
 from ._IECoreMaterialX import *

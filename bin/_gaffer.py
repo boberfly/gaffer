@@ -75,7 +75,7 @@ def prependToPath( pathToPrepend, envVar ) :
 	os.environ[envVar] = os.pathsep.join( path )
 
 gafferRoot = pathlib.Path( __file__ ).resolve().parents[1]
-cortexRoot = pathlib.Path( os.environ.get( "CORTEX_ROOT", "" ) ).resolve()
+cortexRoot = pathlib.Path( os.environ["CORTEX_ROOT"] ).resolve()
 
 # Cortex Setup
 # ============
@@ -139,8 +139,6 @@ elif sys.platform == "win32" :
 oslcPath = gafferRoot / "bin" / ( "oslc.exe" if sys.platform == "win32" else "oslc" )
 if oslcPath.exists() :
 	os.environ["OSLHOME"] = str( gafferRoot )
-else:
-	os.environ["OSLHOME"] = os.environ.get( "REZ_OSL_ROOT", "" )
 
 ## \todo Should we rename these to "osl" to match our "glsl" folder?
 prependToPath( gafferRoot / "shaders", "OSL_SHADER_PATHS" )

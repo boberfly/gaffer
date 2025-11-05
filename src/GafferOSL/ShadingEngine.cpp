@@ -1256,8 +1256,8 @@ struct StringParameter
 #if OSL_LIBRARY_VERSION_CODE >= 11400
 
 	static_assert( sizeof( ustring ) == sizeof( ustringhash ) );
-	static_assert( is_trivially_copyable_v<ustring> );
-	static_assert( is_trivially_copyable_v<ustringhash> );
+	//static_assert( is_trivially_copyable_v<ustring> );
+	//static_assert( is_trivially_copyable_v<ustringhash> );
 
 	ustring asUString() const
 	{

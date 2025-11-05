@@ -1087,7 +1087,6 @@ if "MATERIALX_ROOT" in commandEnv["ENV"] :
 
 	if hasattr( os, "add_dll_directory" ) :
 		os.add_dll_directory( os.path.join( commandEnv["ENV"]["MATERIALX_ROOT"], "bin" ) )
-		os.add_dll_directory( os.path.join( commandEnv["ENV"]["MATERIALX_ROOT"], "lib" ) )
 
 	import MaterialX as mx
 	import MaterialX.PyMaterialXGenShader as mxGenShader
