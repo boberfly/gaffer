@@ -1,15 +1,114 @@
-1.6.x.x (relative to 1.6.2.1)
+1.6.x.x (relative to 1.6.4.0)
 =======
 
 Fixes
 -----
 
+- NodeEditor, Viewer : Fixed bug that could cause unnecessary widget updates. In particular, this fixes flickering in the Viewer toolbar widgets when viewing the output of an InteractiveRender.
+
+1.6.4.0 (relative to 1.6.3.0)
+=======
+
+Improvements
+------------
+
+- RenderMan : Added support for spline parameters (ramps).
+- OSLShader :
+  - Improved loading of spline parameters with additional duplicate endpoints.
+  - Added support for loading splines from RenderMan shaders.
+- Viewer :
+  - Moved purpose menu items from the Drawing Mode menu to the Expansion menu, and renamed the Expansion menu to `Visibility`.
+  - Added purpose presets for Render (Default + Render purposes), Preview (Default + Proxy) and Preview with Guides (Default + Proxy + Guide).
+- Render : Optimised attribute substitution when it is not required by all shaders in a shader network.
+
+Fixes
+-----
+
+- NodeEditor :
+  - Fixed visual bug whereby numeric values could temporarily appear to exceed their min/max range, particularly when using virtual sliders.
+  - Fixed unnecessary updates when editing a plug value.
+  - Fixed bug adding rows to VectorData plugs - the newly added rows were being deselected immediately after they appeared.
+- SceneWriter : Fixed identifiers used when writing RenderMan shaders.
+- SceneInspector :
+  - Fixed handling of nested UsdShadeNodeGraphs loaded from USD files.
+  - Fixed `Context has no variable named "scene:path"` error when "Isolate Differences" is on.
+- ShaderQuery, ShaderTweaks : Fixed handling of nested UsdShadeNodeGraphs loaded from USD files.
+- VectorDataWidget : Fixed errors showing popup colour choosers.
+- Startup : Fixed UnicodeDecodeError when running in non-UTF8 locales.
+- Viewer : Fixed diagnostic shading modes for Arnold's diffuse and specular visibility attributes.
+- Scene Editors :
+  - Fixed undo after creating a new edit in an EditScope.
+  - Fixed "Inspect..." menu item when a property's source can not be determined.
+- RenderPasses : Fixed drawing of custom widgets registered by `registerRenderPassNameWidget()`.
+- Environment : Gaffer's `LD_PRELOAD` overrides are no longer inherited by subprocesses launched from Gaffer.
+- CustomAttributes, CustomOptions : Fixed inconsistent layout sections.
+- Arnold : Fixed inconsistent part ordering in multipart EXR outputs.
+- Render : Fixed translation of string substitutions escaped with backslashes (e.g. "\\<attr:user:texturePath\\>").
+
+API
+---
+
+- PopupWindow : Added `showWarning()` class method.
+- Metadata : The `registerValues()` function now accepts dictionaries containing target metadata. This should be preferred to the previous list-based registrations.
+
+Build
+-----
+
+- Cortex : Updated to version 10.6.2.0.
+
+1.6.3.0 (relative to 1.6.2.1)
+=======
+
+Features
+--------
+
+- SystemCommand, PythonCommand : Added `isolated` plug. An isolated task is executed from a script containing only that node. This is a useful optimisation when the load time for the full script is high compared to the time taken to execute the task (#6541).
+
+Improvements
+------------
+
+- SceneInspector :
+  - Added "Isolate Differences" option for comparison modes. This filters out all properties which have the same value in the A and B columns.
+  - Improved filtering :
+    - By default, filters now match any part of the hierarchy, allowing primitive variables to be matched.
+    - Filters may optionally specify a full path, such as `/Object/Primitive Variables/velocity` to avoid matches elsewhere in the hierarchy.
+    - The new behaviour matches the filters in the HierarchyView and AttributeEditor.
+  - Removed redundant scene inspections when not in comparison mode.
+- Arnold : Added support for M44f `header:*` output metadata.
+- FocalBlur : Added presets for `focalLengthWorldScale` and placeholder text for `cameraPath`.
+
+Fixes
+-----
+
 - Arnold : Fixed `options.frame` value, which was previously always `0`. This fixes the `arnold/frame` EXR metadata.
+- SceneInspector :
+  - Fixed potential crashes caused by a thread-safety bug. These were more likely in layouts with multiple SceneInspectors.
+  - The Globals tab no longer shows the A/B columns when only locations are being compared.
+- BoolWidget : Fixed label text styling when disabled.
+- Scene Editors : Fixed cell background colour when a property is deleted by the current EditScope. It is now blue to indicate the edit, whereas before it had the default colour.
+- GraphEditor : Fixed duplicate annotations that occurred when default annotation metadata was registered for a particular node type.
+- Metadata : Removed duplicate items returned by `registeredValues()`.
+- PlugLayout : Fixed context used to evaluate `layout:activator` metadata.
+- Catalogue : Fixed to support IPv4-only environments.
+- NodeEditor : Fixed error colour for preset widgets.
+- RenderPass menus : Fixed handling of `renderPassPlugValueWidget:displayGrouped` and `renderPassPlugValueWidget:hideDisabled` configuration metadata.
+  - Fixed error handling. Previously if an error occurred when computing the available render passes, the menu would fail to build.
+  - Fixed "Refresh" menu item, which is shown when the available render passes are still being computed.
+  - Changes to the metadata after the menu is created are now reflected in the menu configuration.
+  - The main menu configuration is saved in the `.gfr` file.
 
 API
 ---
 
 - Metadata : The `registerNode()` function now accepts dictionaries containing plug metadata. This should be preferred to the previous list-based values.
+- SceneInspector : Added `deregisterInspectors()` method.
+- PathPlugValueWidget : Added support for placeholder text, via `pathPlugValueWidget:placeholderText` metadata.
+- TaskNode : Added "dispatcher:allowIsolation" metadata, which can be used to add the `isolated` plug to a `TaskNode`.
+
+Build
+-----
+
+- Cortex : Updated to 10.6.0.2.
 
 1.6.2.1 (relative to 1.6.2.0)
 =======
@@ -301,10 +400,19 @@ Build
 - Qt.py : Updated to version 1.4.6.
 - USD : Updated to version 25.05.01.
 
-1.5.16.x (relative to 1.5.16.3)
+1.5.16.x (relative to 1.5.16.4)
 ========
 
 
+
+1.5.16.4 (relative to 1.5.16.3)
+========
+
+Fixes
+-----
+
+- Viewer : Fixed diagnostic shading modes for Arnold's diffuse and specular visibility attributes.
+- SceneEditors : Fixed undo after creating a new edit in an EditScope.
 
 1.5.16.3 (relative to 1.5.16.2)
 ========

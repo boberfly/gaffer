@@ -54,43 +54,44 @@ Gaffer.Metadata.registerNode(
 
 	plugs = {
 
-		"options" : [
+		"options" : {
 
-			"description",
+			"description" :
 			"""
 			The options to be applied - arbitrary numbers of user defined options may be added
 			as children of this plug via the user interface, or using the CompoundDataPlug API via
 			python.
 			""",
 
-			"compoundDataPlugValueWidget:editable", True,
+			"compoundDataPlugValueWidget:editable" : True,
 
-		],
+		},
 
-		"options.*" : [
+		"options.*" : {
 
-			"nameValuePlugPlugValueWidget:ignoreNamePlug", False,
+			"nameValuePlugPlugValueWidget:ignoreNamePlug" : False,
+			"layout:section" : "",
 
-		],
+		},
 
-		"prefix" : [
+		"prefix" : {
 
-			"description",
+			"description" :
 			"""
 			A prefix applied to the name of each option. For example, a prefix
 			of "myCategory:" and a name of "test" will create an option named
 			"myCategory:test".
 			""",
 
-			"layout:section", "Advanced",
+			"layout:section" : "Advanced",
 
-		],
+		},
 
-		"extraOptions" : [
+		"extraOptions" : {
 
-			"plugValueWidget:type", None,
+			"plugValueWidget:type" : None,
 
-		],
+		},
 
 	}
 

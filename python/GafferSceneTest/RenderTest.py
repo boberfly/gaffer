@@ -60,6 +60,9 @@ class RenderTest( GafferSceneTest.SceneTestCase ) :
 	# And set this to the file extension used for scene description, if
 	# scene description is supported.
 	sceneDescriptionSuffix = None
+	# May be filled with types that aren't supported as `header:*` output
+	# metadata parameters.
+	unsupportedOutputMetadataTypes = []
 
 	@classmethod
 	def setUpClass( cls ) :
@@ -538,6 +541,7 @@ class RenderTest( GafferSceneTest.SceneTestCase ) :
 			"test:int" : IECore.IntData( 1 ),
 			"test:float" : IECore.FloatData( 2.5 ),
 			"test:string" : IECore.StringData( "foo" ),
+			"test:matrix" : IECore.M44fData( imath.M44f( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 ) ),
 		}
 
 		fileName = self.temporaryDirectory() / "test.exr"
@@ -564,6 +568,8 @@ class RenderTest( GafferSceneTest.SceneTestCase ) :
 		imageReader["fileName"].setValue( fileName )
 
 		for k, v in metadata.items() :
+			if type( v ) in self.unsupportedOutputMetadataTypes :
+				continue
 			self.assertIn( k, imageReader["out"].metadata() )
 			self.assertEqual( imageReader["out"].metadata()[k], v )
 
@@ -754,6 +760,35 @@ class RenderTest( GafferSceneTest.SceneTestCase ) :
 			id = struct.unpack( "I", id )[0]
 
 			self.assertEqual( id, expectedID + 1 )
+
+	def testCropWindow( self ) :
+
+		outputPath = self.temporaryDirectory() / "test.exr"
+		outputs = GafferScene.Outputs()
+		outputs.addOutput( "beauty", IECoreScene.Output( outputPath.as_posix(), "exr", "rgba", {} ) )
+
+		standardOptions = GafferScene.StandardOptions()
+		standardOptions["in"].setInput( outputs["out"] )
+		standardOptions["options"]["render:cropWindow"]["enabled"].setValue( True )
+		standardOptions["options"]["render:cropWindow"]["value"]["min"].setValue( imath.V2f( 0.25, 0.5 ) )
+
+		rendererOptions = self._createOptions()
+		rendererOptions["in"].setInput( standardOptions["out"] )
+
+		render = GafferScene.Render()
+		render["in"].setInput( rendererOptions["out"] )
+		render["renderer"].setValue( self.renderer )
+		render["task"].execute()
+
+		imageReader = GafferImage.ImageReader()
+		imageReader["fileName"].setValue( outputPath )
+		self.assertEqual(
+			imageReader["out"].dataWindow(),
+			imath.Box2i(
+				imath.V2i( 160, 0 ),
+				imath.V2i( 640, 240 )
+			)
+		)
 
 	## Should be implemented by derived classes to return
 	# an appropriate Shader node with a diffuse surface shader loaded, along

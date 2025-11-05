@@ -120,217 +120,217 @@ Gaffer.Metadata.registerNode(
 
 	plugs = {
 
-		"editScope" : [
+		"editScope" : {
 
-			"plugValueWidget:type", "GafferUI.EditScopeUI.EditScopePlugValueWidget",
-			"toolbarLayout:index", -1,
-			"toolbarLayout:width", 130,
+			"plugValueWidget:type" : "GafferUI.EditScopeUI.EditScopePlugValueWidget",
+			"toolbarLayout:index" : -1,
+			"toolbarLayout:width" : 130,
 
-		],
+		},
 
-		"renderer" : [
+		"renderer" : {
 
-			"plugValueWidget:type", "GafferUI.LayoutPlugValueWidget",
-			"layoutPlugValueWidget:orientation", "horizontal",
-			"toolbarLayout:index", 1,
-			"toolbarLayout:label", "",
-			"toolbarLayout:width", 100,
+			"plugValueWidget:type" : "GafferUI.LayoutPlugValueWidget",
+			"layoutPlugValueWidget:orientation" : "horizontal",
+			"toolbarLayout:index" : 1,
+			"toolbarLayout:label" : "",
+			"toolbarLayout:width" : 100,
 
-		],
+		},
 
-		"renderer.name" : [
+		"renderer.name" : {
 
-			"plugValueWidget:type", "GafferUI.PresetsPlugValueWidget",
-			"layout:label", "",
-			"presetNames", lambda plug : IECore.StringVectorData( GafferSceneUI.SceneView.registeredRenderers() ),
-			"presetValues", lambda plug : IECore.StringVectorData( GafferSceneUI.SceneView.registeredRenderers() ),
+			"plugValueWidget:type" : "GafferUI.PresetsPlugValueWidget",
+			"layout:label" : "",
+			"presetNames" : lambda plug : IECore.StringVectorData( GafferSceneUI.SceneView.registeredRenderers() ),
+			"presetValues" : lambda plug : IECore.StringVectorData( GafferSceneUI.SceneView.registeredRenderers() ),
 
-		],
+		},
 
-		"renderer.*" : [
+		"renderer.*" : {
 
-			"plugValueWidget:type", "GafferSceneUI.SceneViewUI._RendererSettingsPlugValueWidget",
-			"layout:visibilityActivator", __rendererPlugActivator,
-			"layout:label", "",
+			"plugValueWidget:type" : "GafferSceneUI.SceneViewUI._RendererSettingsPlugValueWidget",
+			"layout:visibilityActivator" : __rendererPlugActivator,
+			"layout:label" : "",
 
-		],
+		},
 
-		"drawingMode" : [
+		"drawingMode" : {
 
-			"description",
+			"description" :
 			"""
 			Defines how the scene is drawn in the viewport.
 			""",
-			"plugValueWidget:type", "GafferSceneUI.SceneViewUI._DrawingModePlugValueWidget",
+			"plugValueWidget:type" : "GafferSceneUI.SceneViewUI._DrawingModePlugValueWidget",
 
-		],
+		},
 
-		"shadingMode" : [
+		"shadingMode" : {
 
-			"description",
+			"description" :
 			"""
 			Defines how the scene is shaded in the viewport.
 			""",
-			"toolbarLayout:divider", True,
-			"plugValueWidget:type", "GafferSceneUI.SceneViewUI._ShadingModePlugValueWidget",
+			"toolbarLayout:divider" : True,
+			"plugValueWidget:type" : "GafferSceneUI.SceneViewUI._ShadingModePlugValueWidget",
 
-		],
+		},
 
-		"minimumExpansionDepth" : [
+		"minimumExpansionDepth" : {
 
-			"plugValueWidget:type", "GafferSceneUI.SceneViewUI._ExpansionPlugValueWidget",
+			"plugValueWidget:type" : "GafferSceneUI.SceneViewUI._ExpansionPlugValueWidget",
 
-		],
+		},
 
-		"selectionMask" : [
+		"selectionMask" : {
 
-			"description",
+			"description" :
 			"""
 			Defines what types of objects are selectable in the viewport.
 			""",
-			"plugValueWidget:type", "GafferSceneUI.SceneViewUI._SelectionMaskPlugValueWidget",
+			"plugValueWidget:type" : "GafferSceneUI.SceneViewUI._SelectionMaskPlugValueWidget",
 
-			"toolbarLayout:divider", True,
+			"toolbarLayout:divider" : True,
 
-		],
+		},
 
-		"camera" : [
+		"camera" : {
 
-			"description",
+			"description" :
 			"""
 			Defines the camera used to view the scene.
 			""",
 
-			"plugValueWidget:type", "GafferSceneUI.SceneViewUI._CameraPlugValueWidget",
-			"toolbarLayout:divider", True,
-			"toolbarLayout:label", "",
-			"layout:activator:hidden", lambda plug : False,
-			"layout:activator:lookThroughEnabled", lambda plug : plug["lookThroughEnabled"].getValue(),
-			"layout:activator:lookThroughDisabled", lambda plug : not plug["lookThroughEnabled"].getValue(),
-			"layout:activator:cameraIsFreePerspective", lambda plug : not plug["lookThroughEnabled"].getValue() and plug["freeCamera"].getValue() == "perspective",
-			"layout:section:Free Camera:collapsed", False,
-			"layout:section:Light Look Through:collapsed", False,
+			"plugValueWidget:type" : "GafferSceneUI.SceneViewUI._CameraPlugValueWidget",
+			"toolbarLayout:divider" : True,
+			"toolbarLayout:label" : "",
+			"layout:activator:hidden" : lambda plug : False,
+			"layout:activator:lookThroughEnabled" : lambda plug : plug["lookThroughEnabled"].getValue(),
+			"layout:activator:lookThroughDisabled" : lambda plug : not plug["lookThroughEnabled"].getValue(),
+			"layout:activator:cameraIsFreePerspective" : lambda plug : not plug["lookThroughEnabled"].getValue() and plug["freeCamera"].getValue() == "perspective",
+			"layout:section:Free Camera:collapsed" : False,
+			"layout:section:Light Look Through:collapsed" : False,
 
-		],
+		},
 
-		"camera.freeCamera" : [
+		"camera.freeCamera" : {
 
-			"description",
+			"description" :
 			"""
 			Chooses the default camera to be used when `camera.lookThroughEnabled` is off.
 			""",
 
-			"layout:visibilityActivator", "hidden"
+			"layout:visibilityActivator" : "hidden"
 
-		],
+		},
 
-		"camera.fieldOfView" : [
+		"camera.fieldOfView" : {
 
-			"description",
+			"description" :
 			"""
 			The field of view for the viewport's default perspective camera.
 			""",
 
-			"layout:section", "Free Camera",
-			"layout:activator", "cameraIsFreePerspective",
+			"layout:section" : "Free Camera",
+			"layout:activator" : "cameraIsFreePerspective",
 
-		],
+		},
 
-		"camera.clippingPlanes" : [
+		"camera.clippingPlanes" : {
 
-			"description",
+			"description" :
 			"""
 			The near and far clipping planes for the viewport's default perspective camera.
 			""",
 
-			"layout:section", "Free Camera",
-			"layout:activator", "lookThroughDisabled",
+			"layout:section" : "Free Camera",
+			"layout:activator" : "lookThroughDisabled",
 
-		],
+		},
 
-		"camera.lightLookThroughDefaultDistantAperture" : [
-			"layout:section", "Light Look Through",
-			"layout:activator", "lookThroughEnabled",
-			"label", "Default Distant Aperture",
-			"description",
+		"camera.lightLookThroughDefaultDistantAperture" : {
+			"layout:section" : "Light Look Through",
+			"layout:activator" : "lookThroughEnabled",
+			"label" : "Default Distant Aperture",
+			"description" :
 			"""
 			The orthographic aperture used when converting distant lights
 			( which are theoretically infinite in extent ).  May be overridden
 			by the visualisation setting on the light.
 			""",
-		],
+		},
 
-		"camera.lightLookThroughDefaultClippingPlanes" : [
-			"layout:section", "Light Look Through",
-			"layout:activator", "lookThroughEnabled",
-			"label", "Default Clipping Planes",
-			"description",
+		"camera.lightLookThroughDefaultClippingPlanes" : {
+			"layout:section" : "Light Look Through",
+			"layout:activator" : "lookThroughEnabled",
+			"label" : "Default Clipping Planes",
+			"description" :
 			"""
 			Clipping planes for cameras implied by lights.  When creating a perspective camera, a near clip
 			<= 0 is invalid, and will be replaced with 0.01.  Also, certain lights only start casting
 			light at some distance - if near clip is less than this, it will be increased.  May be overridden
 			by the visualisation setting on the light.
 			""",
-		],
+		},
 
-		"camera.lookThroughEnabled" : [
+		"camera.lookThroughEnabled" : {
 
-			"description",
+			"description" :
 			"""
 			When enabled, locks the view to look through a specific camera in the scene.
 			By default, the current render camera is used, but this can be changed using the camera.lookThroughCamera
 			setting.
 			""",
 
-			"layout:visibilityActivator", "hidden"
+			"layout:visibilityActivator" : "hidden"
 
-		],
+		},
 
-		"camera.lookThroughCamera" : [
+		"camera.lookThroughCamera" : {
 
-			"description",
+			"description" :
 			"""
 			Specifies the camera to look through when lookThrough.enabled is on. The default value
 			means that the current render camera will be used - the paths to other cameras may be specified
 			to choose another camera."
 			""",
 
-			"layout:visibilityActivator", "hidden"
+			"layout:visibilityActivator" : "hidden"
 
-		],
+		},
 
-		"grid" : [
+		"grid" : {
 
-			"plugValueWidget:type", "GafferSceneUI.SceneViewUI._GridPlugValueWidget",
-			"toolbarLayout:divider", True,
+			"plugValueWidget:type" : "GafferSceneUI.SceneViewUI._GridPlugValueWidget",
+			"toolbarLayout:divider" : True,
 
-		],
+		},
 
-		"gnomon" : [
+		"gnomon" : {
 
-			"plugValueWidget:type", "",
+			"plugValueWidget:type" : "",
 
-		],
+		},
 
-		"inspector" : [
+		"inspector" : {
 
-			"plugValueWidget:type", "",
+			"plugValueWidget:type" : "",
 
-		],
+		},
 
-		"fps" : [
+		"fps" : {
 
-			"plugValueWidget:type", "",
+			"plugValueWidget:type" : "",
 
-		],
+		},
 
-		"displayTransform.soloChannel" : [
+		"displayTransform.soloChannel" : {
 
 			# The `RGBAL`` shortcuts conflict with shortcuts used for
 			# Tools, so we disable them.
-			"view:displayTransform:useShortcuts", False,
+			"view:displayTransform:useShortcuts" : False,
 
-		],
+		},
 
 	}
 
@@ -399,34 +399,6 @@ class _DrawingModePlugValueWidget( GafferUI.PlugValueWidget ) :
 			)
 
 		m.append( "/ComponentsDivider", { "divider" : True } )
-
-		includedPurposes = self.getPlug()["includedPurposes"]["value"].getValue()
-		includedPurposesEnabled = self.getPlug()["includedPurposes"]["enabled"].getValue()
-		allPurposes = [ "default", "render", "proxy", "guide" ]
-		for purpose in allPurposes :
-			newPurposes = IECore.StringVectorData( [
-				p for p in allPurposes
-				if
-				( p != purpose and p in includedPurposes ) or ( p == purpose and p not in includedPurposes )
-			] )
-			m.append(
-				"/Purposes/{}".format( purpose.capitalize() ),
-				{
-					"checkBox" : purpose in includedPurposes,
-					"active" : includedPurposesEnabled,
-					"command" : functools.partial( self.getPlug()["includedPurposes"]["value"].setValue, newPurposes ),
-				}
-			)
-			m.append( "/Purposes/SceneDivider", { "divider" : True } )
-			m.append(
-				"/Purposes/From Scene",
-				{
-					"checkBox" : not includedPurposesEnabled,
-					"command" : lambda checked : self.getPlug()["includedPurposes"]["enabled"].setValue( not checked ),
-				}
-			)
-
-		m.append( "/PurposesDivider", { "divider" : True } )
 
 		lightDrawingModePlug = self.getPlug()["light"]["drawingMode"]
 		for mode in ( "wireframe", "color", "texture" ) :
@@ -639,7 +611,7 @@ class _ExpansionPlugValueWidget( GafferUI.PlugValueWidget ) :
 
 	def __init__( self, plug, **kw ) :
 
-		menu = GafferUI.Menu( Gaffer.WeakMethod( self.__menuDefinition ), title="Expansion" )
+		menu = GafferUI.Menu( Gaffer.WeakMethod( self.__menuDefinition ), title="Visibility" )
 		menuButton = GafferUI.MenuButton( menu=menu, image = "expansion.png", hasFrame=False )
 
 		GafferUI.PlugValueWidget.__init__( self, menuButton, plug, **kw )
@@ -658,20 +630,106 @@ class _ExpansionPlugValueWidget( GafferUI.PlugValueWidget ) :
 
 		return cls.__menuSignal
 
+	def getToolTip( self ) :
+
+		result = "# Visibility"
+		result += "\n\nDefines what is visible in the viewport."
+
+		return result
+
 	def __menuDefinition( self ) :
 
 		expandAll = bool( self.getPlug().getValue() )
 
 		m = IECore.MenuDefinition()
+		m.append( "/Expansion", { "divider" : True, "label" : "Expansion" } )
 		m.append( "/Expand Selection", { "command" : self.getPlug().node().expandSelection, "active" : not expandAll, "shortCut" : "Down" } )
 		m.append( "/Expand Selection Fully", { "command" : functools.partial( self.getPlug().node().expandSelection, depth = 999 ), "active" : not expandAll, "shortCut" : "Shift+Down" } )
 		m.append( "/Collapse Selection", { "command" : self.getPlug().node().collapseSelection, "active" : not expandAll, "shortCut" : "Up" } )
 		m.append( "/Expand All Divider", { "divider" : True } )
 		m.append( "/Expand All", { "checkBox" : expandAll, "command" : Gaffer.WeakMethod( self.__toggleMinimumExpansionDepth ) } )
 
+		m.append( "/PurposesDivider", { "divider" : True, "label" : "Purpose" } )
+
+		# \todo Move the `includedPurposes` plug out of `drawingMode` and put it on a new plug that holds (and replaces)
+		# `minimumExpansionDepth`.
+		drawingModePlug = self.getPlug().parent()["drawingMode"]
+		includedPurposes = set( drawingModePlug["includedPurposes"]["value"].getValue() )
+		includedPurposesEnabled = drawingModePlug["includedPurposes"]["enabled"].getValue()
+
+		renderElements = set( [ "default", "render" ] )
+		previewElements = set( [ "default", "proxy" ] )
+		previewWithGuidesElements = set( [ "default", "proxy", "guide" ] )
+		m.append(
+			"/Render",
+			{
+				"checkBox" : includedPurposes == renderElements and includedPurposesEnabled,
+				"command" : functools.partial( Gaffer.WeakMethod( self.__purposeMenuCommand ), drawingModePlug, IECore.StringVectorData( renderElements ), True ),
+				"description" : 'Shows objects with "default" and "render" USD purposes.'
+			}
+		)
+		m.append(
+			"/Preview",
+			{
+				"checkBox" : includedPurposes == previewElements and includedPurposesEnabled,
+				"command" : functools.partial( Gaffer.WeakMethod( self.__purposeMenuCommand ), drawingModePlug, IECore.StringVectorData( previewElements ), True ),
+				"description" : 'Shows objects with "default" and "preview" USD purposes.'
+			}
+		)
+		m.append(
+			"/Preview with Guides",
+			{
+				"checkBox" : includedPurposes == previewWithGuidesElements and includedPurposesEnabled,
+				"command" : functools.partial( Gaffer.WeakMethod( self.__purposeMenuCommand ), drawingModePlug, IECore.StringVectorData( previewWithGuidesElements ), True ),
+				"description" : 'Shows objects with "default", "proxy" and "guide" USD purposes.'
+			}
+		)
+
+		m.append(
+			"/From Scene",
+			{
+				"checkBox" : not includedPurposesEnabled,
+				"command" : functools.partial( Gaffer.WeakMethod( self.__purposeMenuCommand ), drawingModePlug, IECore.StringVectorData( [] ), False ),
+				"description" : "Shows objects with USD purposes that match the global `option:render:includedPurposes` variable which can be set from a StandardOptions node."
+			}
+		)
+
+		if not includedPurposesEnabled :
+			sceneGlobals = drawingModePlug["includedPurposes"].source().node()["in"]["globals"].getValue()
+			includedPurposes = set( sceneGlobals["option:render:includedPurposes"] ) if "option:render:includedPurposes" in sceneGlobals else renderElements
+
+		subMenu = IECore.MenuDefinition()
+		allPurposes = [ "default", "render", "proxy", "guide" ]
+		for purpose in allPurposes :
+			newPurposes = IECore.StringVectorData( [
+				p for p in allPurposes
+				if
+				( p != purpose and p in includedPurposes ) or ( p == purpose and p not in includedPurposes )
+			] )
+			subMenu.append(
+				"/{}".format( purpose.capitalize() ),
+				{
+					"checkBox" : purpose in includedPurposes,
+					"command" : functools.partial( Gaffer.WeakMethod( self.__purposeMenuCommand ), drawingModePlug, newPurposes, True ),
+				}
+			)
+
+		showBreadCrumb = includedPurposesEnabled and (
+			includedPurposes != renderElements and
+			includedPurposes != previewElements and
+			includedPurposes != previewWithGuidesElements
+		)
+		m.append( "/CustomDivider", { "divider" : True } )
+		m.append( "/Custom", { "subMenu" : subMenu, "icon" : "menuBreadCrumb.png" if showBreadCrumb else None } )
+
 		self.menuSignal()( m, self )
 
 		return m
+
+	def __purposeMenuCommand( self, drawingModePlug, newPurposes, purposesEnabled, checked ) :
+
+		drawingModePlug["includedPurposes"]["value"].setValue( newPurposes )
+		drawingModePlug["includedPurposes"]["enabled"].setValue( purposesEnabled )
 
 	def __toggleMinimumExpansionDepth( self, *unused ) :
 

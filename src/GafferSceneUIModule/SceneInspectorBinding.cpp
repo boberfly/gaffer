@@ -131,7 +131,7 @@ class InspectorTree : public IECore::RefCounted
 		using Contexts = std::array<Gaffer::ConstContextPtr, 2>;
 
 		InspectorTree( const ScenePlugPtr &scene, const Contexts &contexts, const Gaffer::PlugPtr &editScope )
-			:	m_scene( scene ), m_editScope( editScope ), m_filter( "*" )
+			:	m_scene( scene ), m_editScope( editScope ), m_filter( "/..." ), m_isolateDifferences( false )
 		{
 			setContexts( contexts );
 			scene->node()->plugDirtiedSignal().connect( boost::bind( &InspectorTree::plugDirtied, this, ::_1 ) );
@@ -198,6 +198,24 @@ class InspectorTree : public IECore::RefCounted
 			return m_filter;
 		}
 
+		void setIsolateDifferences( bool isolateDifferences )
+		{
+			bool dirty = false;
+			{
+				std::scoped_lock lock( m_mutex );
+				if( isolateDifferences != m_isolateDifferences )
+				{
+					m_isolateDifferences = isolateDifferences;
+					dirty = true;
+					m_rootItem.reset();
+				}
+			}
+			if( dirty )
+			{
+				m_dirtiedSignal();
+			}
+		}
+
 		using DirtiedSignal = Gaffer::Signals::Signal<void ()>;
 
 		DirtiedSignal &dirtiedSignal()
@@ -233,6 +251,21 @@ class InspectorTree : public IECore::RefCounted
 		static void registerInspectors( const vector<InternedString> &path, const InspectionProvider &inspectionProvider )
 		{
 			inspectionProviders().push_back( { path, inspectionProvider } );
+		}
+
+		static void deregisterInspectors( const vector<InternedString> &path )
+		{
+			auto &providers = inspectionProviders();
+			providers.erase(
+				std::remove_if(
+					providers.begin(),
+					providers.end(),
+					[&] ( const auto &item ) {
+						return item.first == path;
+					}
+				),
+				providers.end()
+			);
 		}
 
 		// Convenience for making registrations using a static variable.
@@ -405,6 +438,28 @@ class InspectorTree : public IECore::RefCounted
 			}
 		}
 
+		bool contextValidForPath( const Path::Names &path ) const
+		{
+			if( path.size() && path[0] == g_locationPathName )
+			{
+				if(
+					!Context::current()->getIfExists<ScenePlug::ScenePath>( ScenePlug::scenePathContextName ) ||
+					!m_scene->existsPlug()->getValue()
+				)
+				{
+					return false;
+				}
+			}
+			else if( path.size() && path[0] == g_globalsPathName )
+			{
+				if( Context::current()->getIfExists<ScenePlug::ScenePath>( ScenePlug::scenePathContextName ) )
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+
 		std::shared_ptr<const TreeItem> rootItem( const IECore::Canceller *canceller ) const
 		{
 			std::scoped_lock lock( m_mutex );
@@ -431,9 +486,16 @@ class InspectorTree : public IECore::RefCounted
 			// expensive calls to `TreeItem::inspector` _are_ deferred.
 
 			m_rootItem = std::make_shared<TreeItem>();
+			const IECore::StringAlgo::MatchPatternPath filterPath = IECore::StringAlgo::matchPatternPath( m_filter );
 
 			for( const auto &context : m_contexts )
 			{
+				if( &context == &m_contexts[1] && *context == *m_contexts[0] )
+				{
+					// Second context is identical to the first, so skip it.
+					continue;
+				}
+
 				Context::EditableScope scope( context.get() );
 				if( canceller )
 				{
@@ -442,22 +504,9 @@ class InspectorTree : public IECore::RefCounted
 
 				for( const auto &[root, provider] : inspectionProviders() )
 				{
-					if( root[0] == g_locationPathName )
+					if( !contextValidForPath( root ) )
 					{
-						if(
-							!context->getIfExists<ScenePlug::ScenePath>( ScenePlug::scenePathContextName ) ||
-							!m_scene->existsPlug()->getValue()
-						)
-						{
-							continue;
-						}
-					}
-					else if( root[0] == g_globalsPathName )
-					{
-						if( context->getIfExists<ScenePlug::ScenePath>( ScenePlug::scenePathContextName ) )
-						{
-							continue;
-						}
+						continue;
 					}
 
 					auto inspections = provider( m_scene.get(), m_editScope );
@@ -466,25 +515,82 @@ class InspectorTree : public IECore::RefCounted
 						continue;
 					}
 
-					TreeItem *inspectorRootItem = nullptr;
 					for( const auto &[subPath, inspector] : inspections )
 					{
-						if( !IECore::StringAlgo::matchMultiple( subPath.size() ? subPath.back() : root.back(), m_filter ) )
+						vector<InternedString> fullPath = root;
+						fullPath.insert( fullPath.end(), subPath.begin(), subPath.end() );
+
+						if( !StringAlgo::match( fullPath, filterPath ) )
 						{
 							continue;
 						}
 
-						if( !inspectorRootItem )
-						{
-							inspectorRootItem = m_rootItem->insertDescendant( root );
-						}
-						TreeItem *inspectorItem = inspectorRootItem->insertDescendant( subPath );
+						TreeItem *inspectorItem = m_rootItem->insertDescendant( fullPath );
 						inspectorItem->inspector = inspector;
 					}
 				}
 			}
 
+			if( m_isolateDifferences )
+			{
+				isolateDifferencesWalk( m_rootItem.get(), Path::Names(), canceller );
+			}
+
 			return m_rootItem;
+		}
+
+		// Removes children from `tree` as necessary, and returns
+		// true if this item should be kept by its parent, false
+		// otherwise.
+		bool isolateDifferencesWalk( TreeItem *item, const Path::Names &path, const IECore::Canceller *canceller ) const
+		{
+			Path::Names childPath = path;
+			childPath.resize( childPath.size() + 1 );
+			for( auto it = item->children.begin(); it != item->children.end(); /* empty */ )
+			{
+				childPath.back() = it->first;
+				if( !isolateDifferencesWalk( it->second.get(), childPath, canceller ) )
+				{
+					it = item->children.erase( it );
+				}
+				else
+				{
+					++it;
+				}
+			}
+
+			if( !item->children.empty() )
+			{
+				return true;
+			}
+
+			if( !item->inspector )
+			{
+				return false;
+			}
+
+			std::array<ConstObjectPtr, 2> values;
+			for( size_t i = 0; i < m_contexts.size(); ++i )
+			{
+				Context::EditableScope scope( m_contexts[i].get() );
+				if( contextValidForPath( path ) )
+				{
+					scope.setCanceller( canceller );
+					auto inspection = item->inspector->inspect();
+					values[i] = inspection ? inspection->value() : nullptr;
+				}
+			}
+
+			if( (bool)values[0] != (bool)values[1] )
+			{
+				return true;
+			}
+			else if( !values[0] )
+			{
+				return false;
+			}
+
+			return values[0]->isNotEqualTo( values[1].get() );
 		}
 
 		using InspectionProviders = vector<std::pair<vector<InternedString>, InspectionProvider>>;
@@ -507,6 +613,7 @@ class InspectorTree : public IECore::RefCounted
 		mutable std::shared_ptr<TreeItem> m_rootItem;
 		Contexts m_contexts;
 		IECore::StringAlgo::MatchPattern m_filter;
+		bool m_isolateDifferences;
 
 };
 
@@ -737,13 +844,12 @@ void addShaderInspections( InspectorTree::Inspections &inspections, const vector
 
 	// Add inspections for each shader and all of its parameters.
 
-	vector<InternedString> shaderPath = path;
-	shaderPath.push_back( InternedString() );
-
 	for( const auto shaderHandle : orderedShaderHandles )
 	{
+		vector<InternedString> shaderPath = path;
+		StringAlgo::tokenize( shaderHandle, '/', shaderPath );
+
 		const Shader *shader = shaderNetwork->getShader( shaderHandle );
-		shaderPath.back() = shaderHandle;
 
 		inspections.push_back( {
 
@@ -1525,11 +1631,11 @@ class InspectorDiffColumn : public GafferSceneUI::Private::InspectorColumn
 
 		CellData cellData( const Gaffer::Path &path, const IECore::Canceller *canceller ) const override
 		{
-			CellData result = InspectorColumn::cellData( path, canceller );
-
-			/// \todo Rejig InspectorColumn so we can share the inspection it already did.
 			GafferSceneUI::Private::Inspector::ResultPtr inspectionA = inspect( path, canceller );
 			GafferSceneUI::Private::Inspector::ResultPtr inspectionB = m_otherColumn->inspect( path, canceller );
+
+			CellData result = InspectorColumn::cellDataFromInspection( inspectionA.get() );
+
 			const Object *valueA = inspectionA ? inspectionA->value() : nullptr;
 			const Object *valueB = inspectionB ? inspectionB->value() : nullptr;
 
@@ -1592,6 +1698,12 @@ void inspectorTreeSetFilterWrapper( InspectorTree &tree, const IECore::StringAlg
 	tree.setFilter( filter );
 }
 
+void inspectorTreeSetIsolateDifferencesWrapper( InspectorTree &tree, bool isolateDifferences )
+{
+	IECorePython::ScopedGILRelease gilRelease;
+	tree.setIsolateDifferences( isolateDifferences );
+}
+
 void inspectorTreeRegisterInspectorsWrapper( const vector<InternedString> &path, object pythonInspectionProvider )
 {
 	InspectorTree::InspectionProvider inspectionProvider = [pythonInspectionProvider] ( ScenePlug *scene, const Gaffer::PlugPtr &editScope ) {
@@ -1638,8 +1750,10 @@ void GafferSceneUIModule::bindSceneInspector()
 			.def( "getContexts", &inspectorTreeGetContextsWrapper )
 			.def( "setFilter", &inspectorTreeSetFilterWrapper )
 			.def( "getFilter", &InspectorTree::getFilter, return_value_policy<copy_const_reference>() )
+			.def( "setIsolateDifferences", &inspectorTreeSetIsolateDifferencesWrapper )
 			.def( "dirtiedSignal", &InspectorTree::dirtiedSignal, return_internal_reference<1>() )
 			.def( "registerInspectors", &inspectorTreeRegisterInspectorsWrapper ).staticmethod( "registerInspectors" )
+			.def( "deregisterInspectors",  &InspectorTree::deregisterInspectors ).staticmethod( "deregisterInspectors" )
 		;
 
 		class_<InspectorTree::Inspection>( "Inspection" )

@@ -72,7 +72,10 @@ class SceneInspector( GafferSceneUI.SceneEditor ) :
 			self["compare"]["renderPass"] = Gaffer.OptionalValuePlug( valuePlug = Gaffer.StringPlug() )
 
 			self["locationFilter"] = Gaffer.StringPlug()
+			self["isolateLocationDifferences"] = Gaffer.BoolPlug()
+
 			self["globalsFilter"] = Gaffer.StringPlug()
+			self["isolateGlobalsDifferences"] = Gaffer.BoolPlug()
 
 			# Stop the input scenes claiming that all locations exist when
 			# they don't have an input.
@@ -121,6 +124,14 @@ class SceneInspector( GafferSceneUI.SceneEditor ) :
 			self["__bScene"]["in"].setInput( self["__switch"]["out"] )
 			self["__bScene"]["variables"].addChild( Gaffer.NameValuePlug( "__sceneInspector:inputIndex", 1 ) )
 
+		def _locationComparisonEnablers( self ) :
+
+			return [ p["enabled"] for p in self["compare"] ]
+
+		def _globalsComparisonEnablers( self ) :
+
+			return [ self["compare"][n]["enabled"] for n in [ "scene", "renderPass" ] ]
+
 	IECore.registerRunTimeTyped( Settings, typeName = "GafferSceneUI::SceneInspector::Settings" )
 
 	def __init__( self, scriptNode, **kw ) :
@@ -161,7 +172,10 @@ class SceneInspector( GafferSceneUI.SceneEditor ) :
 
 				with GafferUI.ListContainer( spacing = 4, borderWidth = 4, parenting = { "label" : "Location" } ) :
 
-					GafferUI.PlugValueWidget.create( self.settings()["locationFilter"] )
+					GafferUI.PlugLayout(
+						self.settings(), orientation = GafferUI.ListContainer.Orientation.Horizontal,
+						rootSection = "LocationFilterRow"
+					)
 
 					self.__locationPathListing = GafferUI.PathListingWidget(
 						_GafferSceneUI._SceneInspector.InspectorPath(
@@ -181,7 +195,10 @@ class SceneInspector( GafferSceneUI.SceneEditor ) :
 
 				with GafferUI.ListContainer( spacing = 4, borderWidth = 4, parenting = { "label" : "Globals" } ) :
 
-					GafferUI.PlugValueWidget.create( self.settings()["globalsFilter"] )
+					GafferUI.PlugLayout(
+						self.settings(), orientation = GafferUI.ListContainer.Orientation.Horizontal,
+						rootSection = "GlobalsFilterRow"
+					)
 
 					self.__globalsPathListing = GafferUI.PathListingWidget(
 						_GafferSceneUI._SceneInspector.InspectorPath(
@@ -216,22 +233,34 @@ class SceneInspector( GafferSceneUI.SceneEditor ) :
 	def _updateFromSettings( self, plug ) :
 
 		if plug.getName() == "enabled" and self.settings()["compare"].isAncestorOf( plug ) :
-			comparing = any( p["enabled"].getValue() for p in self.settings()["compare"] )
-			columns = self.__diffColumns if comparing else self.__standardColumns
-			self.__locationPathListing.setColumns( columns )
-			self.__globalsPathListing.setColumns( columns )
+			comparingGlobals = any( self.settings()["compare"][n]["enabled"].getValue() for n in [ "scene", "renderPass" ] )
+			comparingLocations = comparingGlobals or self.settings()["compare"]["location"]["enabled"].getValue()
+			self.__locationPathListing.setColumns( self.__diffColumns if comparingLocations else self.__standardColumns )
+			self.__globalsPathListing.setColumns( self.__diffColumns if comparingGlobals else self.__standardColumns )
 
 		if plug in (
 			self.settings()["location"],
 			self.settings()["compare"]["location"],
+			self.settings()["compare"]["scene"]["enabled"],
 			self.settings()["compare"]["renderPass"],
 		) :
 			self.__lazyUpdateFromContexts()
 
 		if plug.isSame( self.settings()["locationFilter"] ) :
 			self.__updateFilter( self.__locationPathListing.getPath().tree(), plug )
-		elif plug.isSame( self.settings()["globalsFilter"] ) :
+
+		if plug.isSame( self.settings()["globalsFilter"] ) :
 			self.__updateFilter( self.__globalsPathListing.getPath().tree(), plug )
+
+		if plug.isSame( self.settings()["isolateLocationDifferences"] ) or plug in self.settings()._locationComparisonEnablers() :
+			self.__locationPathListing.getPath().tree().setIsolateDifferences(
+				self.settings()["isolateLocationDifferences"].getValue() and any( p.getValue() for p in self.settings()._locationComparisonEnablers() )
+			)
+
+		if plug.isSame( self.settings()["isolateGlobalsDifferences"] ) or plug in self.settings()._globalsComparisonEnablers() :
+			self.__globalsPathListing.getPath().tree().setIsolateDifferences(
+				self.settings()["isolateGlobalsDifferences"].getValue() and any( p.getValue() for p in self.settings()._globalsComparisonEnablers() )
+			)
 
 	@GafferUI.LazyMethod( deferUntilPlaybackStops = True )
 	def __lazyUpdateFromContexts( self ) :
@@ -248,7 +277,8 @@ class SceneInspector( GafferSceneUI.SceneEditor ) :
 		result = []
 		for inputIndex in range( 0, 2 ) :
 			context = Gaffer.Context( self.context() )
-			context["__sceneInspector:inputIndex"] = inputIndex
+			if self.settings()["compare"]["scene"]["enabled"].getValue() :
+				context["__sceneInspector:inputIndex"] = inputIndex
 			result.append( context )
 
 		if self.settings()["compare"]["renderPass"]["enabled"].getValue() :
@@ -280,18 +310,23 @@ class SceneInspector( GafferSceneUI.SceneEditor ) :
 	def __updateFilter( self, tree, plug ) :
 
 		pattern = plug.getValue()
-		if not pattern :
-			pattern = "*"
-		elif not IECore.StringAlgo.hasWildcards( pattern ) :
-				pattern = f"*{pattern}*"
+		if "/" in pattern :
+			# Initial "/*" needed to match the "/Location"
+			# or "/Global" root that the user doesn't see.
+			pathPattern = f"/*/{pattern}/..."
+		elif IECore.StringAlgo.hasWildcards( pattern ) :
+			pathPattern = f"/.../{pattern}/..."
+		else :
+			pathPattern = f"/.../*{pattern}*/..."
 
-		tree.setFilter( pattern )
+		tree.setFilter( pathPattern )
 
 GafferUI.Editor.registerType( "SceneInspector", SceneInspector )
 
 # InspectorTree isn't public API. Expose the `registerInspectors()` function and the `Inspection` class
 # on SceneInspector itself to make them available to extension authors.
 SceneInspector.registerInspectors = _GafferSceneUI._SceneInspector.InspectorTree.registerInspectors
+SceneInspector.deregisterInspectors = _GafferSceneUI._SceneInspector.InspectorTree.deregisterInspectors
 SceneInspector.Inspection = _GafferSceneUI._SceneInspector.InspectorTree.Inspection
 
 ##########################################################################
@@ -315,82 +350,134 @@ Gaffer.Metadata.registerNode(
 
 	plugs = {
 
-		"location" : [
+		"location" : {
 
-			"description",
+			"description" :
 			"""
 			The scene location to inspect. Defaults to the currently selected location. Use
 			the HierarchyView or Viewer to select a location.
 			""",
 
-			"plugValueWidget:type", "GafferSceneUI.SceneInspector._LocationPlugValueWidget",
-			"layout:section", "TopRow",
-			"layout:visibilityActivator", lambda plug : not plug.parent()["compare"]["location"]["enabled"].getValue(),
+			"plugValueWidget:type" : "GafferSceneUI.SceneInspector._LocationPlugValueWidget",
+			"layout:section" : "TopRow",
+			"layout:visibilityActivator" : lambda plug : not plug.parent()["compare"]["location"]["enabled"].getValue(),
 
-		],
+		},
 
-		"compare" : [
+		"compare" : {
 
-			"plugValueWidget:type", "GafferSceneUI.SceneInspector._ComparePlugValueWidget",
-			"layout:visibilityActivator", "anyComparisonEnabled",
-			"layout:section", "CompareRow",
+			"plugValueWidget:type" : "GafferSceneUI.SceneInspector._ComparePlugValueWidget",
+			"layout:visibilityActivator" : "anyComparisonEnabled",
+			"layout:section" : "CompareRow",
 
-		],
+		},
 
-		"compare.location.value" : [
+		"compare.location.value" : {
 
-			"scenePathPlugValueWidget:scene", "__bScene.out",
+			"scenePathPlugValueWidget:scene" : "__bScene.out",
 
-		],
+		},
 
-		"compare.renderPass.value" : [
+		"compare.renderPass.value" : {
 
-			"renderPassPlugValueWidget:scene", "__bScene.out",
+			"renderPassPlugValueWidget:scene" : "__bScene.out",
 
-		],
+		},
 
-		"editScope" : [
+		"editScope" : {
 
-			"plugValueWidget:type", "GafferUI.EditScopeUI.EditScopePlugValueWidget",
-			"layout:section", "TopRow",
-			"layout:width", 130,
-			"layout:index", -1,
+			"plugValueWidget:type" : "GafferUI.EditScopeUI.EditScopePlugValueWidget",
+			"layout:section" : "TopRow",
+			"layout:width" : 130,
+			"layout:index" : -1,
 
-		],
+		},
 
-		"locationFilter" : [
+		"locationFilter" : {
 
-			"description",
+			"description" :
 			"""
-			Filters the displayed properties. Accepts standard wildcards such as `*` and `?`.
+			Filters the displayed properties. The filter may contain any of Gaffer's
+			standard wildcards, and may either be used to match individual property
+			names or entire paths.
+
+			Examples
+			--------
+
+			- `velocity` : Shows all properties which have `velocity` anywhere
+			  in their name, be they attributes, primitive variables or anything else.
+			- `/Object/Primitive Variables` : Shows primitive variables.
+			- `/Attributes/Standard` : Shows standard attributes.
+			- `/Attributes/*/*surface/*/*color*` : Shows surface shader parameters whose
+			  name contains `color`.
 			""",
 
-			"plugValueWidget:type", "GafferUI.TogglePlugValueWidget",
-			"togglePlugValueWidget:image:on", "searchOn.png",
-			"togglePlugValueWidget:image:off", "search.png",
+			"plugValueWidget:type" : "GafferUI.TogglePlugValueWidget",
+			"togglePlugValueWidget:image:on" : "searchOn.png",
+			"togglePlugValueWidget:image:off" : "search.png",
 			# We need a non-default value to toggle to, so that the first
 			# toggling can highlight the icon. `*` seems like a reasonable value
 			# since it has no effect on the filtering, and hints that wildcards
 			# are available.
-			"togglePlugValueWidget:defaultToggleValue", "*",
-			"stringPlugValueWidget:placeholderText", "Filter...",
+			"togglePlugValueWidget:defaultToggleValue" : "*",
+			"stringPlugValueWidget:placeholderText" : "Filter...",
+			"layout:section" : "LocationFilterRow"
 
-		],
+		},
 
-		"globalsFilter" : [
+		"isolateLocationDifferences" : {
 
-			"description",
+			"description" :
 			"""
-			Filters the displayed properties. Accepts standard wildcards such as `*` and `?`.
+			Hides all rows where the A and B columns both have the same value.
 			""",
 
-			"plugValueWidget:type", "GafferUI.TogglePlugValueWidget",
-			"togglePlugValueWidget:image:on", "searchOn.png",
-			"togglePlugValueWidget:image:off", "search.png",
-			"togglePlugValueWidget:defaultToggleValue", "*",
-			"stringPlugValueWidget:placeholderText", "Filter...",
+			"label" : "Isolate Differences",
+			"layout:section" : "LocationFilterRow",
+			"boolPlugValueWidget:labelVisible" : True,
+			"layout:visibilityActivator" : lambda plug : any( p.getValue() for p in plug.node()._locationComparisonEnablers() ),
 
-		],
+		},
+
+		"globalsFilter" : {
+
+			"description" :
+			"""
+			Filters the displayed properties. The filter may contain any of Gaffer's
+			standard wildcards, and may either be used to match individual property
+			names or entire paths.
+
+			Examples
+			--------
+
+			- `samples` : Shows all properties which have `samples` anywhere
+			  in their name, be they options, outputs or anything else.
+			- `/Options/Standard` : Shows standard options.
+			- `/Outputs/.../Data` : Shows the Data field for all outputs.
+			""",
+
+			"plugValueWidget:type" : "GafferUI.TogglePlugValueWidget",
+			"togglePlugValueWidget:image:on" : "searchOn.png",
+			"togglePlugValueWidget:image:off" : "search.png",
+			"togglePlugValueWidget:defaultToggleValue" : "*",
+			"stringPlugValueWidget:placeholderText" : "Filter...",
+			"layout:section" : "GlobalsFilterRow",
+
+		},
+
+		"isolateGlobalsDifferences" : {
+
+			"description" :
+			"""
+			Hides all rows where the A and B columns both have the same value.
+			""",
+
+			"label" : "Isolate Differences",
+			"layout:section" : "GlobalsFilterRow",
+			"boolPlugValueWidget:labelVisible" : True,
+			"layout:visibilityActivator" : lambda plug : any( p.getValue() for p in plug.node()._globalsComparisonEnablers() ),
+
+		},
 
 	}
 
@@ -935,12 +1022,14 @@ def __contextMenu( column, pathListing, menuDefinition ) :
 				return
 			for selection in columnSelection.paths() :
 				path.setFromString( selection )
-				if not isinstance( column.inspector( path ), GafferSceneUI.Private.ParameterInspector ) :
+				inspector = column.inspector( path )
+				if not isinstance( inspector, GafferSceneUI.Private.ParameterInspector ) :
 					return
 
 				result = column.inspect( path )
 				if result is not None and result.value() is not None and ( connectionSource := GafferSceneUI.Private.ParameterInspector.connectionSource( result.value() ) ) :
-					newColumnSelection.addPath( "/".join( path[:-2] + [connectionSource.shader] ) )
+					depthFromNetworkRoot = 2 + inspector.parameter().shader.count( "/" )
+					newColumnSelection.addPath( "/".join( path[:-depthFromNetworkRoot] + [connectionSource.shader] ) )
 					newSelectionCount += 1
 
 		newSelection.append( newColumnSelection )

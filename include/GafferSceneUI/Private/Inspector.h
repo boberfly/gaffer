@@ -139,7 +139,9 @@ class GAFFERSCENEUI_API Inspector : public IECore::RunTimeTyped, public Gaffer::
 
 		/// Protected constructor for use by derived classes. The `name` argument
 		/// will be returned verbatim by the `name()` method.
-		Inspector( const Gaffer::ConstPlugPtr &target, const std::string &type, const std::string &name, const Gaffer::PlugPtr &editScope );
+		Inspector( const std::vector<Gaffer::PlugPtr> &targets, const std::string &type, const std::string &name, const Gaffer::PlugPtr &editScope );
+
+		Gaffer::EditScope *targetEditScope() const;
 
 		/// Methods to be implemented in derived classes
 		/// ============================================
@@ -208,11 +210,12 @@ class GAFFERSCENEUI_API Inspector : public IECore::RunTimeTyped, public Gaffer::
 		/// current context.
 		virtual EditFunction editFunction( const GafferScene::SceneAlgo::History *history ) const;
 
-		Gaffer::EditScope *targetEditScope() const;
-
 	private :
 
 		void inspectHistoryWalk( const GafferScene::SceneAlgo::History *history, Result *result ) const;
+		void plugDirtied( Gaffer::Plug *plug );
+		void plugMetadataChanged( IECore::InternedString key, const Gaffer::Plug *plug );
+		void nodeMetadataChanged( IECore::InternedString key, const Gaffer::Node *node );
 		void editScopeInputChanged( const Gaffer::Plug *plug );
 
 		/// Utility class representing the history of the property in a
@@ -266,11 +269,11 @@ class GAFFERSCENEUI_API Inspector : public IECore::RunTimeTyped, public Gaffer::
 
 		};
 
-		const Gaffer::ConstPlugPtr m_target;
+		const std::vector<Gaffer::PlugPtr> m_targets;
 		const std::string m_type;
 		const std::string m_name;
 		const Gaffer::PlugPtr m_editScope;
-		InspectorSignal m_dirtiedSignal;
+		std::optional<InspectorSignal> m_dirtiedSignal;
 
 		// So we can access HistoryPath.
 		friend void GafferSceneUIModule::bindInspector();
@@ -291,15 +294,23 @@ class GAFFERSCENEUI_API Inspector::Result : public IECore::RefCounted
 		/// =======
 
 		/// The inspected value that should be displayed by the UI.
-		const IECore::Object *value() const;
+		/// If the inspected value is null, then `useFallbacks` allows
+		/// a fallback value to be returned instead - for example a
+		/// known default value or an inherited attribute value.
+		const IECore::Object *value( bool useFallbacks = true ) const;
 		/// The inspected value cast to its native type. If the inspected
 		/// value is not of the requested type, the given default value
 		/// will be returned.
 		template<typename T>
-		const T typedValue( const T &defaultValue ) const;
+		const T typedValue( const T &defaultValue, bool useFallbacks = true ) const;
 
 		/// The plug that was used to author the current value, or null if
 		/// it cannot be determined.
+		///
+		/// > Note : Does not consider fallback values. When a fallback is in
+		/// > effect because the main value is null, `source()` will either
+		/// > return `nullptr` or the edit which was responsible for removing
+		/// > the value.
 		Gaffer::ValuePlug *source() const;
 		/// The target EditScope.
 		Gaffer::EditScope *editScope() const;
@@ -316,15 +327,14 @@ class GAFFERSCENEUI_API Inspector::Result : public IECore::RefCounted
 			Downstream,
 			/// No EditScope was specified, or the EditScope was not found in
 			/// the value's history.
-			Other,
-			/// The value was provided from a fallback value from the Inspector.
-			Fallback
+			Other
 		};
 
 		/// The relationship between `source()` and `editScope()`.
 		SourceType sourceType() const;
-		/// Returns a user-facing description of the source of the
-		/// fallback value when `SourceType` is `Fallback`.
+		/// If a fallback value is in effect due to the primary value
+		/// being null, returns a user-facing description of the fallback
+		/// value. Otherwise returns an empty string.
 		const std::string &fallbackDescription() const;
 
 		/// Editing
@@ -371,6 +381,7 @@ class GAFFERSCENEUI_API Inspector::Result : public IECore::RefCounted
 		friend class Inspector;
 
 		const IECore::ConstObjectPtr m_value;
+		IECore::ConstObjectPtr m_fallbackValue;
 		Gaffer::ValuePlugPtr m_source;
 		SourceType m_sourceType;
 		std::string m_fallbackDescription;

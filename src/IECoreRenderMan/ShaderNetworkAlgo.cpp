@@ -978,7 +978,8 @@ ShaderNetworkPtr preprocessedNetwork( const IECoreScene::ShaderNetwork *shaderNe
 
 	correctParameters( result.get() );
 
-	IECoreScene::ShaderNetworkAlgo::convertToOSLConventions( result.get(), 10900 );
+	IECoreScene::ShaderNetworkAlgo::expandSplines( result.get() );
+
 	IECoreRenderMan::ShaderNetworkAlgo::convertUSDShaders( result.get() );
 	IECoreMaterialX::ShaderNetworkAlgo::convertToOSLNodes( result.get(), "renderman" );
 

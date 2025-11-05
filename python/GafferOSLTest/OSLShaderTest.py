@@ -695,7 +695,7 @@ class OSLShaderTest( GafferOSLTest.OSLTestCase ) :
 		n = GafferOSL.OSLShader()
 		n.loadShader( s )
 
-		self.assertEqual( n["parameters"].keys(), [ "floatSpline", "colorSpline", "checkLinearSpline" ] )
+		self.assertEqual( n["parameters"].keys(), [ "floatSpline", "colorSpline", "checkLinearSpline", "constDefault" ] )
 
 		self.assertTrue( isinstance( n["parameters"]["floatSpline"], Gaffer.SplineffPlug ) )
 		self.assertEqual(
@@ -727,10 +727,7 @@ class OSLShaderTest( GafferOSLTest.OSLTestCase ) :
 			)
 		)
 
-		# Just adding documentation that this is currently broken, but I'm not supposed to be worrying about
-		# the parameter import path at the moment ( it's not using
-		# IECoreScene::ShaderNetworkAlgo::collapseSplineParameters yet )
-		"""self.assertTrue( isinstance( n["parameters"]["checkLinearSpline"], Gaffer.SplineffPlug ) )
+		self.assertTrue( isinstance( n["parameters"]["checkLinearSpline"], Gaffer.SplineffPlug ) )
 		self.assertEqual(
 			n["parameters"]["checkLinearSpline"].getValue().spline(),
 			IECore.Splineff(
@@ -740,7 +737,18 @@ class OSLShaderTest( GafferOSLTest.OSLTestCase ) :
 					( 4, 5 ),
 				]
 			)
-		)"""
+		)
+
+		self.assertTrue( isinstance( n["parameters"]["constDefault"], Gaffer.SplinefColor3fPlug ) )
+		self.assertEqual(
+			n["parameters"]["constDefault"].getValue().spline(),
+			IECore.SplinefColor3f(
+				IECore.CubicBasisf.constant(),
+				[
+					( 2, imath.Color3f( 2 ) ),
+				]
+			)
+		)
 
 		shader = n.attributes()["osl:shader"].outputShader()
 
@@ -772,6 +780,29 @@ class OSLShaderTest( GafferOSLTest.OSLTestCase ) :
 			)
 		)
 
+	def testSplineParametersTooShort( self ) :
+
+		# Test that we don't try to trim duplicated end points from a shader where the default
+		# doesn't have duplicated end points
+		s = self.compileShader( pathlib.Path( __file__ ).parent / "shaders" / "splineParametersTooShort.osl" )
+		n = GafferOSL.OSLShader()
+
+		n.loadShader( s )
+
+		self.assertEqual( n["parameters"].keys(), [ "colorSpline" ] )
+
+		self.assertTrue( isinstance( n["parameters"]["colorSpline"], Gaffer.SplinefColor3fPlug ) )
+		self.assertEqual(
+			n["parameters"]["colorSpline"].getValue().spline(),
+			IECore.SplinefColor3f(
+				IECore.CubicBasisf.linear(),
+				[
+					( 0, imath.Color3f( 0 ) ),
+					( 1, imath.Color3f( 1 ) ),
+				]
+			)
+		)
+
 	def test3delightSplineParameters( self ) :
 
 		s = self.compileShader( pathlib.Path( __file__ ).parent / "shaders" / "delightSplineParameters.osl" )
@@ -784,9 +815,11 @@ class OSLShaderTest( GafferOSLTest.OSLTestCase ) :
 				"floatSpline",
 				"colorSpline",
 				"dualInterpolationSpline",
+				"dualInterpolationSpline_Interp",
 				"trimmedFloatSpline",
 				"mayaSpline",
 				"inconsistentNameSpline",
+				"inconsistentNameOtherSpline",
 				"notASpline",
 				"alsoNotASpline",
 				"sameHere",
@@ -801,8 +834,6 @@ class OSLShaderTest( GafferOSLTest.OSLTestCase ) :
 				IECore.CubicBasisf.linear(),
 				[
 					( 0, 0 ),
-					( 0, 0 ),
-					( 1, 1 ),
 					( 1, 1 ),
 				]
 			)
@@ -816,8 +847,6 @@ class OSLShaderTest( GafferOSLTest.OSLTestCase ) :
 				[
 					( 0, imath.Color3f( 0 ) ),
 					( 0, imath.Color3f( 0 ) ),
-					( 0, imath.Color3f( 0 ) ),
-					( 1, imath.Color3f( 1 ) ),
 					( 1, imath.Color3f( 1 ) ),
 					( 1, imath.Color3f( 1 ) ),
 				]
@@ -831,11 +860,16 @@ class OSLShaderTest( GafferOSLTest.OSLTestCase ) :
 				IECore.CubicBasisf.linear(),
 				[
 					( 0, 0 ),
-					( 0, 0 ),
-					( 1, 1 ),
 					( 1, 1 ),
 				]
 			)
+		)
+
+		# On this spline with two interpolations, we prefer to use the string interpolation
+		# to build the spline, which means this other parameter is left over
+		self.assertEqual(
+			n["parameters"]["dualInterpolationSpline_Interp"].getValue(),
+			IECore.IntVectorData( [ -1 ] )
 		)
 
 		self.assertTrue( isinstance( n["parameters"]["trimmedFloatSpline"], Gaffer.SplineffPlug ) )
@@ -859,8 +893,6 @@ class OSLShaderTest( GafferOSLTest.OSLTestCase ) :
 				IECore.CubicBasisf.linear(),
 				[
 					( 0, 0 ),
-					( 0, 0 ),
-					( 1, 1 ),
 					( 1, 1 ),
 				]
 			)
@@ -870,9 +902,84 @@ class OSLShaderTest( GafferOSLTest.OSLTestCase ) :
 		self.assertEqual(
 			n["parameters"]["inconsistentNameSpline"].getValue().spline(),
 			Gaffer.SplineDefinitionff(
-				((0, 0), (0,0), (0,0), (1,1), (1,1), (1,1)),
+				((0,0), (1,1)),
 				Gaffer.SplineDefinitionInterpolation.MonotoneCubic
 			).spline()
+		)
+
+		self.assertTrue( isinstance( n["parameters"]["inconsistentNameOtherSpline"], Gaffer.SplineffPlug ) )
+		self.assertEqual(
+			n["parameters"]["inconsistentNameSpline"].getValue().spline(),
+			Gaffer.SplineDefinitionff(
+				((0, 0), (1,1)),
+				Gaffer.SplineDefinitionInterpolation.MonotoneCubic
+			).spline()
+		)
+
+	def testRmanSplineParameters( self ) :
+
+		s = self.compileShader( pathlib.Path( __file__ ).parent / "shaders" / "PxrSplineParameters.osl" )
+		n = GafferOSL.OSLShader()
+
+		# Temporarily override the shader paths while loading this shader ( if we load with an explicit
+		# file path, it won't be considered a PRMan shader, and the PRMan style splines won't load
+		# properly )
+		origShaderPaths = os.environ["OSL_SHADER_PATHS"]
+		try:
+			os.environ["OSL_SHADER_PATHS"] = str( pathlib.Path( s ).parent )
+			n.loadShader( "PxrSplineParameters" )
+		finally:
+			os.environ["OSL_SHADER_PATHS"] = origShaderPaths
+
+		self.assertEqual(
+			n["parameters"].keys(),
+			[
+				"simpleParmBefore",
+				"floatRamp",
+				"colorRamp",
+				"mismatchedRamp",
+				"simpleParmAfter",
+			]
+		)
+
+		self.assertTrue( isinstance( n["parameters"]["floatRamp"], Gaffer.SplineffPlug ) )
+		self.assertEqual(
+			n["parameters"]["floatRamp"].getValue().spline(),
+			IECore.Splineff(
+				IECore.CubicBasisf.linear(),
+				[
+					( 0, 0 ),
+					( 1, 1 ),
+				]
+			)
+		)
+
+		self.assertTrue( isinstance( n["parameters"]["colorRamp"], Gaffer.SplinefColor3fPlug ) )
+		self.assertEqual(
+			n["parameters"]["colorRamp"].getValue().spline(),
+			IECore.SplinefColor3f(
+				IECore.CubicBasisf.catmullRom(),
+				[
+					( 0, imath.Color3f( 0 ) ),
+					( 0, imath.Color3f( 0 ) ),
+					( 1, imath.Color3f( 1 ) ),
+					( 1, imath.Color3f( 1 ) ),
+				]
+			)
+		)
+
+		self.assertTrue( isinstance( n["parameters"]["mismatchedRamp"], Gaffer.SplinefColor3fPlug ) )
+		self.assertEqual(
+			n["parameters"]["mismatchedRamp"].getValue().spline(),
+			IECore.SplinefColor3f(
+				IECore.CubicBasisf.catmullRom(),
+				[
+					( 0, imath.Color3f( 1, 2, 3 ) ),
+					( 0, imath.Color3f( 1, 2, 3 ) ),
+					( 1, imath.Color3f( 4, 5, 6 ) ),
+					( 1, imath.Color3f( 4, 5, 6 ) ),
+				]
+			)
 		)
 
 	def testSplineParameterEvaluation( self ) :

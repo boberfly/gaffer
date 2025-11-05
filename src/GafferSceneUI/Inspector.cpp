@@ -256,14 +256,18 @@ void edit( Gaffer::ValuePlug *plug, const IECore::Object *value )
 
 IE_CORE_DEFINERUNTIMETYPED( Inspector )
 
-Inspector::Inspector( const Gaffer::ConstPlugPtr &target, const std::string &type, const std::string &name, const Gaffer::PlugPtr &editScope )
-	:	m_target( target ), m_type( type ), m_name( name ), m_editScope( editScope )
+Inspector::Inspector( const std::vector<Gaffer::PlugPtr> &targets, const std::string &type, const std::string &name, const Gaffer::PlugPtr &editScope )
+	:	m_targets( targets ), m_type( type ), m_name( name ), m_editScope( editScope )
 {
-	if( editScope && editScope->node() )
+	assert( !targets.empty() );
+	for( const auto &target : targets )
 	{
-		editScope->node()->plugInputChangedSignal().connect(
-			boost::bind( &Inspector::editScopeInputChanged, this, ::_1 )
-		);
+		// Check all targets are on the same node, as assumed by `plugDirtied()` and
+		// `HistoryPath::cancellationSubject()`.
+		if( target->node() != targets.front()->node() )
+		{
+			throw IECore::Exception( fmt::format( "Targets {} and {} are not on the same node", target->fullName(), targets.front()->fullName() ) );
+		}
 	}
 }
 
@@ -285,19 +289,18 @@ Inspector::ResultPtr Inspector::inspect() const
 		return nullptr;
 	}
 
-	ConstObjectPtr value = this->value( history.get() );
-	bool fallbackValue = false;
-	std::string fallbackDescription;
-	if( !value )
+	ResultPtr result = new Result( this->value( history.get() ), targetEditScope() );
+	if( !result->m_value )
 	{
-		value = this->fallbackValue( history.get(), fallbackDescription );
-		fallbackValue = (bool)value;
+		result->m_fallbackValue = this->fallbackValue( history.get(), result->m_fallbackDescription );
+		if( result->m_fallbackValue && result->m_fallbackDescription.empty() )
+		{
+			IECore::msg( IECore::Msg::Level::Error, "Inspector", "Fallback value without a description" );
+		}
 	}
-
-	ResultPtr result = new Result( value, targetEditScope() );
 	inspectHistoryWalk( history.get(), result.get() );
 
-	if( !result->m_value && !result->editable() )
+	if( !result->m_value && !result->m_fallbackValue && !result->editable() )
 	{
 		// The property doesn't exist, and there's no
 		// way of making it.
@@ -337,18 +340,37 @@ Inspector::ResultPtr Inspector::inspect() const
 		};
 	}
 
-	if( fallbackValue )
-	{
-		result->m_sourceType = Result::SourceType::Fallback;
-		result->m_fallbackDescription = fallbackDescription.empty() ? "Fallback value" : fallbackDescription;
-	}
-
 	return result;
 }
 
 Inspector::InspectorSignal &Inspector::dirtiedSignal()
 {
-	return m_dirtiedSignal;
+	if( !m_dirtiedSignal )
+	{
+		m_dirtiedSignal.emplace();
+
+		// Connect to signals that allow us to emit `m_dirtiedSignal` when
+		// necessary. We delay doing this until `dirtiedSignal()` is first
+		// accessed for the sake of the SceneInspector. The SceneInspector
+		// constructs Inspectors from background tasks, where connecting to
+		// signals is not allowed, but it fortunately doesn't use
+		// `dirtiedSignal()`.
+
+		m_targets.front()->node()->plugDirtiedSignal().connect(
+			boost::bind( &Inspector::plugDirtied, this, ::_1 )
+		);
+
+		Metadata::plugValueChangedSignal().connect( boost::bind( &Inspector::plugMetadataChanged, this, ::_3, ::_4 ) );
+		Metadata::nodeValueChangedSignal().connect( boost::bind( &Inspector::nodeMetadataChanged, this, ::_2, ::_3 ) );
+
+		if( m_editScope && m_editScope->node() )
+		{
+			m_editScope->node()->plugInputChangedSignal().connect(
+				boost::bind( &Inspector::editScopeInputChanged, this, ::_1 )
+			);
+		}
+	}
+	return *m_dirtiedSignal;
 }
 
 void Inspector::inspectHistoryWalk( const GafferScene::SceneAlgo::History *history, Result *result ) const
@@ -580,6 +602,54 @@ Gaffer::EditScope *Inspector::targetEditScope() const
 			return runTimeCast<EditScope>( plug->node() );
 		}
 	);
+}
+
+
+void Inspector::plugDirtied( Gaffer::Plug *plug )
+{
+	if( std::find( m_targets.begin(), m_targets.end(), plug ) != m_targets.end() )
+	{
+		dirtiedSignal()( this );
+	}
+}
+
+void Inspector::plugMetadataChanged( IECore::InternedString key, const Gaffer::Plug *plug )
+{
+	if( !plug )
+	{
+		// Assume readOnly metadata is only registered on instances.
+		return;
+	}
+	nodeMetadataChanged( key, plug->node() );
+}
+
+void Inspector::nodeMetadataChanged( IECore::InternedString key, const Gaffer::Node *node )
+{
+	if( !node )
+	{
+		// Assume readOnly metadata is only registered on instances.
+		return;
+	}
+
+	EditScope *scope = targetEditScope();
+	if( !scope )
+	{
+		return;
+	}
+
+	if(
+		MetadataAlgo::readOnlyAffectedByChange( scope, node, key ) ||
+		( MetadataAlgo::readOnlyAffectedByChange( key ) && scope->isAncestorOf( node ) )
+	)
+	{
+		// Might affect `EditScopeAlgo::*ReadOnlyReason()` methods which we
+		// expect derived classes to be calling.
+		/// \todo Can we ditch the signal processing and call `attributeEditReadOnlyReason()`
+		/// just-in-time from `editable()`? In the past that wasn't possible
+		/// because editability changed the appearance of the UI, but it isn't
+		/// doing that currently.
+		dirtiedSignal()( this );
+	}
 }
 
 void Inspector::editScopeInputChanged( const Gaffer::Plug *plug )
@@ -928,7 +998,7 @@ PathPtr Inspector::HistoryPath::copy() const
 
 const Gaffer::Plug *Inspector::HistoryPath::cancellationSubject() const
 {
-	return m_historyProvider->inspector->m_target.get();
+	return m_historyProvider->inspector->m_targets[0].get();
 }
 
 void Inspector::HistoryPath::doChildren( std::vector<PathPtr> &children, const Canceller *canceller) const
@@ -981,9 +1051,14 @@ Inspector::Result::Result( const IECore::ConstObjectPtr &value, const Gaffer::Ed
 {
 }
 
-const IECore::Object *Inspector::Result::value() const
+const IECore::Object *Inspector::Result::value( bool useFallbacks ) const
 {
-	return m_value.get();
+	if( m_value )
+	{
+		return m_value.get();
+	}
+
+	return useFallbacks ? m_fallbackValue.get() : nullptr;
 }
 
 Gaffer::ValuePlug *Inspector::Result::source() const
