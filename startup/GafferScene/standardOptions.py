@@ -42,16 +42,6 @@ import IECoreScene
 import Gaffer
 import GafferScene
 
-def __rendererPresetNames( additionalNames ) :
-
-	blacklist = { "Capturing" }
-	return IECore.StringVectorData(
-		additionalNames + sorted(
-			t for t in GafferScene.Private.IECoreScenePreview.Renderer.types()
-			if t not in blacklist
-		)
-	)
-
 Gaffer.Metadata.registerValues( {
 
 	"option:render:camera" : {
@@ -283,8 +273,19 @@ Gaffer.Metadata.registerValues( {
 		"layout:section" : "Renderer",
 
 		"plugValueWidget:type" : "GafferUI.PresetsPlugValueWidget",
-		"presetNames" : __rendererPresetNames( [ "None" ] ),
-		"presetValues" : __rendererPresetNames( [ "" ] ),
+		"presetNames" : lambda : IECore.StringVectorData(
+			[ "None" ] + sorted(
+				Gaffer.Metadata.value( f"renderer:{t}", "label" ) or t
+				for t in GafferScene.Private.IECoreScenePreview.Renderer.types()
+				if Gaffer.Metadata.value( f"renderer:{t}", "ui:enabled" ) is not False
+			)
+		),
+		"presetValues" : lambda : IECore.StringVectorData(
+			[ "" ] + sorted(
+				t for t in GafferScene.Private.IECoreScenePreview.Renderer.types()
+				if Gaffer.Metadata.value( f"renderer:{t}", "ui:enabled" ) is not False
+			)
+		),
 
 	},
 

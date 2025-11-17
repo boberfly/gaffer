@@ -42,13 +42,14 @@ import GafferScene
 
 from GafferUI.PlugValueWidget import sole
 
+## \deprecated
+## \todo Remove in next major version.
 def rendererPresetNames( plug = None ) :
 
-	blacklist = { "Capturing" }
 	return IECore.StringVectorData(
 		sorted(
 			t for t in GafferScene.Private.IECoreScenePreview.Renderer.types()
-			if t not in blacklist
+			if Gaffer.Metadata.value( f"renderer:{t}", "ui:enabled" ) is not False
 		)
 	)
 
@@ -90,9 +91,11 @@ Gaffer.Metadata.registerNode(
 
 			"plugValueWidget:type" : "GafferSceneUI.RenderUI.RendererPlugValueWidget",
 
-			"preset:Default" : "",
-			"presetNames" : rendererPresetNames,
-			"presetValues" : rendererPresetNames,
+			"presetNames" : lambda plug : IECore.StringVectorData( [
+				"Default" if n == "None" else n
+				for n in Gaffer.Metadata.value( "option:render:defaultRenderer", "presetNames" )
+			] ),
+			"presetValues" : lambda plug : Gaffer.Metadata.value( "option:render:defaultRenderer", "presetValues" ),
 
 		},
 
@@ -186,7 +189,8 @@ class RendererPlugValueWidget( GafferUI.PresetsPlugValueWidget ) :
 			resolvedRenderer = sole( v["resolvedRenderer"] for v in values )
 			self.menuButton().setText(
 				"Default ({})".format(
-					resolvedRenderer if resolvedRenderer else
+					Gaffer.Metadata.value( f"renderer:{resolvedRenderer}", "label" ) or resolvedRenderer
+					if resolvedRenderer else
 					( "None" if resolvedRenderer == "" else "---" )
 				)
 			)

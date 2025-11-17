@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2015, Image Engine Design Inc. All rights reserved.
+#  Copyright (c) 2025, Cinesite VFX Ltd. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -34,39 +34,31 @@
 #
 ##########################################################################
 
+import os
+import sys
+
+import IECore
 import Gaffer
 import GafferScene
 
-Gaffer.Metadata.registerNode(
+if "RMANTREE" in os.environ and IECore.SearchPath( sys.path ).find( "IECoreRenderMan" ) :
 
-	GafferScene.Cube,
+	if "RenderMan" not in GafferScene.Private.IECoreScenePreview.Renderer.types() :
+		# Register lambda to load renderer on demand. This allows us to find the renderer
+		# even if the relevant Python module hasn't been imported (in `gaffer execute` for instance).
+		GafferScene.Private.IECoreScenePreview.Renderer.registerType(
+			"RenderMan", lambda *args : __import__( "IECoreRenderMan" ) and GafferScene.Private.IECoreScenePreview.Renderer.create( "RenderMan", *args )
+		)
 
-	"description",
-	"""
-	Produces scenes containing a cube.
-	""",
+	Gaffer.Metadata.registerValue( "renderer:RenderMan", "ui:enabled", os.environ.get( "GAFFERRENDERMAN_HIDE_UI", "" ) != "1" )
 
-	plugs = {
+Gaffer.Metadata.registerValues( {
 
-		"dimensions" : {
+	"renderer:RenderMan" : {
 
-			"description" :
-			"""
-			The size of the cube.
-			""",
+		"optionPrefix" : "ri:",
+		"attributePrefix" : "ri:",
 
-		},
+	},
 
-		"divisions" : {
-
-			"description" :
-			"""
-			The number of subdivisions of the cube in the
-			X, Y and Z directions.
-			""",
-
-		},
-
-	}
-
-)
+} )

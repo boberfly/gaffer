@@ -64,7 +64,7 @@ if codecs.lookup( locale.getpreferredencoding() ).name != "utf-8" :
 
 gafferMilestoneVersion = 1 # for announcing major milestones - may contain all of the below
 gafferMajorVersion = 6 # backwards-incompatible changes
-gafferMinorVersion = 4 # new backwards-compatible features
+gafferMinorVersion = 5 # new backwards-compatible features
 gafferPatchVersion = 0 # bug fixes
 gafferVersionSuffix = "" # used for alpha/beta releases : "a1", "b2", etc.
 
@@ -1597,8 +1597,12 @@ libraries = {
 
 	"IECoreRenderManDisplay" : {
 		"envAppends" : {
-			"LIBS" : [ "IECoreImage$CORTEX_LIB_SUFFIX" ],
+			"LIBS" : [
+				"IECoreImage$CORTEX_LIB_SUFFIX",
+				"pxrcore" if env["PLATFORM"] != "win32" else "libpxrcore",
+			],
 			"CPPPATH" : [ "$RENDERMAN_ROOT/include" ],
+			"LIBPATH" : [ "$RENDERMAN_ROOT/lib" ],
 		},
 		"envReplacements" : {
 			"SHLIBPREFIX" : "",

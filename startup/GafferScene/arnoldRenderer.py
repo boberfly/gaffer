@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2015, Image Engine Design Inc. All rights reserved.
+#  Copyright (c) 2025, Cinesite VFX Ltd. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -34,39 +34,31 @@
 #
 ##########################################################################
 
+import os
+import sys
+
+import IECore
 import Gaffer
 import GafferScene
 
-Gaffer.Metadata.registerNode(
+if "ARNOLD_ROOT" in os.environ and IECore.SearchPath( sys.path ).find( "IECoreArnold" ) :
 
-	GafferScene.Cube,
+	if "Arnold" not in GafferScene.Private.IECoreScenePreview.Renderer.types() :
+		# Register lambda to load renderer on demand. This allows us to find the renderer
+		# even if the relevant Python module hasn't been imported (in `gaffer execute` for instance).
+		GafferScene.Private.IECoreScenePreview.Renderer.registerType(
+			"Arnold", lambda *args : __import__( "IECoreArnold" ) and GafferScene.Private.IECoreScenePreview.Renderer.create( "Arnold", *args )
+		)
 
-	"description",
-	"""
-	Produces scenes containing a cube.
-	""",
+	Gaffer.Metadata.registerValue( "renderer:Arnold", "ui:enabled", True )
 
-	plugs = {
+Gaffer.Metadata.registerValues( {
 
-		"dimensions" : {
+	"renderer:Arnold" : {
 
-			"description" :
-			"""
-			The size of the cube.
-			""",
+		"optionPrefix" : "ai:",
+		"attributePrefix" : "ai:",
 
-		},
+	},
 
-		"divisions" : {
-
-			"description" :
-			"""
-			The number of subdivisions of the cube in the
-			X, Y and Z directions.
-			""",
-
-		},
-
-	}
-
-)
+} )

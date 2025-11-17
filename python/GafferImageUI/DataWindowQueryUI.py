@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2015, Image Engine Design Inc. All rights reserved.
+#  Copyright (c) 2025, Cinesite VFX Ltd. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -35,35 +35,70 @@
 ##########################################################################
 
 import Gaffer
-import GafferScene
+import GafferImage
 
 Gaffer.Metadata.registerNode(
 
-	GafferScene.Cube,
+	GafferImage.DataWindowQuery,
 
 	"description",
 	"""
-	Produces scenes containing a cube.
+	Queries the data window of an image as well as the center and size of the data window.
 	""",
+	"layout:section:Settings.Outputs:collapsed", False,
 
 	plugs = {
 
-		"dimensions" : {
+		"in" : {
 
 			"description" :
 			"""
-			The size of the cube.
+			The image to query.
 			""",
 
 		},
 
-		"divisions" : {
+		"view" : {
 
 			"description" :
 			"""
-			The number of subdivisions of the cube in the
-			X, Y and Z directions.
+			The view to query.
 			""",
+
+			"nodule:type" : "",
+			"plugValueWidget:type" : "GafferImageUI.ViewPlugValueWidget",
+			"viewPlugValueWidget:allowUseCurrentContext" : True,
+
+		},
+
+		"dataWindow" : {
+
+			"description" :
+			"""
+			The data window of the image.
+			""",
+			"nodule:type" : "GafferUI::CompoundNodule",
+			"layout:section" : "Settings.Outputs",
+
+		},
+
+		"center" : {
+
+			"description" :
+			"""
+			The center of the data window of the image.
+			""",
+			"layout:section" : "Settings.Outputs",
+
+		},
+
+		"size" : {
+
+			"description" :
+			"""
+			The size of the data window of the image.
+			""",
+			"layout:section" : "Settings.Outputs",
 
 		},
 
