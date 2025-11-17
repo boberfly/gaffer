@@ -144,7 +144,7 @@ AtNode *convertWalk( const ShaderNetwork::Parameter &outputParameter, const IECo
 	// Set the shader parameters
 
 	IECore::ConstCompoundDataPtr expandedParameters = IECoreScene::ShaderNetworkAlgo::expandSplineParameters(
-		shader->parametersData(), shader->getType(), shader->getName()
+		shader->parametersData() //, shader->getType(), shader->getName()
 	);
 
 	for( const auto &namedParameter : expandedParameters->readable() )
@@ -391,6 +391,8 @@ ShaderNetworkPtr preprocessedNetwork( const IECoreScene::ShaderNetwork *shaderNe
 	/// specific outputs, and can stop needing to duplicate shaders when more than 1 output
 	/// is used.
 	IECoreScene::ShaderNetworkAlgo::convertToOSLConventions( result.get(), 10900 );
+	/// Convert Arnold ramps.
+	IECoreScene::ShaderNetworkAlgo::expandSplines( result.get(), "ai:" );
 	IECoreArnold::ShaderNetworkAlgo::convertUSDShaders( result.get() );
 	/// Convert all MaterialX nodes to OSL nodes.
 	IECoreMaterialX::ShaderNetworkAlgo::convertToOSLNodes( result.get(), "arnold" );

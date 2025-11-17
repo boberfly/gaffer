@@ -400,7 +400,7 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 	};
 
 	IECore::ConstCompoundDataPtr expandedParameters = IECoreScene::ShaderNetworkAlgo::expandSplineParameters(
-		shader->parametersData(), shader->getType(), shader->getName()
+		shader->parametersData() //, shader->getType(), shader->getName()
 	);
 
 	for( const auto &[parameterName, parameterValue] : expandedParameters->readable() )
