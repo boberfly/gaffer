@@ -844,6 +844,10 @@ if "IECORE_DLL_DIRECTORIES" in os.environ :
 	# to be found which may not reside in the default build directory eg. Imath, OpenImageIO
 	commandEnv["ENV"]["IECORE_DLL_DIRECTORIES"] = os.environ["IECORE_DLL_DIRECTORIES"]
 
+# OpenImageIO package is reliant on this environment variable to exist
+if "REZ_OPENIMAGEIO_ROOT" in os.environ :
+	commandEnv["ENV"]["REZ_OPENIMAGEIO_ROOT"] = os.environ["REZ_OPENIMAGEIO_ROOT"]
+
 # Set up the environment variables that the Gaffer wrapper will use to
 # populate paths used to support third-party software.
 for option, envVar in {
