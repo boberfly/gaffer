@@ -1,15 +1,62 @@
-1.6.x.x (relative to 1.6.5.0)
+1.6.x.x (relative to 1.6.6.0)
 =======
-
-Improvements
-------------
-
-- SceneInspector : Added Interpretation row for primitive variables, with values of "Point", "Vector", "Normal" or "UV".
 
 Fixes
 -----
 
+- PythonCommand :
+  - Fixed invalid results from evaluating `"name" in variables`.
+  - Fixed handling of CompoundObjectPlugs, ObjectPlugs and ObjectVectorPlugs in `variables` plug.
+- Dispatcher : Fixed omission that prevented values from CompoundObjectPlugs, ObjectPlugs and ObjectVectorPlugs with inputs from being saved in a dispatch with `isolated` enabled.
+
+1.6.6.0 (relative to 1.6.5.1)
+=======
+
+Features
+--------
+
+- RenderMan :
+  - Added support for RenderMan 27.0, in addition to the existing support for RenderMan 26.3.
+  - Added support for RenderMan XPU (27.0 only).
+
+Improvements
+------------
+
+- SceneInspector :
+  - Added Interpretation row for primitive variables, with values of "Point", "Vector", "Normal" or "UV".
+  - Added editing capabilities to the Local Transform properties.
+- LightEditor : Added Transform section, with columns displaying the light's transform.
+- RenderPassEditor :
+  - Added "Favourites" section. Columns from any other section can be marked for display in this section by right-clicking on their header and selecting "Favourite" from the menu. Columns can be reordered within the Favourites section by dragging their header.
+  - Any standard or renderer-specific option can be added as a favourite by clicking on the `+` column header and choosing it from the menu, or any option can be added via drag & drop from the SceneInspector.
+  - A default set of favourite columns can be configured by registering metadata containing a list of option names in a startup file. `Gaffer.Metadata.registerValue( GafferSceneUI.RenderPassEditor.Settings, "favouriteColumns", "userDefault", IECore.StringVectorData( [ "option:render:cameraInclusions", "option:render:matteInclusions" ] ) )`
+- ImageToTensor : Added `tensorElementType` plug to choose between `Float`, `Float16` and `BFloat16`.
+- TensorToImage : Added conversion from `Float16` and `BFloat16` tensor elements in addition to the existing `Float` support.
+- RenderManOptions : Added XPU device configuration options.
+- `gaffer dispatch` : Removed restrictions that prevented nodes such as Switch and ContextVariables from being dispatched.
+- Spreadsheet : Improved visual feedback when reordering columns via drag & drop.
+
+Fixes
+-----
+
+- SceneInspector : Fixed sporadic incomplete updates, particularly when an interactive render was running.
 - Render, InteractiveRender, StandardOptions : Fixed bugs allowing Cycles and 3Delight to appear as available renderers even when hidden from the UI or not configured.
+- Options, Attributes : Fixed missing presets.
+- CyclesShader : Fixed unstable ordering of parameter presets. These are now sorted alphabetically.
+
+API
+---
+
+- GridContainer : Added `nextRow()` context manager, to simplify the process of arranging child widgets in rows.
+- SceneInspector : Added `draggedAttributes()`, `draggedOptions()` and `draggedParameters()` static methods.
+
+1.6.5.1 (relative to 1.6.5.0)
+=======
+
+Fixes
+-----
+
+- ImageWriter : Fixed file corruption or crashes caused by `openexr:lineOrder` being set in image metadata.
 
 1.6.5.0 (relative to 1.6.4.0)
 =======

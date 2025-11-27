@@ -64,7 +64,7 @@ if codecs.lookup( locale.getpreferredencoding() ).name != "utf-8" :
 
 gafferMilestoneVersion = 1 # for announcing major milestones - may contain all of the below
 gafferMajorVersion = 6 # backwards-incompatible changes
-gafferMinorVersion = 5 # new backwards-compatible features
+gafferMinorVersion = 6 # new backwards-compatible features
 gafferPatchVersion = 0 # bug fixes
 gafferVersionSuffix = "" # used for alpha/beta releases : "a1", "b2", etc.
 
@@ -559,7 +559,7 @@ if env["PLATFORM"] != "win32" :
 	env.Append( CXXFLAGS = [ "-std=$CXXSTD", "-fvisibility=hidden" ] )
 
 	if env["BUILD_TYPE"] == "DEBUG" :
-		env.Append( CXXFLAGS = ["-g", "-O0", "-DTBB_USE_DEBUG=1"] )
+		env.Append( CXXFLAGS = ["-g", "-O0", "-DTBB_USE_DEBUG=1", "-gz=zlib"] )
 	elif env["BUILD_TYPE"] == "RELEASE" :
 		env.Append( CXXFLAGS = ["-DNDEBUG", "-DBOOST_DISABLE_ASSERTS", "-O3"] )
 	elif env["BUILD_TYPE"] == "RELWITHDEBINFO" :
