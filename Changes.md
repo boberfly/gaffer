@@ -1,4 +1,55 @@
-1.6.x.x (relative to 1.6.6.0)
+1.6.x.x (relative to 1.6.7.0)
+=======
+
+
+
+1.6.7.0 (relative to 1.6.6.1)
+=======
+
+Improvements
+------------
+
+- Timeline : Added scrubbing outside the playback range, enabled by holding <kbd>Shift</kbd>.
+- RenderMan : Added depth of field support (#6713).
+- NodeEditor :
+  - Added BoxPlug items to the plug creation menus.
+  - Added more Array items to the plug creation menus.
+  - Added drag & drop creation of plugs by dropping a plug or value onto the `+` icon.
+- AttributeTweaks : Added "Attributes" submenu to `name` plugs, matching the menu from CustomAttributes.
+- CustomAttributes : Added "From Selected" and "From Affected" submenus to the plug creation menu.
+- AttributeTweaks, OptionTweaks, CustomAttributes, CustomOptions, OptionQuery : Added drag & drop population of plugs by dragging from the Scene Inspector.
+- CustomOptions : Added "From Scene" submenu to the plug creation menu.
+
+Fixes
+-----
+
+- RenderPassEditor, Spreadsheet : Conformed menu buttons to match the rest of Gaffer by showing menu on button press, not release.
+- NodeEditor : Added missing widget for Color4fVectorDataPlug.
+- Timeline : Fixed bug that meant the wrong frame number was drawn when the current frame was outside the playback range.
+- SetEditor : Fixed RunTimeTyped registration of `SetEditor.Settings`.
+- HierarchyView, AttributeEditor : Fixed search filter tooltip.
+- NodeMenu : The script's context is now scoped before calling a node's `postCreator`.
+- RenderMan :
+  - Fixed incorrect motion blur when rendering with RenderMan XPU.
+  - Fixed interactive denoiser when rendering with RenderMan XPU.
+- SceneReader : Fixed reading of animated material and light parameters from USD files.
+
+API
+---
+
+- MenuButton : Added `set/getImmediate()` methods. These allow the button to execute a menu item immediately instead of showing the menu, if the menu has only a single item.
+- Signals : Added CatchingCombiner Python class, equivalent to the C++ template class.
+- FileSystemPath : Implemented Python's `os.PathLike` interface, to allow FileSystemPath objects to be passed directly to Python's standard filesystem functions.
+- PlugCreationWidget : Added standard metadata-driven widget to allow users to add plugs to nodes.
+- UserPlugs : Deprecated. Use PlugCreationWidget instead.
+- CompoundDataPlugValueWidget : Deprecated. Use LayoutPlugValueWidget and PlugCreationWidget instead.
+
+Build
+-----
+
+- Cortex : Updated to version 10.6.2.1.
+
+1.6.6.1 (relative to 1.6.6.0)
 =======
 
 Fixes
@@ -8,6 +59,7 @@ Fixes
   - Fixed invalid results from evaluating `"name" in variables`.
   - Fixed handling of CompoundObjectPlugs, ObjectPlugs and ObjectVectorPlugs in `variables` plug.
 - Dispatcher : Fixed omission that prevented values from CompoundObjectPlugs, ObjectPlugs and ObjectVectorPlugs with inputs from being saved in a dispatch with `isolated` enabled.
+- Reference : Fixed "Duplicate as Box" order of operations, so the new Box is fully initialised before being parented and selected.
 
 1.6.6.0 (relative to 1.6.5.1)
 =======
