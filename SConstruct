@@ -353,6 +353,30 @@ options.Add(
 	"",
 )
 
+options.Add(
+	"OIDN_ROOT",
+	"The directory in which the OpenImageDenoise library is installed. Used to build IECoreCycles",
+	"",
+)
+
+options.Add(
+	"OIDN_LIB_SUFFIX",
+	"The suffix used when locating the OpenImageDenoise libraries.",
+	"",
+)
+
+options.Add(
+	"EMBREE_ROOT",
+	"The directory in which the Embree library is installed. Used to build IECoreCycles",
+	"",
+)
+
+options.Add(
+	"EMBREE_LIB_SUFFIX",
+	"The suffix used when locating the Embree library.",
+	"",
+)
+
 # general variables
 
 options.Add(
@@ -1538,17 +1562,21 @@ libraries = {
 	"GafferCycles" : {
 		"envAppends" : {
 			"CPPPATH" : [ "$OSLHOME/include" ],
-			"LIBPATH" : [ "$CYCLES_ROOT/lib" ],
+			"LIBPATH" : [ "$CYCLES_ROOT/lib", "$OIDN_ROOT/lib", "$EMBREE_ROOT/lib" ],
 			"LIBS" : [
 				"IECoreScene$CORTEX_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX", "IECoreMaterialX",
 				"Gaffer", "GafferScene", "GafferDispatch", "GafferOSL",
 				"cycles_session", "cycles_scene", "cycles_graph", "cycles_bvh", "cycles_device", "cycles_kernel", "cycles_kernel_osl",
 				"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew", "extern_hipew",
 				"OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslcomp$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX",
-				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4", "Iex$OPENEXR_LIB_SUFFIX", "openpgl",
-				"CyclesOpenImageDenoise", "CyclesOpenImageDenoise_core",
+				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4$EMBREE_LIB_SUFFIX", "Iex$OPENEXR_LIB_SUFFIX", "openpgl",
+				"OpenImageDenoise$OIDN_LIB_SUFFIX", "OpenImageDenoise" + env.get("OIDN_LIB_SUFFIX", "") + "_core",
 			],
-			"CXXFLAGS" : [ systemIncludeArgument + "$CYCLES_ROOT/include" ],
+			"CXXFLAGS" : [
+				systemIncludeArgument + "$CYCLES_ROOT/include",
+				systemIncludeArgument + "$OIDN_ROOT/include",
+				systemIncludeArgument + "$EMBREE_ROOT/include",
+			],
 			"CPPDEFINES" : cyclesDefines,
 			"FRAMEWORKS" : [ "Foundation", "Metal", "IOKit" ],
 		},
@@ -1559,7 +1587,7 @@ libraries = {
 			"CXXFLAGS" : [ systemIncludeArgument + "$CYCLES_ROOT/include" ],
 			"CPPDEFINES" : cyclesDefines,
 		},
-		"requiredOptions" : [ "CYCLES_ROOT" ],
+		"requiredOptions" : [ "CYCLES_ROOT", "OIDN_ROOT", "EMBREE_ROOT", ],
 	},
 
 	"GafferCyclesTest" : {
