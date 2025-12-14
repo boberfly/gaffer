@@ -1584,7 +1584,7 @@ libraries = {
 			"LIBS" : [
 				"GafferScene", "GafferDispatch", "GafferBindings", "GafferCycles", "IECoreScene",
 			],
-			"CXXFLAGS" : [ systemIncludeArgument + "$CYCLES_ROOT/include" ],
+			"CXXFLAGS" : [ systemIncludeArgument + "$CYCLES_ROOT/include", systemIncludeArgument + "$EMBREE_ROOT/include" ],
 			"CPPDEFINES" : cyclesDefines,
 		},
 		"requiredOptions" : [ "CYCLES_ROOT", "OIDN_ROOT", "EMBREE_ROOT", ],
