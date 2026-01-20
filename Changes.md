@@ -1,7 +1,69 @@
-1.6.x.x (relative to 1.6.7.0)
+1.6.x.x (relative to 1.6.9.0)
 =======
 
 
+
+1.6.9.0 (relative to 1.6.8.0)
+=======
+
+Improvements
+------------
+
+- RenderMan :
+  - Added support for PxrLayer, PxrLayerMixer and PxrLayerSurface shaders (by implementing support for vstruct conditionals).
+  - Added support for `IECoreScene::ShaderNetworkAlgo` render adaptor API.
+
+Fixes
+-----
+
+- RenderMan : Fixed interactive denoising when rendering via the `it` display driver.
+- EditScopeUI : Fixed crash if `childNodesAreReadOnly` metadata was edited while no EditScope was selected.
+- Layouts : Fixed window title for detached panels. It is now always synchronised with the title of the main window.
+- OpenColorIO :
+  - Fixed display transform used by editors in detached panels. This problem was particularly noticeable in the LightEditor.
+  - Fixed display transform used by newly added editors. This was also particularly noticeable for the LightEditor.
+
+API
+---
+
+- Arnold ShaderNetworkAlgo : Deprecated substitutions API. Use IECoreScene's render adaptor API instead. For backwards compatibility until it is removed, the substitutions API forwards to the render adaptor API.
+
+Build
+-----
+
+- Cortex : Updated to version 10.6.3.0.
+
+1.6.8.0 (relative to 1.6.7.0)
+=======
+
+Improvements
+------------
+
+- RenderMan :
+  - Added support for RenderMan 27.1.
+  - Added overscan support.
+- ArnoldLight : Moved Arnold 7.4.4.0's new `sampling_mode` parameter to the "Sampling" section of the UI.
+- LightEditor : Added column for Arnold 7.4.4.0's new `sampling_mode` parameter.
+- ArnoldShader : Moved Arnold 7.4.4.0's new `standard_hair.scattering_mode` parameter to the "Specular" section of the UI.
+- ArnoldImager : Added activators for Arnold 7.4.4.0's new `lens_effects` imager parameters.
+- ShaderTweaks :
+  - Improved SceneInspector integration :
+    - Dragging a parameter name or value from the SceneInspector now creates a tweak containing both the parameter name and value.
+    - Multiple parameter names and/or values can be dragged to create multiple tweaks.
+    - Parameters dragged from non-terminal shaders create tweaks that include the shader name to correctly identify the parameter.
+  - Added array parameter types to the tweak creation menu.
+- PlugCreationWidget : User defaults are now applied to newly created `TweakPlug.mode` plugs.
+- OSLShader : Added forward compatibility for spline parameters saved from Gaffer 1.7.
+
+Fixes
+-----
+
+- SceneInspector :
+  - Fixed `draggedParameters()` method to include the shader handle where necessary.
+  - Fixed cell background colour updates when changing EditScope.
+- PlugValueWidget : The widget's context is now scoped before emitting `popupMenuSignal()`.
+- AttributeEditor, SceneInspector : Fixed bug preventing edits from being created in an EditScope for attributes with `.` characters in their name.
+- RenderMan : Fixed crop window bugs when rendering with XPU (#6727).
 
 1.6.7.0 (relative to 1.6.6.1)
 =======
@@ -526,10 +588,18 @@ Build
 - Qt.py : Updated to version 1.4.6.
 - USD : Updated to version 25.05.01.
 
-1.5.16.x (relative to 1.5.16.4)
+1.5.16.x (relative to 1.5.16.5)
 ========
 
 
+
+1.5.16.5 (relative to 1.5.16.4)
+========
+
+Fixes
+-----
+
+- EditScopeUI : Fixed crash if `childNodesAreReadOnly` metadata was edited while no EditScope was selected.
 
 1.5.16.4 (relative to 1.5.16.3)
 ========
