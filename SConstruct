@@ -636,6 +636,7 @@ else:
 			"/D_USE_MATH_DEFINES",  # Required when permissive mode is off, for defining constants like M_PI used by OpenVDB
 			"/std:$CXXSTD",
 			"/DHAVE_SNPRINTF",  # Fix a legacy issue for MSVC versions < 2019
+			"/D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR", # Avoids running into an ABI change with std::mutex constructor.
 		]
 	)
 
