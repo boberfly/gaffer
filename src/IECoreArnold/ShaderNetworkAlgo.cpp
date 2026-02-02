@@ -43,6 +43,8 @@
 #include "IECoreScene/Shader.h"
 #include "IECoreScene/ShaderNetworkAlgo.h"
 
+#include "IECoreMaterialX/ShaderNetworkAlgo.h"
+
 #include "IECore/AngleConversion.h"
 #include "IECore/MessageHandler.h"
 #include "IECore/SimpleTypedData.h"
@@ -54,6 +56,8 @@
 #include "boost/lexical_cast.hpp"
 #include "boost/unordered_map.hpp"
 
+#include "ai_operator.h"
+
 #include <unordered_map>
 
 using namespace std;
@@ -64,6 +68,9 @@ using namespace IECoreArnold;
 
 namespace
 {
+
+const InternedString g_operatorAttributeName( "ai:operator" );
+const InternedString g_inputAttributeName( "input" );
 
 const AtString g_codeArnoldString( "code" );
 const AtString g_emptyArnoldString( "" );
@@ -136,7 +143,11 @@ AtNode *convertWalk( const ShaderNetwork::Parameter &outputParameter, const IECo
 
 	// Set the shader parameters
 
-	for( const auto &namedParameter : shader->parametersData()->readable() )
+	IECore::ConstCompoundDataPtr expandedParameters = IECoreScene::ShaderNetworkAlgo::expandSplineParameters(
+		shader->parametersData() //, shader->getType(), shader->getName()
+	);
+
+	for( const auto &namedParameter : expandedParameters->readable() )
 	{
 		string parameterName;
 		if( isOSLShader )
@@ -162,14 +173,29 @@ AtNode *convertWalk( const ShaderNetwork::Parameter &outputParameter, const IECo
 		ParameterAlgo::setParameter( node, arnoldParameterName, namedParameter.second.get() );
 	}
 
+	const bool isOperator = shader->getType() == g_operatorAttributeName.string() ? true : false;
+
 	// Recurse through input connections
 
 	for( const auto &connection : shaderNetwork->inputConnections( outputParameter.shader ) )
 	{
+		if( isOperator && connection.destination.name != g_inputAttributeName )
+		{
+			// For operators, we can only connect other operator inputs
+			continue;
+		}
+
 		AtNode *sourceNode = convertWalk( connection.source, shaderNetwork, name, nodeCreator, nodes, converted, nodeParameters );
 		if( !sourceNode )
 		{
 			continue;
+		}
+
+		if( isOperator )
+		{
+			// All inputs need to be added to the target operator, this is appended in `AiOpLink` later
+			nodes.push_back( node );
+			return node;
 		}
 
 		string parameterName;
@@ -365,7 +391,11 @@ ShaderNetworkPtr preprocessedNetwork( const IECoreScene::ShaderNetwork *shaderNe
 	/// specific outputs, and can stop needing to duplicate shaders when more than 1 output
 	/// is used.
 	IECoreScene::ShaderNetworkAlgo::convertToOSLConventions( result.get(), 10900 );
+	/// Convert Arnold ramps.
+	IECoreScene::ShaderNetworkAlgo::expandSplines( result.get(), "ai:" );
 	IECoreArnold::ShaderNetworkAlgo::convertUSDShaders( result.get() );
+	/// Convert all MaterialX nodes to OSL nodes.
+	IECoreMaterialX::ShaderNetworkAlgo::convertToOSLNodes( result.get(), "arnold" );
 
 	/// Convert `quad_light` width and height, if needed.
 	if( result->outputShader()->getName() == "quad_light" )
@@ -428,7 +458,7 @@ void NodeParameter::updateParameter() const
 			AiNodeResetParameter( m_node, m_parameterName );
 			msg(
 				Msg::Warning, "NodeParameter",
-				fmt::format( "{}.{} : Node \"{}\" not found", AiNodeGetName( m_node ), m_parameterName, m_parameterValue )
+				fmt::format( "{}.{} : Node \"{}\" not found", AiNodeGetName( m_node ), m_parameterName.c_str(), m_parameterValue.c_str() )
 			);
 		}
 	}
@@ -451,6 +481,13 @@ std::vector<AtNode *> convert( const IECoreScene::ShaderNetwork *shaderNetwork, 
 			return AiNode( universe, nodeType, nodeName, parentNode );
 		};
 		convertWalk( network->getOutput(), network.get(), name, nodeCreator, result, converted, nodeParameters );
+		if( network->outputShader()->getType() == g_operatorAttributeName.string() )
+		{
+			for( std::vector<AtNode *>::reverse_iterator riter = result.rbegin() + 1; riter != result.rend(); ++riter )
+			{
+				AiOpLink( *riter, result.back() );
+			}
+		}
 		for( const auto &kv : network->outputShader()->blindData()->readable() )
 		{
 			ParameterAlgo::setParameter( result.back(), AtString( kv.first.c_str() ), kv.second.get() );
@@ -998,6 +1035,28 @@ void IECoreArnold::ShaderNetworkAlgo::convertUSDShaders( ShaderNetwork *shaderNe
 				shaderNetwork->addConnection( ShaderNetwork::Connection( normalInput, { normalHandle, g_inputParameter } ) );
 				shaderNetwork->removeConnection( ShaderNetwork::Connection( normalInput, { handle, g_normalParameter } ) );
 				shaderNetwork->addConnection( ShaderNetwork::Connection( normalHandle, { handle, g_normalParameter } ) );
+			}
+		}
+		// Arnold as of 7.3.5.0 does have the necessary MaterialX closures for the generated OSL
+		// shaders of standard_surface and openpbr_surface to function, however the native shader
+		// types are most likely a better choice to use and not needing MaterialX to translate the
+		// shader is a bonus. There are extra inputs (eg. AOVs) that are not in the MaterialX spec
+		// but do exist on the native Arnold shaders, so these *could* be supported somehow in the
+		// future, perhaps similar to how Lux lights can have renderer-specific schema?
+		else if( shader->getName() == "ND_standard_surface_surfaceshader" )
+		{
+			newShader = new Shader( "standard_surface" );
+			for( const auto &[name, value] : shader->parameters() )
+			{
+				newShader->parameters()[name] = value;
+			}
+		}
+		else if( shader->getName() == "ND_open_pbr_surface_surfaceshader" )
+		{
+			newShader = new Shader( "openpbr_surface" );
+			for( const auto &[name, value] : shader->parameters() )
+			{
+				newShader->parameters()[name] = value;
 			}
 		}
 		else if( shader->getName() == "UsdTransform2d" )

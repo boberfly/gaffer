@@ -97,6 +97,12 @@ options.Add(
 )
 
 options.Add(
+	"MSVC_VERSION",
+	"The version of MSVC to target (Windows-only).",
+	"14.2",
+)
+
+options.Add(
 	"CXXFLAGS",
 	"The extra flags to pass to the C++ compiler during compilation.",
 	# We want `-Wextra` because some of its warnings are useful, and further useful
@@ -250,6 +256,12 @@ options.Add(
 )
 
 options.Add(
+	"OPENEXR_LIB_SUFFIX",
+	"The suffix used when locating the OpenEXR library.",
+	"",
+)
+
+options.Add(
 	"BOOST_LIB_SUFFIX",
 	"The suffix used when locating the boost libraries.",
 	"",
@@ -321,8 +333,47 @@ options.Add(
 )
 
 options.Add(
+	BoolVariable(
+		"WITH_USD_PXRBOOST",
+		"Determines if we build with the built-in pxrboost or use the regular boost "
+		"python binding (note that usd versions 25.05 and over always use pxrboost).",
+		False
+	)
+)
+
+options.Add(
 	"ONNX_ROOT",
 	"The directory in which the ONNX runtime is installed. Used to build GafferML",
+	"",
+)
+
+options.Add(
+	"MATERIALX_ROOT",
+	"The directory in which the MaterialX library is installed. Used to build IECoreMaterialX",
+	"",
+)
+
+options.Add(
+	"OIDN_ROOT",
+	"The directory in which the OpenImageDenoise library is installed. Used to build IECoreCycles",
+	"",
+)
+
+options.Add(
+	"OIDN_LIB_SUFFIX",
+	"The suffix used when locating the OpenImageDenoise libraries.",
+	"",
+)
+
+options.Add(
+	"EMBREE_ROOT",
+	"The directory in which the Embree library is installed. Used to build IECoreCycles",
+	"",
+)
+
+options.Add(
+	"EMBREE_LIB_SUFFIX",
+	"The suffix used when locating the Embree library.",
 	"",
 )
 
@@ -360,6 +411,12 @@ options.Add(
 options.Add(
 	"PYBIND11",
 	"The directory in which pybind11 is installed."
+	"",
+)
+
+options.Add(
+	"PYTHON",
+	"Where to find the python binary. Defaults to the built-in one.",
 	"",
 )
 
@@ -425,14 +482,17 @@ env = Environment(
 
 systemIncludeArgument = "/external:I" if env[ "PLATFORM" ] == "win32" else "-isystem"
 
-for path in [
-		"$BUILD_DIR/include",
-		"$BUILD_DIR/include/Imath",
-		"$BUILD_DIR/include/GL",
-	] + env["LOCATE_DEPENDENCY_SYSTEMPATH"] :
+# had to remove these to shorten the path on windows (ughhhh)
+#for path in [
+#		"$BUILD_DIR/include",
+#		"$BUILD_DIR/include/Imath",
+#		"$BUILD_DIR/include/GL",
+#	] + env["LOCATE_DEPENDENCY_SYSTEMPATH"] :
+
+for path in env["LOCATE_DEPENDENCY_SYSTEMPATH"] :
 
 	env.Append(
-		CXXFLAGS = [ systemIncludeArgument, path ]
+		CXXFLAGS = [ systemIncludeArgument + path ]
 	)
 
 env["BUILD_DIR"] = os.path.abspath( env["BUILD_DIR"] )
@@ -580,6 +640,7 @@ else:
 			"/D_USE_MATH_DEFINES",  # Required when permissive mode is off, for defining constants like M_PI used by OpenVDB
 			"/std:$CXXSTD",
 			"/DHAVE_SNPRINTF",  # Fix a legacy issue for MSVC versions < 2019
+			"/D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR", # Avoids running into an ABI change with std::mutex constructor.
 		]
 	)
 
@@ -613,6 +674,7 @@ else:
 				"/wd4180",  # suppress warning "qualifier applied to function type has no meaning; ignored". Needed for OpenVDB
 				"/wd4146",  # suppress warning "unary minus operator applied to unsigned type, result still unsigned" (from Cryptomatte::MurmurHash3_x86_32())
 				"/D_CRT_NONSTDC_NO_WARNINGS",  # suppress warnings about deprecated POSIX names. The names are deprecated, not the functions, so this is safe.
+				"/wd4996",  # suppress warning "std::result_of and std::result_of_t are deprecated in C++17. They are superseded by std::invoke_result and std::invoke_result_t."
 			],
 		)
 
@@ -798,6 +860,22 @@ if commandEnv["ASAN"] :
 	commandEnv["ENV"]["LD_PRELOAD"] = commandEnv["ASAN_LIB"]
 	# ASan detects loads of memory leaks in Python, so turn leak detection off.
 	commandEnv["ENV"]["ASAN_OPTIONS"] = "detect_leaks=0"
+# In some build scenarios a custom python binary might be used
+if env["PYTHON"]:
+	commandEnv["ENV"]["GAFFER_PYTHON"] = env["PYTHON"]
+	commandEnv["ENV"]["PYTHONHOME"] = os.path.dirname( env["PYTHON"] )
+else:
+	commandEnv["ENV"]["GAFFER_PYTHON"] = "$BUILD_DIR/bin/python"
+
+if "IECORE_DLL_DIRECTORIES" in os.environ :
+	# When building for Windows as of python 3.8, os.add_dll_directories must know of
+	# all DLLs that need to be loaded. Having this set in the environment allows DLLs
+	# to be found which may not reside in the default build directory eg. Imath, OpenImageIO
+	commandEnv["ENV"]["IECORE_DLL_DIRECTORIES"] = os.environ["IECORE_DLL_DIRECTORIES"]
+
+# OpenImageIO package is reliant on this environment variable to exist
+if "REZ_OPENIMAGEIO_ROOT" in os.environ :
+	commandEnv["ENV"]["REZ_OPENIMAGEIO_ROOT"] = os.environ["REZ_OPENIMAGEIO_ROOT"]
 
 # Set up the environment variables that the Gaffer wrapper will use to
 # populate paths used to support third-party software.
@@ -806,6 +884,8 @@ for option, envVar in {
 	"DELIGHT_ROOT" : "DELIGHT",
 	"ONNX_ROOT" : "ONNX_ROOT",
 	"RENDERMAN_ROOT" : "RMANTREE",
+	"CYCLES_ROOT" : "CYCLES_ROOT",
+	"MATERIALX_ROOT" : "MATERIALX_ROOT",
 }.items() :
 	if commandEnv[option] != "" :
 		commandEnv["ENV"][envVar] = commandEnv[option]
@@ -869,6 +949,14 @@ if ( int( baseLibEnv["BOOST_MAJOR_VERSION"] ), int( baseLibEnv["BOOST_MINOR_VERS
 	# deprecated header, so we define BOOST_BIND_GLOBAL_PLACEHOLDERS to silence
 	# the reams of warnings triggered by that.
 	baseLibEnv.Append( CPPDEFINES = [ "BOOST_BIND_GLOBAL_PLACEHOLDERS" ] )
+
+# Use the boost python that comes with OpenUSD if WITH_USD_PXRBOOST is true
+pxrboost = ""
+if env["WITH_USD_PXRBOOST"] == True :
+	if env["PLATFORM"] != "win32" :
+		pxrboost = "-DWITH_USD_PXRBOOST"
+	else :
+		pxrboost = "/DWITH_USD_PXRBOOST"
 
 ###############################################################################################
 # The basic environment for building python modules
@@ -998,6 +1086,84 @@ if env["RENDERMAN_ROOT"] :
 	renderManInstallRoot = "${{BUILD_DIR}}/renderMan/{MAJOR}.{MINOR}".format( **renderManVersions )
 
 ###############################################################################################
+# MaterialX shader generation function before we build it
+###############################################################################################
+
+mtlxShaders = []
+if "MATERIALX_ROOT" in commandEnv["ENV"] :
+
+	skipShaders = [
+		"ND_disney_brdf_2012_surface",
+		"ND_disney_bsdf_2015_surface",
+		"ND_conical_edf",
+		"ND_measured_edf",
+		"ND_absorption_vdf",
+		"ND_mix_vdf",
+		"ND_add_vdf",
+		"ND_multiply_vdfC",
+		"ND_multiply_vdfF",
+		"ND_volumematerial",
+		"ND_mix_displacementshader",
+		"ND_mix_volumeshader",
+		"ND_UsdPrimvarReader_filename",
+		"ND_lama_surface",
+		"ND_constant_filename",
+		"ND_geompropvalueuniform_filename",
+		"ND_thin_film_bsdf", # TODO: revisit
+	]
+
+	skipNodeGroup = [
+		"organization",
+		"light",
+		"material",
+	]
+
+	if hasattr( os, "add_dll_directory" ) :
+		os.add_dll_directory( os.path.join( commandEnv["ENV"]["MATERIALX_ROOT"], "bin" ) )
+
+	import MaterialX as mx
+	import MaterialX.PyMaterialXGenShader as mxGenShader
+	import MaterialX.PyMaterialXGenOsl as mxGenOsl
+
+	buildDir = os.path.join( "shaders", "__mtlx" )
+	if os.path.exists( buildDir ):
+		shutil.rmtree( buildDir )
+	os.makedirs( buildDir )
+
+	searchPath = mx.FileSearchPath( os.environ.get( "PXR_MTLX_STDLIB_SEARCH_PATHS", "" ) )
+	libraryFolders = [ "libraries" ]
+
+	mxDoc = mx.createDocument()
+	mx.loadLibraries( libraryFolders, searchPath, mxDoc )
+
+	generator = mxGenOsl.OslShaderGenerator.create()
+	context = mxGenShader.GenContext(generator)
+	context.getOptions().addUpstreamDependencies = False
+	context.registerSourceCodeSearchPath( searchPath )
+	context.getOptions().fileTextureVerticalFlip = True
+
+	index = 0
+	for mxNodeDef in mxDoc.getNodeDefs() :
+		shaderName = mxNodeDef.getName()
+		if shaderName in skipShaders :
+			continue
+		nodeGroup = mxNodeDef.getNodeGroup()
+		if nodeGroup in skipNodeGroup :
+			continue
+		mxNode = mxDoc.addNodeInstance( mxNodeDef, "mtlx_shader_%04d" % index )
+		try :
+			index += 1
+			mxShader = generator.generate( shaderName, mxNode, context )
+			code = mxShader.getSourceCode( "pixel" )
+			outFile = os.path.join( buildDir, "__" + shaderName + ".osl" )
+			with open( outFile, "w" ) as f:
+				f.write(code)
+			mtlxShaders.append( outFile )
+		except :
+			pass # print("No impl for {}".format( shaderName ))
+
+
+###############################################################################################
 # Cycles configuration
 ###############################################################################################
 
@@ -1032,6 +1198,13 @@ cyclesDefines = [
 	( "WITH_CUDA" ),
 	( "WITH_CUDA_DYNLOAD" ),
 	( "WITH_OPTIX" ),
+	# OpenImageDenoise
+	( "WITH_OPENIMAGEDENOISE" ),
+	# HIP
+	( "WITH_HIP" ),
+	( "WITH_HIP_DYNLOAD" ),
+	# USD
+	( "WITH_USD" ),
 ]
 
 
@@ -1059,6 +1232,13 @@ if env["GAFFERUSD"] :
 ###############################################################################################
 # Definitions for the libraries we wish to build
 ###############################################################################################
+
+usdLibraries = [
+	"sdf", "arch", "tf", "vt", "ndr", "sdr", "usd", "usdLux"
+]
+
+if env["WITH_USD_PXRBOOST"] == True :
+	usdLibraries.append( "python" )
 
 libraries = {
 
@@ -1118,7 +1298,7 @@ libraries = {
 
 	"GafferScene" : {
 		"envAppends" : {
-			"LIBS" : [ "Gaffer", "IECoreGL$CORTEX_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX",  "IECoreScene$CORTEX_LIB_SUFFIX", "GafferImage", "GafferDispatch", "osdCPU", "OpenEXR" ],
+			"LIBS" : [ "Gaffer", "IECoreGL$CORTEX_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX",  "IECoreScene$CORTEX_LIB_SUFFIX", "GafferImage", "GafferDispatch", "osdCPU", "OpenEXR$OPENEXR_LIB_SUFFIX" ],
 		},
 		"pythonEnvAppends" : {
 			"LIBS" : [ "GafferBindings", "GafferScene", "GafferDispatch", "GafferImage", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreScene$CORTEX_LIB_SUFFIX", "IECoreGL$CORTEX_LIB_SUFFIX" ],
@@ -1150,7 +1330,7 @@ libraries = {
 	"GafferImage" : {
 		"envAppends" : {
 			"CPPPATH" : [ "$BUILD_DIR/include/freetype2" ],
-			"LIBS" : [ "Gaffer", "GafferDispatch", "IECoreImage$CORTEX_LIB_SUFFIX", "OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "OpenColorIO$OCIO_LIB_SUFFIX", "freetype" ],
+			"LIBS" : [ "Gaffer", "GafferDispatch", "IECoreImage$CORTEX_LIB_SUFFIX", "OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "OpenColorIO$OCIO_LIB_SUFFIX", "freetype", "libpng16_static", "bz2_static" ],
 		},
 		"pythonEnvAppends" : {
 			"CPPPATH" : [ "$PYBIND11/include" ],
@@ -1210,12 +1390,29 @@ libraries = {
 		"requiredOptions" : [ "ONNX_ROOT" ],
 	},
 
+	"IECoreMaterialX" : {
+		"envAppends" : {
+			"CPPPATH" : [ "$OSLHOME/include", "$MATERIALX_ROOT/include" ],
+			"LIBPATH" : [ "$MATERIALX_ROOT/lib" ],
+			"LIBS" : [ "OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslcomp$OSL_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "Iex$OPENEXR_LIB_SUFFIX", "IECoreScene$CORTEX_LIB_SUFFIX", "MaterialXCore", "MaterialXFormat", "MaterialXGenShader", "MaterialXGenOsl" ],
+		},
+		"pythonEnvAppends" : {
+			"LIBS" : [ "IECoreScene$CORTEX_LIB_SUFFIX", "IECoreMaterialX" ],
+		},
+		"requiredOptions" : [ "MATERIALX_ROOT" ],
+		"mtlxShaders" : mtlxShaders,
+	},
+
+	"IECoreMaterialXTest" : {
+		"requiredOptions" : [ "MATERIALX_ROOT" ],
+	},
+
 	"IECoreArnold" : {
 		"envAppends" : {
 			"LIBPATH" : [ "$ARNOLD_ROOT/bin" ] if env["PLATFORM"] != "win32" else [ "$ARNOLD_ROOT/bin", "$ARNOLD_ROOT/lib" ],
 			## \todo Remove GafferScene. We need it at present to get access to `IECoreScenePreview::Renderer`,
 			# but IECoreArnold must never depend on Gaffer code; logically it is in the layer below Gaffer.
-			"LIBS" : [ "GafferScene", "ai", "IECoreScene$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX", "openvdb$VDB_LIB_SUFFIX" ],
+			"LIBS" : [ "GafferScene", "ai", "IECoreMaterialX", "IECoreScene$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX", "openvdb$VDB_LIB_SUFFIX" ],
 			"CXXFLAGS" : [ "-DAI_ENABLE_DEPRECATION_WARNINGS" ],
 			"CPPPATH" : [ "$ARNOLD_ROOT/include" ],
 		},
@@ -1264,7 +1461,7 @@ libraries = {
 			"LIBPATH" : [ "$ARNOLD_ROOT/bin" ] if env["PLATFORM"] != "win32" else [ "$ARNOLD_ROOT/bin", "$ARNOLD_ROOT/lib" ],
 			"LIBS" : [ "IECoreScene$CORTEX_LIB_SUFFIX", "IECoreGL$CORTEX_LIB_SUFFIX", "OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX", "Gaffer", "GafferScene", "GafferOSL", "GafferSceneUI", "ai" ],
 			"CXXFLAGS" : [ "-DAI_ENABLE_DEPRECATION_WARNINGS" ],
-			"CPPPATH" : [ "$ARNOLD_ROOT/include" ],
+			"CPPPATH" : [ "$ARNOLD_ROOT/include", "$OSLHOME/include" ],
 		},
 		"pythonEnvAppends" : {
 			"LIBS" : [ "GafferArnoldUI", "GafferSceneUI", "IECoreScene$CORTEX_LIB_SUFFIX" ],
@@ -1300,7 +1497,7 @@ libraries = {
 			"LIBS" : [ "Gaffer", "GafferScene", "GafferImage", "OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "oslcomp$OSL_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreScene$CORTEX_LIB_SUFFIX" ],
 		},
 		"pythonEnvAppends" : {
-			"CPPPATH" : [ "$OSLHOME/include/OSL" ],
+			"CPPPATH" : [ "$OSLHOME/include" ],
 			"LIBS" : [ "GafferBindings", "GafferScene", "GafferImage", "GafferOSL", "IECoreScene$CORTEX_LIB_SUFFIX" ],
 		},
 		"oslHeaders" : glob.glob( "shaders/*/*.h" ),
@@ -1368,16 +1565,22 @@ libraries = {
 
 	"GafferCycles" : {
 		"envAppends" : {
-			"LIBPATH" : [ "$CYCLES_ROOT/lib" ],
+			"CPPPATH" : [ "$OSLHOME/include" ],
+			"LIBPATH" : [ "$CYCLES_ROOT/lib", "$OIDN_ROOT/lib", "$EMBREE_ROOT/lib" ],
 			"LIBS" : [
-				"IECoreScene$CORTEX_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX",
+				"IECoreScene$CORTEX_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX", "IECoreMaterialX",
 				"Gaffer", "GafferScene", "GafferDispatch", "GafferOSL",
 				"cycles_session", "cycles_scene", "cycles_graph", "cycles_bvh", "cycles_device", "cycles_kernel", "cycles_kernel_osl",
-				"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew",
+				"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew", "extern_hipew",
 				"OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslcomp$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX",
-				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4", "openpgl", "zstd",
+				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4$EMBREE_LIB_SUFFIX", "openpgl",
+				"OpenImageDenoise$OIDN_LIB_SUFFIX", "OpenImageDenoise" + env.get("OIDN_LIB_SUFFIX", "") + "_core",
 			],
-			"CXXFLAGS" : [ systemIncludeArgument, "$CYCLES_ROOT/include" ],
+			"CXXFLAGS" : [
+				systemIncludeArgument + "$CYCLES_ROOT/include",
+				systemIncludeArgument + "$OIDN_ROOT/include",
+				systemIncludeArgument + "$EMBREE_ROOT/include",
+			],
 			"CPPDEFINES" : cyclesDefines,
 			"FRAMEWORKS" : [ "Foundation", "Metal", "IOKit" ],
 		},
@@ -1385,10 +1588,10 @@ libraries = {
 			"LIBS" : [
 				"GafferScene", "GafferDispatch", "GafferBindings", "GafferCycles", "IECoreScene",
 			],
-			"CXXFLAGS" : [ systemIncludeArgument, "$CYCLES_ROOT/include" ],
+			"CXXFLAGS" : [ systemIncludeArgument + "$CYCLES_ROOT/include", systemIncludeArgument + "$EMBREE_ROOT/include" ],
 			"CPPDEFINES" : cyclesDefines,
 		},
-		"requiredOptions" : [ "CYCLES_ROOT" ],
+		"requiredOptions" : [ "CYCLES_ROOT", "OIDN_ROOT", "EMBREE_ROOT", ],
 	},
 
 	"GafferCyclesTest" : {
@@ -1410,6 +1613,8 @@ libraries = {
 			"LIBS" : [
 				"GafferScene", "IECoreScene$CORTEX_LIB_SUFFIX",
 				"IECoreVDB$CORTEX_LIB_SUFFIX",
+				"IECoreMaterialX",
+				"prman" if env["PLATFORM"] != "win32" else "libprman",
 				"pxrcore" if env["PLATFORM"] != "win32" else "libpxrcore",
 				"oslquery$OSL_LIB_SUFFIX",
 				"OpenImageIO_Util$OIIO_LIB_SUFFIX",
@@ -1501,7 +1706,7 @@ libraries = {
 				[ "${USD_LIB_PREFIX}" + x for x in ( [ "sdf", "arch", "tf", "vt", "ndr", "sdr", "usd", "usdLux" ] if not env["USD_MONOLITHIC"] else [ "usd_ms" ] ) ],
 			# USD includes "at least one deprecated or antiquated header", so we
 			# have to drop our usual strict warning levels.
-			"CXXFLAGS" : [ "-Wno-deprecated" if env["PLATFORM"] != "win32" else "/wd4996" ],
+			"CXXFLAGS" : [ "-Wno-deprecated" if env["PLATFORM"] != "win32" else "/wd4996", pxrboost ],
 		},
 		"pythonEnvAppends" : {
 			"LIBS" : [ "GafferUSD", "GafferScene", "GafferDispatch", "GafferBindings" ],
@@ -1621,13 +1826,13 @@ if env["PLATFORM"] == "win32" :
 
 	for library in ( "GafferCycles", ) :
 
-		libraries[library].setdefault( "pythonEnvAppends", {} )
-		libraries[library]["pythonEnvAppends"].setdefault( "LIBS", [] ).extend( [ "Advapi32" ] )
+		libraries[library].setdefault( "envAppends", {} )
+		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "zstd_static", "Version" ] )
 
 	for library in ( "GafferImage", ) :
 
 		libraries[library].setdefault( "envAppends", {} )
-		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "zlib" ] )
+		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "zlibstatic" if os.name == "nt" else "zlib" ] )
 
 else :
 
@@ -1642,7 +1847,7 @@ if os.path.exists( env.subst("$VTUNE_ROOT") ):
 
 		libraries[library].setdefault( "envAppends", {} )
 		libraries[library]["envAppends"].setdefault( "CXXFLAGS", [] ).extend(
-			[ systemIncludeArgument, "$VTUNE_ROOT/include", "-DGAFFER_VTUNE" ]
+			[ systemIncludeArgument + "$VTUNE_ROOT/include", "-DGAFFER_VTUNE" ]
 		)
 		libraries[library]["envAppends"].setdefault( "LIBPATH", [] ).extend( [ "$VTUNE_ROOT/lib64" ] )
 		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "ittnotify", "dl" ] )
@@ -1901,21 +2106,29 @@ for libraryName, libraryDef in libraries.items() :
 	# osl shaders
 
 	def buildOSL( target, source, env ) :
-		subprocess.check_call(
-			[
-				shutil.which( "oslc", path = env["ENV"]["PATH"] ) if env["PLATFORM"] == "win32" else "oslc",
-				"-I./shaders",
-				"-o",
-				str( target[0] ), str( source[0] )
-			],
-			env = env["ENV"]
-		)
+
+		command = [
+			shutil.which( "oslc", path = env["ENV"]["PATH"] ) if env["PLATFORM"] == "win32" else "oslc",
+			"-I./shaders",
+		]
+
+		if os.path.exists( env["ENV"]["MATERIALX_ROOT"] ) :
+			command.append( "-I" + os.path.join( env["ENV"]["MATERIALX_ROOT"], "libraries", "stdlib", "genosl", "include" ) )
+
+		command += [ "-o", str( target[0] ), str( source[0] ) ]
+
+		subprocess.check_call( command, env = env["ENV"] )
 
 	for oslShader in libraryDef.get( "oslShaders", [] ) :
 		env.Alias( "buildCore", oslShader )
 		compiledFile = commandEnv.Command( os.path.join( installRoot, os.path.splitext( oslShader )[0] + ".oso" ), oslShader, buildOSL )
 		env.Depends( compiledFile, "oslHeaders" )
 		env.Alias( "buildCore", compiledFile )
+
+	for mtlxShader in libraryDef.get( "mtlxShaders", [] ) :
+		env.Alias( "buildCore", mtlxShader )
+		mtlxCompiledFile = commandEnv.Command( os.path.join( installRoot, os.path.splitext( mtlxShader )[0] + ".oso" ), mtlxShader, buildOSL )
+		env.Alias( "buildCore", mtlxCompiledFile )
 
 	# class stubs
 

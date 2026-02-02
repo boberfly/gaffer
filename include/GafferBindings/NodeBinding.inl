@@ -37,6 +37,8 @@
 
 #pragma once
 
+#include <boost/type_traits/is_abstract.hpp>
+
 namespace GafferBindings
 {
 

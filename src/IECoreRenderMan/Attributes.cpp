@@ -115,9 +115,9 @@ const InternedString g_lightMuteAttributeName( "light:mute" );
 const InternedString g_renderManLightFilterAttributeName( "ri:lightFilter" );
 const RtUString g_userMaterialId( "user:__materialid" );
 
-const vector<InternedString> g_displacementAttributeNames = { "ri:displacement", "osl:displacement", "displacement" };
+const vector<InternedString> g_displacementAttributeNames = { "ri:displacement", "mtlx:displacement", "osl:displacement", "displacement" };
 const vector<InternedString> g_lightAttributeNames = { "ri:light", "light" };
-const vector<InternedString> g_surfaceAttributeNames = { "ri:surface", "surface" };
+const vector<InternedString> g_surfaceAttributeNames = { "ri:surface", "mtlx:surface", "surface" };
 
 template<typename T>
 T *attributeCast( const IECore::RunTimeTyped *v, const IECore::InternedString &name )

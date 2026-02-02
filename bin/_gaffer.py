@@ -75,6 +75,7 @@ def prependToPath( pathToPrepend, envVar ) :
 	os.environ[envVar] = os.pathsep.join( path )
 
 gafferRoot = pathlib.Path( __file__ ).resolve().parents[1]
+cortexRoot = pathlib.Path( os.environ["CORTEX_ROOT"] ).resolve()
 
 # Clean environment setup
 # =======================
@@ -89,6 +90,10 @@ if sys.platform == "linux" :
 # Cortex Setup
 # ============
 
+prependToPath( cortexRoot / "glsl", "IECOREGL_SHADER_PATHS" )
+prependToPath( cortexRoot / "glsl", "IECOREGL_SHADER_INCLUDE_PATHS" )
+prependToPath( cortexRoot / "ops", "IECORE_OP_PATHS" )
+
 prependToPath( gafferRoot / "glsl", "IECOREGL_SHADER_PATHS" )
 prependToPath( gafferRoot / "glsl", "IECOREGL_SHADER_INCLUDE_PATHS" )
 prependToPath( gafferRoot / "fonts", "IECORE_FONT_PATHS" )
@@ -97,6 +102,8 @@ prependToPath( pathlib.Path.home() / "gaffer" / "ops", "IECORE_OP_PATHS" )
 prependToPath( pathlib.Path.home() / "gaffer" / "opPresets", "IECORE_OP_PRESET_PATHS" )
 prependToPath( pathlib.Path.home() / "gaffer" / "startup", "CORTEX_STARTUP_PATHS" )
 appendToPath( gafferRoot / "startup", "CORTEX_STARTUP_PATHS" )
+
+
 
 if "CORTEX_POINTDISTRIBUTION_TILESET" not in os.environ :
 	os.environ["CORTEX_POINTDISTRIBUTION_TILESET"] = str( gafferRoot / "resources" / "cortex" / "tileset_2048.dat" )
