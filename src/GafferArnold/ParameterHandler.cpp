@@ -43,11 +43,12 @@
 #include "Gaffer/Node.h"
 #include "Gaffer/PlugAlgo.h"
 #include "Gaffer/ScriptNode.h"
-#include "Gaffer/SplinePlug.h"
+#include "Gaffer/RampPlug.h"
 #include "Gaffer/StringPlug.h"
 #include "Gaffer/TypedPlug.h"
 
 #include "IECore/MessageHandler.h"
+#include "IECore/Ramp.h"
 
 #include "boost/container/flat_set.hpp"
 
@@ -323,7 +324,7 @@ const string nodeName ( Gaffer::GraphComponent *plugParent )
 	return node->relativeName( node->scriptNode() );
 }
 
-void updatePoints( Splineff::PointContainer &points, const AtParamEntry *positionsParameter, const AtParamEntry *valuesParameter )
+void updatePoints( Rampff::PointContainer &points, const AtParamEntry *positionsParameter, const AtParamEntry *valuesParameter )
 {
 	AtArray *positionsArray = AiParamGetDefault( positionsParameter )->ARRAY();
 	AtArray *valuesArray = AiParamGetDefault( valuesParameter )->ARRAY();
@@ -333,14 +334,14 @@ void updatePoints( Splineff::PointContainer &points, const AtParamEntry *positio
 
 	for( size_t i = 0; ( i < AiArrayGetNumElements( positionsArray ) ) && ( i < AiArrayGetNumElements( valuesArray ) ); ++i )
 	{
-		points.insert( Splineff::Point( positions[i], values[i] ) );
+		points.insert( Rampff::Point( positions[i], values[i] ) );
 	}
 
 	AiArrayUnmap( positionsArray );
 	AiArrayUnmap( valuesArray );
 }
 
-void updatePoints( SplinefColor3f::PointContainer &points, const AtParamEntry *positionsParameter, const AtParamEntry *valuesParameter )
+void updatePoints( RampfColor3f::PointContainer &points, const AtParamEntry *positionsParameter, const AtParamEntry *valuesParameter )
 {
 	AtArray *positionsArray = AiParamGetDefault( positionsParameter )->ARRAY();
 	AtArray *valuesArray = AiParamGetDefault( valuesParameter )->ARRAY();
@@ -351,7 +352,7 @@ void updatePoints( SplinefColor3f::PointContainer &points, const AtParamEntry *p
 	for( size_t i = 0; ( i < AiArrayGetNumElements( positionsArray ) ) && ( i < AiArrayGetNumElements( valuesArray ) ); ++i )
 	{
 		points.insert(
-			SplinefColor3f::Point(
+			RampfColor3f::Point(
 				positions[i],
 				Color3f(
 					values[i][0],
@@ -367,28 +368,28 @@ void updatePoints( SplinefColor3f::PointContainer &points, const AtParamEntry *p
 }
 
 // From https://help.autodesk.com/view/ARNOL/ENU/?guid=arnold_user_guide_ac_texture_shaders_ac_texture_ramp_html
-SplineDefinitionInterpolation basisFromArray( const AtParamEntry *basisParameter )
+RampInterpolation interpolationFromArray( const AtParamEntry *interpolationParameter )
 {
-	AtArray *interpolationArray = AiParamGetDefault( basisParameter )->ARRAY();
+	AtArray *interpolationArray = AiParamGetDefault( interpolationParameter )->ARRAY();
 	const int *interpolations = (const int *)AiArrayMap( interpolationArray );
 	const int basis = interpolations[0];
 	AiArrayUnmap( interpolationArray );
 
 	switch( basis )
 	{
-		case 0 : return SplineDefinitionInterpolationConstant;
-		case 1 : return SplineDefinitionInterpolationLinear;
-		case 2 : return SplineDefinitionInterpolationCatmullRom;
-		case 3 : return SplineDefinitionInterpolationMonotoneCubic;
-		default : return SplineDefinitionInterpolationCatmullRom;
+		case 0 : return RampInterpolation::Constant;
+		case 1 : return RampInterpolation::Linear;
+		case 2 : return RampInterpolation::CatmullRom;
+		case 3 : return RampInterpolation::MonotoneCubic;
+		default : return RampInterpolation::CatmullRom;
 	}
 }
 
-bool findSplineParameters(
+bool findRampParameters(
 	const AtNodeEntry *nodeEntry,
 	const AtParamEntry * &positionsParameter,
 	const AtParamEntry * &valuesParameter,
-	const AtParamEntry * &basisParameter
+	const AtParamEntry * &interpolationParameter
 )
 {
 	AtParamIterator *it = AiNodeEntryGetParamIterator( nodeEntry );
@@ -409,26 +410,26 @@ bool findSplineParameters(
 		}
 		else if( name == g_interpolationArnoldString )
 		{
-			basisParameter = param;
+			interpolationParameter = param;
 		}
 	}
 	AiParamIteratorDestroy( it );
 
-	return positionsParameter && valuesParameter && basisParameter;
+	return positionsParameter && valuesParameter && interpolationParameter;
 }
 
 template <typename PlugType>
-Plug *loadSplineParameters(
+Plug *loadRampParameters(
 	const AtParamEntry *positionsParameter,
 	const AtParamEntry *valuesParameter,
-	const AtParamEntry *basisParameter,
+	const AtParamEntry *interpolationParameter,
 	const InternedString &name,
 	Gaffer::Plug *parent
 )
 {
 	typename PlugType::ValueType defaultValue;
 
-	defaultValue.interpolation = basisFromArray( basisParameter );
+	defaultValue.interpolation = interpolationFromArray( interpolationParameter );
 
 	updatePoints( defaultValue.points, positionsParameter, valuesParameter );
 
@@ -444,33 +445,33 @@ Plug *loadSplineParameters(
 	return plug.get();
 }
 
-Plug *loadSplineParameter( const AtNodeEntry *nodeEntry, Gaffer::Plug *parent )
+Plug *loadRampParameter( const AtNodeEntry *nodeEntry, Gaffer::Plug *parent )
 {
 	const AtParamEntry *positionsParameter = nullptr;
 	const AtParamEntry *valuesParameter = nullptr;
-	const AtParamEntry *basisParameter = nullptr;
+	const AtParamEntry *interpolationParameter = nullptr;
 
-	if( !findSplineParameters( nodeEntry, positionsParameter, valuesParameter, basisParameter ) )
+	if( !findRampParameters( nodeEntry, positionsParameter, valuesParameter, interpolationParameter ) )
 	{
 		return nullptr;
 	}
 
 	if( strcmp( AiNodeEntryGetName( nodeEntry ), g_rampRgbShaderName ) == 0 )
 	{
-		return loadSplineParameters<SplinefColor3fPlug>( positionsParameter, valuesParameter, basisParameter, "ramp", parent );
+		return loadRampParameters<RampfColor3fPlug>( positionsParameter, valuesParameter, interpolationParameter, "ramp", parent );
 	}
 	else
 	{
-		return loadSplineParameters<SplineffPlug>( positionsParameter, valuesParameter, basisParameter, "ramp", parent );
+		return loadRampParameters<RampffPlug>( positionsParameter, valuesParameter, interpolationParameter, "ramp", parent );
 	}
 }
 
 bool isRampParameter( const AtString &name )
 {
 	return name == g_positionArnoldString ||
-				 name == g_valueArnoldString ||
-				 name == g_colorArnoldString ||
-				 name == g_interpolationArnoldString;
+		   name == g_valueArnoldString ||
+		   name == g_colorArnoldString ||
+		   name == g_interpolationArnoldString;
 }
 
 
@@ -767,7 +768,7 @@ void ParameterHandler::setupPlugs( const AtNodeEntry *nodeEntry, Gaffer::GraphCo
 							  strcmp( AiNodeEntryGetName( nodeEntry ), g_rampRgbShaderName ) == 0;
 	if( isRampShader )	
 	{
-		validPlugs.insert( loadSplineParameter( nodeEntry, IECore::runTimeCast<Gaffer::Plug>( plugsParent ) ) );
+		validPlugs.insert( loadRampParameter( nodeEntry, IECore::runTimeCast<Gaffer::Plug>( plugsParent ) ) );
 	}
 
 	AtParamIterator *it = AiNodeEntryGetParamIterator( nodeEntry );
