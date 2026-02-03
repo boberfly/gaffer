@@ -6,11 +6,17 @@ Improvements
 
 - ArnoldShader : The `standard_volume` shader is now assigned via an `ai:volume` attribute instead of `ai:surface`. This matches volume assignments imported from USD, and means that Gaffer now exports materials to USD using the same convention.
 - InteractiveRender : Added `useVisibleSet` plug. When on, only the scene locations contained in the Visible Set will be rendered.
+- Application : Matched TBB worker thread stack limit to the limit for the main thread. On Linux, this can be configured with `ulimit -s`.
 
 Fixes
 -----
 
 - RenderController : Fixed bug where repeatedly setting the same VisibleSet could cause unnecessary updates.
+
+API
+---
+
+- Metadata : `ValueFunctions` now receive a `target` parameter. This is particularly useful when registering a function against a wildcard pattern.
 
 Breaking Changes
 ----------------
@@ -22,21 +28,82 @@ Breaking Changes
 - SceneEditor : Removed `numInputs` argument to `Settings` constructor.
 - UserPlugs : Removed - use `PlugCreationWidget` instead.
 - CompoundDataPlugValueWidget : Removed. LayoutPlugValueWidget and PlugCreationWidget replace all previous functionality.
-- Gaffer::SplinePlug :
-  - Removed support for loading splines saved with Gaffer version 0.40.0.0 and earlier
-  - Renamed to Gaffer::RampPlug. Removed SplineDefinition ( use IECore::Ramp instead ).
-- OSL Shaders : Pattern/FloatSpline and Pattern/ColorSpline have been replaced by Pattern/FloatRamp and Pattern/ColorRamp. Old Gaffer scripts will automatically be updated on load, files exported from Gaffer will contain the new shaders. ( The .osl files for the old shaders are still included, so that old USD files can render ).
+- SplinePlug :
+  - Renamed to RampPlug.
+  - Removed SplineDefinition (use `IECore::Ramp` instead).
+  - Removed support for loading splines saved with Gaffer version 0.40.0.0 and earlier.
+- OSL Shaders : Replaced `Pattern/FloatSpline` and `Pattern/ColorSpline` with `Pattern/FloatRamp` and `Pattern/ColorRamp`. Old Gaffer scripts will be updated automatically on load, and when resaved will reference the new shaders. Note that the `.osl` files for the old shaders are still available, so that old USD files will continue to render.
 - GafferUI : Renamed SplineWidget to RampWidget. Renamed SplinePlugValueWidget to RampPlugValueWidget. The old RampPlugValueWidget is no longer exposed, since it was only used internally.
+- Metadata : Added `target` argument to `ValueFunction` signature.
 
 Build
 -----
 
+- Boost : Updated to version 1.85.0.
 - Cortex : Updated to version 10.7.0.0a3.
+- Imath : Updated to version 3.1.12.
+- Jemalloc : Removed when building on macOS.
+- LLVM : Updated to version 17.0.6.
+- OpenColorIO : Updated to version 2.4.2.
+- OpenEXR : Updated to version 3.3.6.
+- OpenShadingLanguage : Updated to version 1.14.8.0.
+- PySide : Updated to version 6.5.8.
+- Python : Updated to version 3.11.14.
+- Qt : Updated to version 6.5.8.
+- TBB : Updated to version 2021.13.0.
 
-1.6.x.x (relative to 1.6.9.1)
+1.6.x.x (relative to 1.6.10.0)
 =======
 
+Improvements
+------------
 
+- RenderMan : Added support for RenderMan 26.4.
+- RenderManAttributes : Added trace set support via `grouping:membership` and `trace:*subset` attributes.
+- ArnoldLight : Added viewport visualisation of the `quad_light.roundness` parameter.
+- USDLight : Added viewport visualisation of Arnold parameters `lens_radius`, `spread` and `roundness`.
+
+Fixes
+-----
+
+- RenderMan : Fixed handling of custom camera parameters prefixed with `ri:` (#6775).
+
+1.6.10.0 (relative to 1.6.9.1)
+========
+
+Improvements
+------------
+
+- SceneTestCase : Added GlobalsSanitiser.
+
+Fixes
+-----
+
+- NodeEditor : Fixed "Revert to Defaults" to handle ganged plugs, and other plugs where a subset of children have input connections. In this case, the subset without inputs now revert correctly to their default values.
+- ShaderTweaks : Fixed context handling in "From Affected" and "From Selected" menu items.
+- SceneTestCase, ImageTestCase : Sanitisers are no longer installed when testing performance, since they add additional overhead.
+- RenderMan :
+  - Fixed `R10043 {WARNING} inputMaterial, unknown or mismatched input parameter of PxrSurface`.
+  - Fixed offset when reducing crop window size in RIS (#6727).
+  - Fixed unwanted creation of new Catalogue images from InteractiveRenders in the following situations :
+    - Changing camera.
+    - Changing pixel filter or filter width.
+    - Enlarging the crop region when rendering with RIS.
+    - Changing the resolution.
+    - Adding or removing outputs.
+  - Added workaround for RenderMan interactive denoiser bugs :
+    - Data window not updating when the crop window is edited.
+    - Crashes when the crop window is edited.
+- RenderPassEditor :
+  - Added RenderMan XPU support for Gaffer's inbuilt render pass types.
+  - Improved performance of render adaptors when computing the scene globals.
+
+API
+---
+
+- PlugCreationWidget : Added `context()` method.
+- TestRunner : Added `PerformanceTestMethod.isDecorated()` for detection of performance test methods.
+- GlobalsSanitiser : Added monitor for detecting `ScenePlug.globals` computations depending on other aspects of the scene.
 
 1.6.9.1 (relative to 1.6.9.0)
 =======
