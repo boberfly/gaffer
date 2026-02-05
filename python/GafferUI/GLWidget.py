@@ -74,6 +74,7 @@ elif Qt.__binding__ == "PySide6" :
 	from PySide6 import QtGui
 	from PySide6 import QtWidgets
 	from PySide6.QtOpenGLWidgets import QOpenGLWidget
+	from PySide6.QtGui import QSurfaceFormat
 else :
 	raise Exception( "GLWidget : No compatible Qt Python binding found" )
 
@@ -284,16 +285,22 @@ class _GLGraphicsView( QtWidgets.QGraphicsView ) :
 		Create a QGLFormat based on the configuration of
 		QSurfaceFormat where possible.
 		"""
-		qGLFormat = QtOpenGL.QGLFormat()
-		qGLFormat.setRgba( True )
-
-		qGLFormat.setAlpha( format.hasAlpha() )
-
-		if format.depthBufferSize() > 1:
-			qGLFormat.setDepth( True )
-
-		if format.samples() > 1:
-			qGLFormat.setSampleBuffers( True )
+		if Qt.__binding__ == "PySide2" :
+			qGLFormat = QtOpenGL.QGLWidget()
+			qGLFormat.setRgba( True )
+			qGLFormat.setAlpha( format.hasAlpha() )
+			if format.depthBufferSize() > 1 :
+				qGLFormat.setDepth( True )
+		elif Qt.__binding__ == "PySide6" :
+			qGLFormat = QtGui.QSurfaceFormat()
+			if format.hasAlpha() :
+				qGLFormat.setAlphaBufferSize( 8 )
+			if format.depthBufferSize() > 1 :
+				qGLFormat.setDepthBufferSize( 24 )
+			if format.samples() > 1:
+				qGLFormat.setSamples( format.samples() )
+		else :
+			raise Exception( "GLWidget : No compatible Qt Python binding found" )
 
 		return qGLFormat
 
@@ -311,7 +318,13 @@ class _GLGraphicsView( QtWidgets.QGraphicsView ) :
 		# method.
 
 		qGLFormat = cls.__createQGLFormat( format )
-		result = QtOpenGL.QGLWidget()
+		result = None
+		if Qt.__binding__ == "PySide2" :
+			result = QtOpenGL.QGLWidget()
+		elif Qt.__binding__ == "PySide6" :
+			result = QOpenGLWidget()
+		else :
+			raise Exception( "GLWidget : No compatible Qt Python binding found" )
 		_GafferUI._glWidgetSetHostedContext( GafferUI._qtAddress( result ), GafferUI._qtAddress( qGLFormat ) )
 		return result
 
