@@ -1947,12 +1947,18 @@ for libraryName, libraryDef in libraries.items() :
 	if librarySource :
 
 		libraryInstallName = libraryDef.get( "installName", "lib/" + libraryName )
+		if os.name == "nt" and (env["BUILD_TYPE"] == "RELWITHDEBINFO" or env["BUILD_TYPE"] == "DEBUG") :
+			libEnv["PDB"] = libraryInstallName+".pdb"
+			libraryPDB = [libEnv["PDB"]]
+		else :
+			libraryPDB = []
+
 		library = libEnv.SharedLibrary( libraryInstallName, librarySource )
 		libEnv.Default( library )
 
 		libraryInstall = libEnv.Install(
 			os.path.join( installRoot, os.path.dirname( libraryInstallName ) ),
-			library
+			library + libraryPDB
 		)
 		libEnv.Alias( "buildCore", libraryInstall )
 
@@ -2003,10 +2009,17 @@ for libraryName, libraryDef in libraries.items() :
 	bindingsSource = sorted( glob.glob( "src/" + libraryName + "Bindings/*.cpp" ) )
 	if bindingsSource :
 
-		bindingsLibrary = bindingsEnv.SharedLibrary( "lib/" + libraryName + "Bindings", bindingsSource )
+		bindingsName = "lib/" + libraryName + "Bindings"
+		if os.name == "nt" and (env["BUILD_TYPE"] == "RELWITHDEBINFO" or env["BUILD_TYPE"] == "DEBUG") :
+			bindingsEnv["PDB"] = bindingsName + ".pdb"
+			bindingsPDB = [bindingsEnv["PDB"]]
+		else :
+			bindingsPDB = []
+
+		bindingsLibrary = bindingsEnv.SharedLibrary( bindingsName, bindingsSource )
 		bindingsEnv.Default( bindingsLibrary )
 
-		bindingsLibraryInstall = bindingsEnv.Install( os.path.join( installRoot, "lib" ), bindingsLibrary )
+		bindingsLibraryInstall = bindingsEnv.Install( os.path.join( installRoot, "lib" ), bindingsLibrary + bindingsPDB )
 		env.Alias( "buildCore", bindingsLibraryInstall )
 
 	# bindings header install
@@ -2038,10 +2051,17 @@ for libraryName, libraryDef in libraries.items() :
 		elif pythonModuleEnv["PLATFORM"] == "win32" :
 			pythonModuleEnv["SHLIBSUFFIX"] = ".pyd"
 
-		pythonModule = pythonModuleEnv.SharedLibrary( "python/" + libraryName + "/_" + libraryName, pythonModuleSource )
+		pythonModuleName = "python/" + libraryName + "/_" + libraryName
+		if os.name == "nt" and (env["BUILD_TYPE"] == "RELWITHDEBINFO" or env["BUILD_TYPE"] == "DEBUG") :
+			pythonModuleEnv["PDB"] = pythonModuleName + ".pdb"
+			pythonModulePDB = [pythonModuleEnv["PDB"]]
+		else :
+			pythonModulePDB = []
+
+		pythonModule = pythonModuleEnv.SharedLibrary( pythonModuleName, pythonModuleSource )
 		pythonModuleEnv.Default( pythonModule )
 
-		moduleInstall = pythonModuleEnv.Install( os.path.join( installRoot, "python", libraryName ), pythonModule )
+		moduleInstall = pythonModuleEnv.Install( os.path.join( installRoot, "python", libraryName ), pythonModule + pythonModulePDB )
 		pythonModuleEnv.Alias( "buildCore", moduleInstall )
 
 	# Moc preprocessing, for QObject derived classes. SCons does include a "qt" tool that
