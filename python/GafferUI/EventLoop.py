@@ -94,6 +94,12 @@ class EventLoop( object ) :
 			except ImportError :
 				pass
 
+			try :
+				import Katana
+				self.__runStyle = self.__RunStyle.AlreadyRunning
+			except ImportError :
+				pass
+
 		self.__startCount = 0
 		self.__pumpThread = None
 		self.__houdiniCallback = None
