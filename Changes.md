@@ -7,6 +7,9 @@ Improvements
 - ArnoldShader : The `standard_volume` shader is now assigned via an `ai:volume` attribute instead of `ai:surface`. This matches volume assignments imported from USD, and means that Gaffer now exports materials to USD using the same convention.
 - InteractiveRender : Added `useVisibleSet` plug. When on, only the scene locations contained in the Visible Set will be rendered.
 - Application : Matched TBB worker thread stack limit to the limit for the main thread. On Linux, this can be configured with `ulimit -s`.
+- bin :
+  - Moved  `_gaffer.py` and `__gaffer.py` to a new `__private` subdirectory within `bin`.
+  - Added a dedicated `gaffer` executable to `bin/__private` to be used instead of `python`. This causes the root process to be called `gaffer` on all platforms. The `bin/gaffer` and `bin/gaffer.cmd` launch scripts should still be used as before (#6654).
 
 Fixes
 -----
@@ -52,8 +55,21 @@ Build
 - Qt : Updated to version 6.5.8.
 - TBB : Updated to version 2021.13.0.
 
-1.6.x.x (relative to 1.6.10.0)
+1.6.x.x (relative to 1.6.11.1)
 =======
+
+
+
+1.6.11.1 (relative to 1.6.11.0)
+========
+
+Fixes
+-----
+
+- Scene Editors : Fixed bug which could cause crashes at shutdown.
+
+1.6.11.0 (relative to 1.6.10.0)
+========
 
 Improvements
 ------------
@@ -66,7 +82,15 @@ Improvements
 Fixes
 -----
 
+- SceneInspector : Fixed display of shader parameters with an input connection but no value. Common examples included
+  Arnold's `LayerShader` closure inputs and RenderMan's `LamaSurface` material inputs.
 - RenderMan : Fixed handling of custom camera parameters prefixed with `ri:` (#6775).
+- SceneReader : Fixed reading of USD materials containing connections involving UsdShadeNodeGraph interface parameters.
+
+Build
+-----
+
+- Cortex : Updated to version 10.6.3.1.
 
 1.6.10.0 (relative to 1.6.9.1)
 ========
