@@ -860,12 +860,6 @@ if commandEnv["ASAN"] :
 	commandEnv["ENV"]["LD_PRELOAD"] = commandEnv["ASAN_LIB"]
 	# ASan detects loads of memory leaks in Python, so turn leak detection off.
 	commandEnv["ENV"]["ASAN_OPTIONS"] = "detect_leaks=0"
-# In some build scenarios a custom python binary might be used
-if env["PYTHON"]:
-	commandEnv["ENV"]["GAFFER_PYTHON"] = env["PYTHON"]
-	commandEnv["ENV"]["PYTHONHOME"] = os.path.dirname( env["PYTHON"] )
-else:
-	commandEnv["ENV"]["GAFFER_PYTHON"] = "$BUILD_DIR/bin/python"
 
 if "IECORE_DLL_DIRECTORIES" in os.environ :
 	# When building for Windows as of python 3.8, os.add_dll_directories must know of

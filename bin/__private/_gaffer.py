@@ -74,7 +74,7 @@ def prependToPath( pathToPrepend, envVar ) :
 
 	os.environ[envVar] = os.pathsep.join( path )
 
-gafferRoot = pathlib.Path( __file__ ).resolve().parents[1]
+gafferRoot = pathlib.Path( __file__ ).resolve().parents[2]
 cortexRoot = pathlib.Path( os.environ["CORTEX_ROOT"] ).resolve()
 
 # Clean environment setup
@@ -134,7 +134,10 @@ prependToPath( pathlib.Path.home() / "gaffer" / "apps", "GAFFER_APP_PATHS" )
 prependToPath( pathlib.Path.home() / "gaffer" / "startup", "GAFFER_STARTUP_PATHS" )
 appendToPath( gafferRoot / "startup", "GAFFER_STARTUP_PATHS" )
 prependToPath( gafferRoot / "graphics", "GAFFERUI_IMAGE_PATHS" )
-prependToPath( gafferRoot / "python", "PYTHONPATH" )
+if not 'GafferInit' in sys.modules :
+	prependToPath( gafferRoot / "python", "PYTHONPATH" )
+else :
+	appendToPath( gafferRoot / "python", "PYTHONPATH" )
 prependToPath( gafferRoot / "lib", libraryPath )
 prependToPath( gafferRoot / "bin", "PATH" )
 
@@ -423,17 +426,19 @@ if "PYTHONNOUSERSITE" not in os.environ :
 # Exec `__gaffer.py`
 # ==================
 
-args = [
-	sys.executable,
-	str( pathlib.Path( sys.argv[0] ).with_name( "__gaffer.py" ) )
-] + sys.argv[1:]
+if not 'GafferInit' in sys.modules:
 
-if sys.platform != "win32" :
-	os.execv( sys.executable, args )
-else :
-	# On Windows, Python emulates `execv()` badly by launching another process
-	# (rather than replacing this one) and not even waiting for it to finish.
-	# Use `subprocess.run()` so we can at least wait and pass on the return
-	# value.
-	import subprocess
-	sys.exit( subprocess.run( args ).returncode )
+	args = [
+		sys.executable,
+		str( pathlib.Path( sys.argv[0] ).with_name( "__gaffer.py" ) )
+	] + sys.argv[1:]
+
+	if sys.platform != "win32" :
+		os.execv( sys.executable, args )
+	else :
+		# On Windows, Python emulates `execv()` badly by launching another process
+		# (rather than replacing this one) and not even waiting for it to finish.
+		# Use `subprocess.run()` so we can at least wait and pass on the return
+		# value.
+		import subprocess
+		sys.exit( subprocess.run( args ).returncode )
