@@ -6,10 +6,10 @@ Improvements
 
 - ArnoldShader : The `standard_volume` shader is now assigned via an `ai:volume` attribute instead of `ai:surface`. This matches volume assignments imported from USD, and means that Gaffer now exports materials to USD using the same convention.
 - InteractiveRender : Added `useVisibleSet` plug. When on, only the scene locations contained in the Visible Set will be rendered.
-- Application : Matched TBB worker thread stack limit to the limit for the main thread. On Linux, this can be configured with `ulimit -s`.
-- bin :
-  - Moved  `_gaffer.py` and `__gaffer.py` to a new `__private` subdirectory within `bin`.
-  - Added a dedicated `gaffer` executable to `bin/__private` to be used instead of `python`. This causes the root process to be called `gaffer` on all platforms. The `bin/gaffer` and `bin/gaffer.cmd` launch scripts should still be used as before (#6654).
+- Application :
+  - Applications now run using a dedicated `gaffer` executable instead of `python`. This means the root process is now called `gaffer` on all platforms. The `bin/gaffer` (Linux) and `bin/gaffer.cmd` (Windows) launch scripts should still be used as before (#6654).
+  - Matched TBB worker thread stack limit to the limit for the main thread. On Linux, this can be configured with `ulimit -s`.
+- ShaderTweaks : Added support for tweaking ramp parameters.
 
 Fixes
 -----
@@ -20,6 +20,7 @@ API
 ---
 
 - Metadata : `ValueFunctions` now receive a `target` parameter. This is particularly useful when registering a function against a wildcard pattern.
+- PlugAlgo : Added `RampffData` and `RampfColor3fData` support to `createPlugFromData()`.
 
 Breaking Changes
 ----------------
@@ -55,10 +56,35 @@ Build
 - Qt : Updated to version 6.5.8.
 - TBB : Updated to version 2021.13.0.
 
-1.6.x.x (relative to 1.6.11.1)
+1.6.x.x (relative to 1.6.12.0)
 =======
 
 
+
+1.6.12.0 (relative to 1.6.11.1)
+========
+
+Improvements
+------------
+
+- RenderManShader :
+  - Defined pass-through behaviour for LamaAdd, LamaLayer and LamaMix. When disabled, these now pass through the `material1` input (`materialBase` for LamaLayer). Note that this will change the rendered look of shading networks where such shaders were previously disabled.
+  - Improved default visibility of shader parameters in the Graph Editor, showing only the most commonly used parameters for the most common shaders.
+- SceneInspector : Added inspection of shader networks in options and global attributes. Examples include RenderMan display filters and Arnold background shaders.
+- Menu : Added checks for reference cycles, emitting warnings if any are found.
+
+Fixes
+-----
+
+- RenderManDisplayFilter, RenderManSampleFilter :
+  - Fixed handling of dedicated XPU filters implemented in OSL.
+  - Fixed missing `NPRnormals` AOV required by PxrStylizedLines.
+- PythonEditor : Fixed reference cycle in "Execute" menu item.
+
+API
+---
+
+- Shader : Pass-throughs may now be defined by registering `correspondingInput` metadata against a `{shaderType}:{shaderName}:{outputName}` target.
 
 1.6.11.1 (relative to 1.6.11.0)
 ========
