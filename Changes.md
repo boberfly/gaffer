@@ -21,6 +21,9 @@ API
 
 - Metadata : `ValueFunctions` now receive a `target` parameter. This is particularly useful when registering a function against a wildcard pattern.
 - PlugAlgo : Added `RampffData` and `RampfColor3fData` support to `createPlugFromData()`.
+- Widget :
+  - Improved automatic parenting via the `with parent` syntax. Children are now guaranteed to be fully constructed before they are parented.
+  - Turned `toolTip`, `parenting` and `displayTransform` keyword-only constructor arguments.
 
 Breaking Changes
 ----------------
@@ -39,6 +42,7 @@ Breaking Changes
 - OSL Shaders : Replaced `Pattern/FloatSpline` and `Pattern/ColorSpline` with `Pattern/FloatRamp` and `Pattern/ColorRamp`. Old Gaffer scripts will be updated automatically on load, and when resaved will reference the new shaders. Note that the `.osl` files for the old shaders are still available, so that old USD files will continue to render.
 - GafferUI : Renamed SplineWidget to RampWidget. Renamed SplinePlugValueWidget to RampPlugValueWidget. The old RampPlugValueWidget is no longer exposed, since it was only used internally.
 - Metadata : Added `target` argument to `ValueFunction` signature.
+- Widget : The `toolTip`, `parenting` and `displayTransform` constructor arguments are no longer positional.
 
 Build
 -----
@@ -59,7 +63,18 @@ Build
 1.6.x.x (relative to 1.6.12.0)
 =======
 
+Improvements
+------------
 
+- Crop : Added `Auto` mode for `areaSource`, automatically cropping to show only non-empty pixels.
+- GraphEditor : Improved responsiveness of select-drag, by deferring NodeEditor update until the drag ends.
+- RenderManOptions : Added `ri:progress` option to control logging of render progress.
+
+API
+---
+
+- Widget : Added `currentButtons()` static method. This returns the state of the mouse buttons during the last UI event to be processed.
+- LazyMethod : Added `deferUntilButtonRelease` option.
 
 1.6.12.0 (relative to 1.6.11.1)
 ========
