@@ -169,7 +169,7 @@ if sys.platform == "win32" and "OSL_LOAD_DLLS_FROM_PATH" not in os.environ :
 # USD Setup
 # =========
 
-prependToPath( gafferRoot / "resources" / "IECoreUSD", "PXR_PLUGINPATH_NAME" )
+prependToPath( cortexRoot / "resources" / "IECoreUSD", "PXR_PLUGINPATH_NAME" )
 prependToPath( gafferRoot / "materialX", "PXR_MTLX_STDLIB_SEARCH_PATHS" )
 
 if sys.platform == "win32" and "PXR_USD_WINDOWS_DLL_PATH" not in os.environ :

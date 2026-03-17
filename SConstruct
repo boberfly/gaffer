@@ -2256,6 +2256,12 @@ if exeEnv["PLATFORM"] != "win32" :
 		],
 
 	)
+else :
+	exeEnv.Append(
+
+		LINKFLAGS = [ "/STACK:8388608" ]
+
+	)
 
 gafferExecutable = exeEnv.Program( "$BUILD_DIR/bin/__private/gaffer", "bin/__private/gaffer.cpp")
 env.Alias( "buildCore", gafferExecutable )
