@@ -362,14 +362,6 @@ IECore::CompoundDataPtr lightData()
 			in["use_caustics"] = _in["use_caustics"]->copy();
 			in["max_bounces"] = _in["max_bounces"]->copy();
 			in["strength"] = _in["strength"]->copy();
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) < 405
-			in["use_camera"] = _in["use_camera"]->copy();
-			in["use_diffuse"] = _in["use_diffuse"]->copy();
-			in["use_glossy"] = _in["use_glossy"]->copy();
-			in["use_transmission"] = _in["use_transmission"]->copy();
-			in["use_scatter"] = _in["use_scatter"]->copy();
-			in["lightgroup"] = _in["lightgroup"]->copy();
-#endif
 
 			if( type == "background_light" )
 			{
@@ -483,11 +475,9 @@ bool init()
 
 	ccl::path_init( cyclesRootValue );
 
-	// This is a global thing for logging
-	const char* argv[] = { "-", "v", "1" };
-	ccl::util_logging_init( argv[0] );
-	ccl::util_logging_start();
-	ccl::util_logging_verbosity_set( 0 );
+	/// \todo Register MessageHandler via `ccl::log_init( const LogFunction )`
+	ccl::log_init( nullptr );
+	ccl::log_level_set( ccl::LOG_LEVEL_ERROR );
 
 	// Store data for binding
 	g_deviceData = deviceData();

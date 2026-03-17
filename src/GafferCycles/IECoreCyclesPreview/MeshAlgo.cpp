@@ -64,19 +64,17 @@ namespace
 
 // Notes on Cycles normals :
 //
-// - Cycles meshes store two sets of normals as attributes :
-//    - A vertex normal ("N", ATTR_STD_VERTEX_NORMAL)
-//    - A face normal ("Ng", ATTR_STD_FACE_NORMAL)
-// - If we don't specify these attributes, they are computed for us
+// - Cycles meshes store vertex normals as ("N", ATTR_STD_VERTEX_NORMAL)
+// - If we don't specify vertex normals, they are computed for us
 //   and added to the mesh by Cycles itself by `Mesh::add_vertex_normals()`
-//   and `Mesh::add_face_normals()` respectively.
+// - Face normals are computed on demand in the Cycles kernel.
 // - Which normal is actually used for shading is determined on a
 //  triangle-by-triangle basis using the `smooth` flag passed
 //  to `Mesh::add_triangle()`.
 // - Cycles does not support facevarying normals.
 //
-// Also see `convertPrimitiveVariable()` where we handle the tagging
-// of normal attributes with ATTR_STD_VERTEX_NORMAL and ATTR_STD_FACE_NORMAL.
+// Also see `GeometryAlgo::convertPrimitiveVariable()` where we handle the
+// tagging of normal attributes with ATTR_STD_VERTEX_NORMAL.
 bool hasSmoothNormals( const IECoreScene::MeshPrimitive *mesh )
 {
 	auto it = mesh->variables.find( "N" );
@@ -137,23 +135,12 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *sc
 		}
 
 		const std::vector<int> &vertsPerFace = mesh->verticesPerFace()->readable();
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
 		size_t ncorners = 0;
 		for( size_t i = 0; i < vertsPerFace.size(); i++ )
 		{
 			ncorners += vertsPerFace[i];
 		}
-		cmesh->reserve_subd_faces(numFaces, ncorners);
-#else
-		size_t ngons = 0;
-		size_t ncorners = 0;
-		for( size_t i = 0; i < vertsPerFace.size(); i++ )
-		{
-			ngons += ( vertsPerFace[i] == 4 ) ? 0 : 1;
-			ncorners += vertsPerFace[i];
-		}
-		cmesh->reserve_subd_faces(numFaces, ngons, ncorners);
-#endif
+		cmesh->reserve_subd_faces( numFaces, ncorners );
 
 		int indexOffset = 0;
 		for( size_t i = 0; i < vertsPerFace.size(); i++ )
@@ -210,14 +197,18 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *sc
 		cmesh->reserve_mesh( numVerts, numFaces );
 
 		for( size_t i = 0; i < numVerts; i++ )
+		{
 			cmesh->add_vertex( ccl::make_float3( points[i].x, points[i].y, points[i].z ) );
+		}
 
 		const bool smooth = hasSmoothNormals( mesh );
 		for( size_t i = 0; i < vertexIds.size(); i+= 3 )
+		{
 			cmesh->add_triangle(
 				vertexIds[i], vertexIds[i+1], vertexIds[i+2],
 				/* shader = */ 0, /* smooth = */ smooth
 			);
+		}
 	}
 
 	// Convert primitive variables.
@@ -233,7 +224,9 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *sc
 		switch( variable.interpolation )
 		{
 			case PrimitiveVariable::Constant :
-				GeometryAlgo::convertPrimitiveVariable( name, variable, attributes, ccl::ATTR_ELEMENT_MESH );
+				// Constant primitive variables always go on `Mesh::attributes` rather than `Mesh::subd_attributes`,
+				// because they do not require subdivision.
+				GeometryAlgo::convertPrimitiveVariable( name, variable, cmesh->attributes, ccl::ATTR_ELEMENT_MESH );
 				break;
 			case PrimitiveVariable::Uniform :
 				GeometryAlgo::convertPrimitiveVariable( name, variable, attributes, ccl::ATTR_ELEMENT_FACE );
@@ -287,7 +280,9 @@ ccl::Geometry *convert( const std::vector<const IECoreScene::MeshPrimitive *> &m
 		for( int i = 0; i < numSamples; ++i )
 		{
 			if( i == frameIdx )
+			{
 				continue;
+			}
 			samples.push_back( meshes[i] );
 		}
 	}
@@ -299,7 +294,9 @@ ccl::Geometry *convert( const std::vector<const IECoreScene::MeshPrimitive *> &m
 		for( int i = 0; i < numSamples; ++i )
 		{
 			if( i == _frameIdx )
+			{
 				continue;
+			}
 			samples.push_back( meshes[i] );
 		}
 	}
@@ -345,7 +342,9 @@ ccl::Geometry *convert( const std::vector<const IECoreScene::MeshPrimitive *> &m
 					size_t numVerts = p->readable().size();
 
 					for( size_t j = 0; j < numVerts; ++j, ++mP )
+					{
 						*mP = ccl::make_float3( points[j].x, points[j].y, points[j].z );
+					}
 				}
 				else
 				{

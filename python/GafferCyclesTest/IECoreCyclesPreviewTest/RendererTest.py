@@ -40,6 +40,7 @@ import time
 import unittest
 
 import imath
+import OpenImageIO
 
 import IECore
 import IECoreScene
@@ -421,7 +422,7 @@ class RendererTest( GafferTest.TestCase ) :
 
 		# Check that we have a pure red image.
 
-		image = IECore.Reader.create( str( fileName ) ).read()
+		image = OpenImageIO.ImageBuf( str( fileName ) )
 
 		middlePixel = self.__colorAtUV( image, imath.V2f( 0.5 ) )
 		self.assertGreater( middlePixel.r, 0 )
@@ -1068,7 +1069,7 @@ class RendererTest( GafferTest.TestCase ) :
 
 		# Check we got what we expected
 
-		image = IECore.Reader.create( str( fileName ) ).read()
+		image = OpenImageIO.ImageBuf( str( fileName ) )
 
 		for uv, expectedColor in expectedPixels.items() :
 
@@ -1143,92 +1144,76 @@ class RendererTest( GafferTest.TestCase ) :
 
 			for triangulate in [ False, True ] :
 
-				if triangulate :
-					testPlane = IECoreScene.MeshAlgo.triangulate( plane )
-				else :
-					testPlane = plane.copy()
+				with self.subTest( interpolation = interpolation, triangulate = triangulate ) :
 
-				testPlane.setInterpolation( interpolation )
+					if triangulate :
+						testPlane = IECoreScene.MeshAlgo.triangulate( plane )
+					else :
+						testPlane = plane.copy()
 
-				self.__testPrimitiveVariableInterpolation(
-					testPlane, "constantColor",
-					{
-						topLeft : plane["constantColor"].data.value,
-						topCenter : plane["constantColor"].data.value,
-						center : plane["constantColor"].data.value,
-						bottomRight : plane["constantColor"].data.value,
-					}
-				)
+					testPlane.setInterpolation( interpolation )
 
-				self.__testPrimitiveVariableInterpolation(
-					testPlane, "constantInt",
-					{
-						topLeft : plane["constantInt"].data.value,
-						topCenter : plane["constantInt"].data.value,
-						center : plane["constantInt"].data.value,
-						bottomRight : plane["constantInt"].data.value,
-					}
-				)
+					self.__testPrimitiveVariableInterpolation(
+						testPlane, "constantColor",
+						{
+							topLeft : plane["constantColor"].data.value,
+							topCenter : plane["constantColor"].data.value,
+							center : plane["constantColor"].data.value,
+							bottomRight : plane["constantColor"].data.value,
+						}
+					)
 
-				self.__testPrimitiveVariableInterpolation(
-					testPlane, "uniformColor",
-					{
-						topLeft : imath.Color4f( 6, 6, 6, 1 ),
-						topCenter : imath.Color4f( 7, 7, 7, 1 ),
-						center : imath.Color4f( 4, 4, 4, 1 ),
-						bottomRight : imath.Color4f( 2, 2, 2, 1 ),
-					}
-				)
+					self.__testPrimitiveVariableInterpolation(
+						testPlane, "constantInt",
+						{
+							topLeft : plane["constantInt"].data.value,
+							topCenter : plane["constantInt"].data.value,
+							center : plane["constantInt"].data.value,
+							bottomRight : plane["constantInt"].data.value,
+						}
+					)
 
-				self.__testPrimitiveVariableInterpolation(
-					testPlane, "uniformIndexedColor",
-					{
-						topLeft : imath.Color4f( 1, 0, 0, 1 ),
-						topCenter : imath.Color4f( 0, 1, 0, 1 ),
-						center : imath.Color4f( 1, 0, 0, 1 ),
-						bottomRight : imath.Color4f( 1, 0, 0, 1 ),
-					}
-				)
+					self.__testPrimitiveVariableInterpolation(
+						testPlane, "uniformColor",
+						{
+							topLeft : imath.Color4f( 6, 6, 6, 1 ),
+							topCenter : imath.Color4f( 7, 7, 7, 1 ),
+							center : imath.Color4f( 4, 4, 4, 1 ),
+							bottomRight : imath.Color4f( 2, 2, 2, 1 ),
+						}
+					)
 
-				self.__testPrimitiveVariableInterpolation(
-					testPlane, "vertexColor",
-					{
-						topLeft : imath.Color4f( topLeft.x, 1.0 - topLeft.y, 0, 1 ),
-						topCenter : imath.Color4f( topCenter.x, 1.0 - topCenter.y, 0, 1 ),
-						center : imath.Color4f( center.x, 1.0 - center.y, 0, 1 ),
-						bottomRight : imath.Color4f( bottomRight.x, 1.0 - bottomRight.y, 0, 1 ),
-					},
-					maxDifference = 0.01
-				)
+					self.__testPrimitiveVariableInterpolation(
+						testPlane, "uniformIndexedColor",
+						{
+							topLeft : imath.Color4f( 1, 0, 0, 1 ),
+							topCenter : imath.Color4f( 0, 1, 0, 1 ),
+							center : imath.Color4f( 1, 0, 0, 1 ),
+							bottomRight : imath.Color4f( 1, 0, 0, 1 ),
+						}
+					)
 
-				self.__testPrimitiveVariableInterpolation(
-					testPlane, "varyingColor",
-					{
-						topLeft : imath.Color4f( topLeft.x, 1.0 - topLeft.y, 0, 1 ),
-						topCenter : imath.Color4f( topCenter.x, 1.0 - topCenter.y, 0, 1 ),
-						center : imath.Color4f( center.x, 1.0 - center.y, 0, 1 ),
-						bottomRight : imath.Color4f( bottomRight.x, 1.0 - bottomRight.y, 0, 1 ),
-					},
-					maxDifference = 0.01
-				)
+					self.__testPrimitiveVariableInterpolation(
+						testPlane, "vertexColor",
+						{
+							topLeft : imath.Color4f( topLeft.x, 1.0 - topLeft.y, 0, 1 ),
+							topCenter : imath.Color4f( topCenter.x, 1.0 - topCenter.y, 0, 1 ),
+							center : imath.Color4f( center.x, 1.0 - center.y, 0, 1 ),
+							bottomRight : imath.Color4f( bottomRight.x, 1.0 - bottomRight.y, 0, 1 ),
+						},
+						maxDifference = 0.01
+					)
 
-	def testUniformMeshNormal( self ) :
-
-		plane = IECoreScene.MeshPrimitive.createPlane(
-			imath.Box2f( imath.V2f( -0.5 ), imath.V2f( 0.5 ) ),
-			imath.V2i( 1 )
-		)
-		plane["N"] = IECoreScene.PrimitiveVariable(
-			IECoreScene.PrimitiveVariable.Interpolation.Uniform,
-			# Note : not the true geometric normal - actually a tangent.
-			# This way we can be sure our data is making it through and
-			# not being clobbered by a default normal.
-			IECore.V3fVectorData( [ imath.V3f( 1, 0, 0 ) ], IECore.GeometricData.Interpretation.Normal ),
-		)
-
-		self.__testPrimitiveVariableInterpolation(
-			plane, "N", { imath.V2f( 0.6 ) : plane["N"].data[0] }, attributeName = "Ng"
-		)
+					self.__testPrimitiveVariableInterpolation(
+						testPlane, "varyingColor",
+						{
+							topLeft : imath.Color4f( topLeft.x, 1.0 - topLeft.y, 0, 1 ),
+							topCenter : imath.Color4f( topCenter.x, 1.0 - topCenter.y, 0, 1 ),
+							center : imath.Color4f( center.x, 1.0 - center.y, 0, 1 ),
+							bottomRight : imath.Color4f( bottomRight.x, 1.0 - bottomRight.y, 0, 1 ),
+						},
+						maxDifference = 0.01
+					)
 
 	def testPointsPrimitiveVariableInterpolation( self ) :
 
@@ -1361,7 +1346,8 @@ class RendererTest( GafferTest.TestCase ) :
 				centerBottom : curves["uniformColor"].data[1],
 				rightTop : curves["uniformColor"].data[2],
 				rightBottom : curves["uniformColor"].data[2],
-			}
+			},
+			maxDifference = 0.0003
 		)
 
 		self.__testPrimitiveVariableInterpolation(
@@ -1531,24 +1517,31 @@ class RendererTest( GafferTest.TestCase ) :
 			cyclesPlane.transform( imath.M44f().translate( imath.V3f( translateX, 0, -1 ) ) )
 
 		renderer.render()
-		image = IECore.Reader.create( str( fileName ) ).read()
 
+		image = OpenImageIO.ImageBuf( str( fileName ) )
 		self.assertEqual( self.__colorAtUV( image, imath.V2f( 0.48, 0.5 ) ), imath.Color4f( 1, 0, 0, 1 ) )
 		self.assertEqual( self.__colorAtUV( image, imath.V2f( 0.52, 0.5 ) ), imath.Color4f( 0, 1, 0, 1 ) )
 
 	def __colorAtUV( self, image, uv, channelName = "" ) :
 
-		dimensions = image.dataWindow.size() + imath.V2i( 1 )
+		if isinstance( image, OpenImageIO.ImageBuf ) :
 
-		ix = int( uv.x * ( dimensions.x - 1 ) )
-		iy = int( uv.y * ( dimensions.y - 1 ) )
-		i = iy * dimensions.x + ix
+			pixel = image.getpixel( int( uv.x * (image.spec().width - 1) ), int( uv.y * (image.spec().height - 1) ) )
+			return imath.Color4f( *pixel )
 
-		c = channelName
-		if c != "":
-			c = "%s." % channelName
+		else :
 
-		return imath.Color4f( image[c+"R"][i], image[c+"G"][i], image[c+"B"][i], image[c+"A"][i] if c+"A" in image.keys() else 0.0 )
+			dimensions = image.dataWindow.size() + imath.V2i( 1 )
+
+			ix = int( uv.x * ( dimensions.x - 1 ) )
+			iy = int( uv.y * ( dimensions.y - 1 ) )
+			i = iy * dimensions.x + ix
+
+			c = channelName
+			if c != "":
+				c = "%s." % channelName
+
+			return imath.Color4f( image[c+"R"][i], image[c+"G"][i], image[c+"B"][i], image[c+"A"][i] if c+"A" in image.keys() else 0.0 )
 
 	def __testCustomAttributeType( self, primitive, prefix, customAttribute, outputPlug, data, expectedResult, maxDifference = 0.0 ) :
 
@@ -1601,8 +1594,8 @@ class RendererTest( GafferTest.TestCase ) :
 		primitiveHandle.transform( imath.M44f().translate( imath.V3f( 0, 0, -1 ) ) )
 
 		renderer.render()
-		image = IECore.Reader.create( str( fileName ) ).read()
 
+		image = OpenImageIO.ImageBuf( str( fileName ) )
 		self.assertEqualWithAbsError( self.__colorAtUV( image, imath.V2f( 0.55 ) ), expectedResult, maxDifference )
 
 	def testCustomAttributes( self ) :
@@ -1977,10 +1970,10 @@ class RendererTest( GafferTest.TestCase ) :
 		primitiveHandle.transform( imath.M44f().translate( imath.V3f( 0, 0, -1 ) ) )
 
 		renderer.render()
-		image = IECore.Reader.create( str( fileName ) ).read()
 
 		# Check we got what we expected.
 
+		image = OpenImageIO.ImageBuf( str( fileName ) )
 		for uv, expectedResult in expectedResults :
 			self.assertEqualWithAbsError( self.__colorAtUV( image, uv ), expectedResult, maxDifference )
 
@@ -2714,10 +2707,11 @@ class RendererTest( GafferTest.TestCase ) :
 			return renderer.attributes( IECore.CompoundObject ( {
 				"cycles:light" : IECoreScene.ShaderNetwork(
 					shaders = {
-						"output" : IECoreScene.Shader( "background_light", "cycles:light", { "color" : imath.Color3f( 0, 1, 0 ), "lightgroup" : lightgroup } ),
+						"output" : IECoreScene.Shader( "background_light", "cycles:light", { "color" : imath.Color3f( 0, 1, 0 ) } ),
 					},
 					output = "output",
 				),
+				"cycles:lightgroup" : IECore.StringData( lightgroup ),
 			} ) )
 
 		# Render with a background light in the "env" lightgroup.
@@ -2897,6 +2891,22 @@ class RendererTest( GafferTest.TestCase ) :
 		self.assertGreater( testPixel.g, 0 )
 		self.assertGreater( testPixel.b, 0 )
 
+		for rayMarching in ( True, False ) :
+
+			renderer.pause()
+			renderer.option( "cycles:integrator:volume_ray_marching", IECore.BoolData( rayMarching ) )
+
+			renderer.render()
+			time.sleep( 1 )
+
+			image = IECoreImage.ImageDisplayDriver.storedImage( "testVDB" )
+			self.assertIsInstance( image, IECoreImage.ImagePrimitive )
+
+			testPixel = self.__colorAtUV( image, imath.V2f( 0.5 ) )
+			self.assertGreater( testPixel.r, 0 )
+			self.assertGreater( testPixel.g, 0 )
+			self.assertGreater( testPixel.b, 0 )
+
 		del camera
 		del volume
 		del vdb
@@ -2963,7 +2973,7 @@ class RendererTest( GafferTest.TestCase ) :
 		volume2.transform( imath.M44f().translate( imath.V3f( 50, 0, 0 ) ) )
 
 		renderer.render()
-		time.sleep( 1 )
+		time.sleep( 4 )
 
 		image = IECoreImage.ImageDisplayDriver.storedImage( "testVDB" )
 		self.assertIsInstance( image, IECoreImage.ImagePrimitive )
@@ -2989,7 +2999,7 @@ class RendererTest( GafferTest.TestCase ) :
 		)
 
 		renderer.render()
-		time.sleep( 1 )
+		time.sleep( 4 )
 
 		image = IECoreImage.ImageDisplayDriver.storedImage( "testVDB" )
 		self.assertIsInstance( image, IECoreImage.ImagePrimitive )

@@ -249,9 +249,6 @@ struct NodeDeleter
 
 	};
 
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) < 405
-	using LightDeleter = Deleter<ccl::Light>;
-#endif
 	using GeometryDeleter = Deleter<ccl::Geometry>;
 	using ObjectDeleter = Deleter<ccl::Object>;
 
@@ -260,13 +257,6 @@ struct NodeDeleter
 		std::lock_guard lock( m_mutex );
 		std::lock_guard sceneLock( m_scene->mutex );
 
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) < 405
-		if( m_pendingLightDeletions.size() )
-		{
-			m_scene->delete_nodes( m_pendingLightDeletions );
-			m_pendingLightDeletions.clear();
-		}
-#endif
 		if( m_pendingObjectDeletions.size() )
 		{
 			m_scene->delete_nodes( m_pendingObjectDeletions );
@@ -280,14 +270,6 @@ struct NodeDeleter
 	}
 
 	private :
-
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) < 405
-		void scheduleDeletion( ccl::Light *light )
-		{
-			std::lock_guard lock( m_mutex );
-			m_pendingLightDeletions.insert( light );
-		}
-#endif
 
 		void scheduleDeletion( ccl::Object *object )
 		{
@@ -304,9 +286,6 @@ struct NodeDeleter
 		ccl::Scene *m_scene;
 
 		std::mutex m_mutex;
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) < 405
-		std::set<ccl::Light *> m_pendingLightDeletions;
-#endif
 		std::set<ccl::Object *> m_pendingObjectDeletions;
 		std::set<ccl::Geometry *> m_pendingGeometryDeletions;
 
@@ -471,7 +450,6 @@ ccl::DisplacementMethod displacementMethodFromString( const string &name )
 IECore::InternedString g_shaderEmissionSamplingMethodAttributeName( "cycles:shader:emission_sampling_method" );
 IECore::ConstStringDataPtr g_shaderEmissionSamplingMethodAttributeDefault = new StringData( "auto" );
 IECore::InternedString g_shaderUseTransparentShadowAttributeName( "cycles:shader:use_transparent_shadow" );
-IECore::InternedString g_shaderHeterogeneousVolumeAttributeName( "cycles:shader:heterogeneous_volume" );
 IECore::InternedString g_shaderVolumeSamplingMethodAttributeName( "cycles:shader:volume_sampling_method" );
 IECore::ConstStringDataPtr g_shaderVolumeSamplingMethodAttributeDefault = new StringData( "multiple_importance" );
 IECore::InternedString g_shaderVolumeInterpolationMethodAttributeName( "cycles:shader:volume_interpolation_method" );
@@ -497,7 +475,9 @@ class CyclesShader : public IECore::RefCounted
 			:	m_hash( h )
 		{
 			std::unique_ptr<ccl::ShaderGraph> graph = ShaderNetworkAlgo::convertGraph(
-				surfaceShader, displacementShader, volumeShader, scene, name
+				surfaceShader, displacementShader, volumeShader,
+				scene,
+				name
 			);
 			if( surfaceShader && singleSided )
 			{
@@ -507,7 +487,9 @@ class CyclesShader : public IECore::RefCounted
 			for( const IECoreScene::ShaderNetwork *aovShader : aovShaders )
 			{
 				ShaderNetworkAlgo::convertAOV(
-					aovShader, graph.get(), scene, name
+					aovShader, graph.get(),
+					scene,
+					name
 				);
 			}
 
@@ -523,11 +505,7 @@ class CyclesShader : public IECore::RefCounted
 				m_shader->name = ccl::ustring( shaderName.c_str() );
 			}
 			m_shader->set_displacement_method( displacementMethod );
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 404
 			m_shader->set_graph( std::move( graph ) );
-#else
-			m_shader->set_graph( graph.release() );
-#endif
 
 			SceneAlgo::tagUpdateWithLock( m_shader, scene );
 		}
@@ -576,11 +554,6 @@ class ShaderCache
 		ShaderCache( ccl::Scene *scene )
 			: m_scene( scene )
 		{
-		}
-
-		void update()
-		{
-			updateShaders();
 		}
 
 		CyclesShaderPtr get( const IECoreScene::ShaderNetwork *surfaceShader )
@@ -740,79 +713,6 @@ class ShaderCache
 
 	private :
 
-		void updateShaders()
-		{
-			std::lock_guard sceneLock( m_scene->mutex );
-			/// \todo There are several problems here :
-			///
-			/// - We're clobbering the `tex_mapping.rotation` parameter, which is exposed to users
-			///   but now has no effect for them. This also prevents us getting the orientation of USD
-			///   DomeLights correct - see ShaderNetworkAlgo.
-			/// - We're iterating through all N lights just to find the background light, and we're
-			///   doing it even when the transform hasn't changed. Can't we just do this in `CyclesLight::transform()`?
-			/// - The light shader was created via `ShaderCache::get()`, and could therefore be shared
-			///   between several lights, so we're not at liberty to clobber the shader anyway.
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-			for( ccl::Object *object : m_scene->objects )
-			{
-				if( !object->get_geometry() )
-				{
-					continue;
-				}
-
-				if( !object->get_geometry()->is_light() )
-				{
-					continue;
-				}
-
-				if( object->get_geometry()->get_used_shaders().size() == 0 )
-				{
-					continue;
-				}
-				ccl::Light *light = static_cast<ccl::Light*>( object->get_geometry() );
-
-				if( light->get_light_type() == ccl::LIGHT_BACKGROUND )
-				{
-					// Set environment map rotation
-					Imath::M44f transform = SocketAlgo::getTransform( object->get_tfm() );
-					Imath::Eulerf euler( transform, Imath::Eulerf::Order::XZY );
-
-					ccl::Shader *shader = (ccl::Shader*)light->get_used_shaders()[0];
-					for( ccl::ShaderNode *node : shader->graph->nodes )
-					{
-						if ( node->type == ccl::EnvironmentTextureNode::node_type )
-						{
-							ccl::EnvironmentTextureNode *env = (ccl::EnvironmentTextureNode *)node;
-							env->tex_mapping.rotation = ccl::make_float3( -euler.x, -euler.y, -euler.z );
-							shader->tag_update( m_scene );
-							break;
-						}
-					}
-				}
-#else
-			for( ccl::Light *light : m_scene->lights )
-			{
-				if( light->get_light_type() == ccl::LIGHT_BACKGROUND )
-				{
-					// Set environment map rotation
-					Imath::M44f transform = SocketAlgo::getTransform( light->get_tfm() );
-					Imath::Eulerf euler( transform, Imath::Eulerf::Order::XZY );
-
-					for( ccl::ShaderNode *node : light->get_shader()->graph->nodes )
-					{
-						if ( node->type == ccl::EnvironmentTextureNode::node_type )
-						{
-							ccl::EnvironmentTextureNode *env = (ccl::EnvironmentTextureNode *)node;
-							env->tex_mapping.rotation = ccl::make_float3( -euler.x, -euler.y, -euler.z );
-							light->get_shader()->tag_update( m_scene );
-							break;
-						}
-					}
-				}
-#endif
-			}
-		}
-
 		ccl::Scene *m_scene;
 		using Cache = tbb::concurrent_hash_map<IECore::MurmurHash, CyclesShaderPtr>;
 		Cache m_cache;
@@ -845,6 +745,23 @@ IECore::InternedString g_shadowTerminatorShadingOffsetAttributeName( "cycles:sha
 IECore::InternedString g_shadowTerminatorGeometryOffsetAttributeName( "cycles:shadow_terminator_geometry_offset" );
 IECore::InternedString g_maxLevelAttributeName( "cycles:max_level" );
 IECore::InternedString g_dicingRateAttributeName( "cycles:dicing_rate" );
+IECore::InternedString g_adaptiveSpaceAttributeName( "cycles:adaptive_space" );
+
+std::array<IECore::InternedString, 2> g_adaptiveSpaceEnumNames = { {
+	"pixel",
+	"object",
+} };
+
+ccl::Mesh::SubdivisionAdaptiveSpace nameToAdaptiveSpaceEnum( const IECore::InternedString &name )
+{
+#define MAP_NAME(enumName, enum) if(name == enumName) return enum;
+	MAP_NAME(g_adaptiveSpaceEnumNames[0], ccl::Mesh::SubdivisionAdaptiveSpace::SUBDIVISION_ADAPTIVE_SPACE_PIXEL);
+	MAP_NAME(g_adaptiveSpaceEnumNames[1], ccl::Mesh::SubdivisionAdaptiveSpace::SUBDIVISION_ADAPTIVE_SPACE_OBJECT);
+#undef MAP_NAME
+
+	return ccl::Mesh::SubdivisionAdaptiveSpace::SUBDIVISION_ADAPTIVE_SPACE_PIXEL;
+}
+
 // Cycles Light
 IECore::InternedString g_cyclesLightAttributeName( "cycles:light" );
 // Shader Assignment
@@ -863,6 +780,7 @@ IECore::InternedString g_glossyVisibilityAttributeName( "cycles:visibility:gloss
 IECore::InternedString g_transmissionVisibilityAttributeName( "cycles:visibility:transmission" );
 IECore::InternedString g_shadowVisibilityAttributeName( "cycles:visibility:shadow" );
 IECore::InternedString g_scatterVisibilityAttributeName( "cycles:visibility:scatter" );
+IECore::InternedString g_USDRayVisibilityBlindDataKey( "__USDRayVisibility" );
 // Caustics
 IECore::InternedString g_isCausticsCasterAttributeName( "cycles:is_caustics_caster" );
 IECore::InternedString g_isCausticsReceiverAttributeName( "cycles:is_caustics_receiver" );
@@ -950,6 +868,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 				m_shadowTerminatorGeometryOffset( 0.0f ),
 				m_maxLevel( 1 ),
 				m_dicingRate( 1.0f ),
+				m_adaptiveSpace( "pixel" ),
 				m_color( Color3f( 1.0f ) ),
 				m_volume( attributes ),
 				m_shaderAttributes( attributes ),
@@ -971,6 +890,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			m_shadowTerminatorGeometryOffset = attributeValue<float>( g_shadowTerminatorGeometryOffsetAttributeName, attributes, m_shadowTerminatorGeometryOffset );
 			m_maxLevel = attributeValue<int>( g_maxLevelAttributeName, attributes, m_maxLevel );
 			m_dicingRate = attributeValue<float>( g_dicingRateAttributeName, attributes, m_dicingRate );
+			m_adaptiveSpace = attributeValue<std::string>( g_adaptiveSpaceAttributeName, attributes, m_adaptiveSpace );
 			m_color = attributeValue<Color3f>( g_displayColorAttributeName, attributes, m_color );
 			m_lightGroup = attributeValue<std::string>( g_lightGroupAttributeName, attributes, m_lightGroup );
 			m_assetName = attributeValue<std::string>( g_cryptomatteAssetAttributeName, attributes, m_assetName );
@@ -1014,6 +934,18 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 				ShaderNetworkPtr lightShader = ShaderNetworkAlgo::convertLightShader( m_lightAttribute.get() );
 				IECore::MurmurHash h;
 				m_lightShader = shaderCache->get( lightShader.get(), nullptr, nullptr, attributes, h );
+
+				// Cycles requires lights to be set as shadow catchers in order to contribute shadows to the
+				// shadow pass, so we disregard the attribute and override lights to always be shadow catchers.
+				m_isShadowCatcher = true;
+
+				if( auto rayVisibility = m_lightAttribute->outputShader()->blindData()->member<IECore::IntData>( g_USDRayVisibilityBlindDataKey ) )
+				{
+					// If the light has been converted from a USD light, we override diffuse and glossy visibility
+					// based on the USD light's diffuse and specular parameters. See ShaderNetworkAlgo::transferUSDLightParameters()
+					constexpr int rayMask = (int)( ccl::PATH_RAY_DIFFUSE | ccl::PATH_RAY_GLOSSY );
+					m_visibility = ( m_visibility & ~rayMask ) | ( rayVisibility->readable() & rayMask );
+				}
 			}
 
 			// Custom attributes
@@ -1086,13 +1018,18 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 
 				if( object->get_geometry()->is_mesh() )
 				{
-					auto mesh = static_cast<ccl::Mesh*>( object->get_geometry() );
-					if( mesh->get_num_subd_faces() && 
-						( previousAttributes->m_maxLevel != m_maxLevel ) ||
-						( previousAttributes->m_dicingRate != m_dicingRate ) )
+					auto mesh = static_cast<ccl::Mesh *>( object->get_geometry() );
+					if( mesh->get_num_subd_faces() )
 					{
-						// Get a new mesh
-						return false;
+						if(
+							previousAttributes->m_maxLevel != m_maxLevel ||
+							previousAttributes->m_dicingRate != m_dicingRate ||
+							previousAttributes->m_adaptiveSpace != m_adaptiveSpace
+						)
+						{
+							// Get a new mesh
+							return false;
+						}
 					}
 				}
 				else if( object->get_geometry()->is_volume() )
@@ -1118,39 +1055,33 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			object->set_asset_name( ccl::ustring( m_assetName.c_str() ) );
 			object->set_is_caustics_caster( m_isCausticsCaster );
 			object->set_is_caustics_receiver( m_isCausticsReceiver );
+			object->set_lightgroup( ccl::ustring( m_lightGroup.c_str() ) );
 
 			if( object->get_geometry()->is_mesh() )
 			{
 				auto mesh = static_cast<ccl::Mesh *>( object->get_geometry() );
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-				mesh->set_subd_dicing_rate( m_dicingRate );
-				mesh->set_subd_max_level( m_maxLevel );
-#else
-				if( mesh->get_subd_params() )
+				if( mesh->get_num_subd_faces() )
 				{
 					mesh->set_subd_dicing_rate( m_dicingRate );
 					mesh->set_subd_max_level( m_maxLevel );
+					mesh->set_subd_adaptive_space( nameToAdaptiveSpaceEnum( m_adaptiveSpace ) );
 				}
-#endif
 			}
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
 			else if( object->get_geometry()->is_light() )
 			{
 				auto light = static_cast<ccl::Light *>( object->get_geometry() );
 				if( m_lightAttribute )
 				{
-					ShaderNetworkAlgo::convertLight( m_lightAttribute.get(), object );
+					ShaderNetworkAlgo::convertLight( m_lightAttribute.get(), light );
+					ccl::array<ccl::Node *> shaders;
+					shaders.push_back_slow( m_lightShader->shader() );
 					{
-						// We need the scene lock because `tag_used()` will modify the
-						// scene.
+						// We need the scene lock for `set_used_shaders()`, to protect
+						// the non-atomic increment made in `ccl::Node::reference()`.
 						std::scoped_lock sceneLock( scene->mutex );
-						m_lightShader->shader()->tag_used( scene );
-						// But we also use the lock for `set_shader()`, to protect the
-						// non-atomic increment made in `ccl::Node::reference()`.
-						ccl::array<ccl::Node *> shaders;
-						shaders.push_back_slow( m_lightShader->shader() );
-						object->get_geometry()->set_used_shaders( shaders );
+						light->set_used_shaders( shaders );
 					}
+
 					light->set_is_enabled( !m_muteLight );
 				}
 				else
@@ -1167,15 +1098,11 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 					// re-enable the light unless we also set its strength to zero.
 					light->set_strength( ccl::zero_float3() );
 				}
-			}
-#endif
 
-			if(
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-				!object->get_geometry()->is_light() &&
-#endif
-				( !previousAttributes || m_shader != previousAttributes->m_shader )
-			)
+				return true;
+			}
+
+			if( !previousAttributes || m_shader != previousAttributes->m_shader )
 			{
 				ccl::array<ccl::Node *> shaders;
 				shaders.push_back_slow( m_shader->shader() );
@@ -1218,8 +1145,6 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 
 			m_volume.apply( object );
 
-			object->set_lightgroup( ccl::ustring( m_lightGroup.c_str() ) );
-
 			// Custom attributes.
 			object->attributes = m_custom;
 
@@ -1227,42 +1152,6 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 
 			return true;
 		}
-
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) < 405
-		bool applyLight( ccl::Light *light, const CyclesAttributes *previousAttributes, ccl::Scene *scene ) const
-		{
-			if( m_lightAttribute )
-			{
-				ShaderNetworkAlgo::convertLight( m_lightAttribute.get(), light );
-				{
-					// We need the scene lock because `tag_used()` will modify the
-					// scene.
-					std::scoped_lock sceneLock( scene->mutex );
-					m_lightShader->shader()->tag_used( scene );
-					// But we also use the lock for `set_shader()`, to protect the
-					// non-atomic increment made in `ccl::Node::reference()`.
-					light->set_shader( m_lightShader->shader() );
-				}
-				light->set_is_enabled( !m_muteLight );
-			}
-			else
-			{
-				// No `cycles:light` shader assignment. Most likely a light
-				// intended for another renderer, so we turn off the Cycles
-				// light.
-				light->set_is_enabled( false );
-			}
-
-			if( !light->get_is_enabled() )
-			{
-				// Alas, `ccl::LightManager::test_enabled_lights()` will
-				// re-enable the light unless we also set its strength to zero.
-				light->set_strength( ccl::zero_float3() );
-			}
-
-			return true;
-		}
-#endif // #if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) < 405
 
 		// Generates a signature for the work done by applyGeometry.
 		/// \todo This description is inaccurate. There used to be a method called `applyGeometry()`,
@@ -1281,6 +1170,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 					{
 						h.append( m_dicingRate );
 						h.append( m_maxLevel );
+						h.append( m_adaptiveSpace );
 					}
 					break;
 				case IECoreVDB::VDBObjectTypeId :
@@ -1295,12 +1185,6 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 		// Returns true if the given geometry can be instanced.
 		bool canInstanceGeometry( const IECore::Object *object ) const
 		{
-			if( !object )
-			{
-				// Most likely a light, so don't instance.
-				return false;
-			}
-
 			if( !IECore::runTimeCast<const IECoreScene::VisibleRenderable>( object ) )
 			{
 				return false;
@@ -1310,8 +1194,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			{
 				if( mesh->interpolation() == "catmullClark" )
 				{
-					// For now we treat all subdiv surfaces as unique because they are all treated as adaptive.
-					return false;
+					return m_adaptiveSpace == "object";
 				}
 				else
 				{
@@ -1325,6 +1208,11 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 		int getVolumePrecision() const
 		{
 			return m_volume.precision ? nameToVolumePrecisionEnum( m_volume.precision.value() ) : 0;
+		}
+
+		float getVolumeClipping() const
+		{
+			return m_volume.clipping ? m_volume.clipping.value() : 0.001f;
 		}
 
 	private :
@@ -1393,10 +1281,6 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 				}
 
 				auto volume = static_cast<ccl::Volume *>( object->get_geometry() );
-				if( clipping )
-				{
-					volume->set_clipping( clipping.value() );
-				}
 				if( stepSize )
 				{
 					volume->set_step_size( stepSize.value() );
@@ -1425,7 +1309,6 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			{
 				emissionSamplingMethod = attribute<StringData>( g_shaderEmissionSamplingMethodAttributeName, attributes, g_shaderEmissionSamplingMethodAttributeDefault.get() );
 				useTransparentShadow = optionalAttribute<bool>( g_shaderUseTransparentShadowAttributeName, attributes );
-				heterogeneousVolume = optionalAttribute<bool>( g_shaderHeterogeneousVolumeAttributeName, attributes );
 				volumeSamplingMethod = attribute<StringData>( g_shaderVolumeSamplingMethodAttributeName, attributes, g_shaderVolumeSamplingMethodAttributeDefault.get() );
 				volumeInterpolationMethod = attribute<StringData>( g_shaderVolumeInterpolationMethodAttributeName, attributes, g_shaderVolumeInterpolationMethodAttributeDefault.get() );
 				volumeStepRate = optionalAttribute<float>( g_shaderVolumeStepRateAttributeName, attributes );
@@ -1433,7 +1316,6 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 
 			ConstDataPtr emissionSamplingMethod;
 			std::optional<bool> useTransparentShadow;
-			std::optional<bool> heterogeneousVolume;
 			ConstDataPtr volumeSamplingMethod;
 			ConstDataPtr volumeInterpolationMethod;
 			std::optional<float> volumeStepRate;
@@ -1446,8 +1328,6 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 				auto it = attributes->members().find( g_cyclesVolumeShaderAttributeName );
 				if( it != attributes->members().end() )
 				{
-					if( heterogeneousVolume && !heterogeneousVolume.value() )
-						h.append( "homogeneous_volume" );
 					volumeSamplingMethod->hash( h );
 					volumeInterpolationMethod->hash( h );
 					if( volumeStepRate && volumeStepRate.value() != 1.0f )
@@ -1459,7 +1339,6 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			{
 				SocketAlgo::setSocket( shader, shader->get_emission_sampling_method_socket(), emissionSamplingMethod.get() );
 				shader->set_use_transparent_shadow( useTransparentShadow ? useTransparentShadow.value() : true );
-				shader->set_heterogeneous_volume( heterogeneousVolume ? heterogeneousVolume.value() : true );
 				SocketAlgo::setSocket( shader, shader->get_volume_sampling_method_socket(), volumeSamplingMethod.get() );
 				SocketAlgo::setSocket( shader, shader->get_volume_interpolation_method_socket(), volumeInterpolationMethod.get() );
 				shader->set_volume_step_rate( volumeStepRate ? volumeStepRate.value() : 1.0f );
@@ -1479,6 +1358,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 		float m_shadowTerminatorGeometryOffset;
 		int m_maxLevel;
 		float m_dicingRate;
+		string m_adaptiveSpace;
 		Color3f m_color;
 		Volume m_volume;
 		ShaderAttributes m_shaderAttributes;
@@ -1652,15 +1532,6 @@ class GeometryCache
 			}
 		}
 
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-		SharedGeometryPtr get( const std::string &nodeName )
-		{
-			ccl::Geometry *geometry = (ccl::Geometry*)SceneAlgo::createNodeWithLock<ccl::Light>( m_scene );
-			geometry->name = ccl::ustring( nodeName.c_str() );
-			return SharedGeometryPtr( geometry, NodeDeleter::GeometryDeleter( m_nodeDeleter ) );
-		}
-#endif
-
 		// Must not be called concurrently with anything.
 		void clearUnused()
 		{
@@ -1693,7 +1564,7 @@ class GeometryCache
 				// the precision is provided by the attributes, and we don't want to pass attributes
 				// to `GeometryAlgo`.
 				assert( geometry->is_volume() );
-				GeometryAlgo::convertVoxelGrids( vdb, static_cast<ccl::Volume*>( geometry.get() ), m_scene, attributes->getVolumePrecision() );
+				GeometryAlgo::convertVoxelGrids( vdb, static_cast<ccl::Volume*>( geometry.get() ), m_scene, attributes->getVolumePrecision(), attributes->getVolumeClipping() );
 			}
 
 			return geometry;
@@ -1712,7 +1583,7 @@ class GeometryCache
 			if( auto vdb = IECore::runTimeCast<const IECoreVDB::VDBObject>( samples.front() ) )
 			{
 				assert( geometry->is_volume() );
-				GeometryAlgo::convertVoxelGrids( vdb, static_cast<ccl::Volume*>( geometry.get() ), m_scene, attributes->getVolumePrecision() );
+				GeometryAlgo::convertVoxelGrids( vdb, static_cast<ccl::Volume*>( geometry.get() ), m_scene, attributes->getVolumePrecision(), attributes->getVolumeClipping() );
 			}
 
 			return geometry;
@@ -1812,14 +1683,6 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 				std::scoped_lock sceneLock( scene->mutex );
 				m_object->set_geometry( geometry.get() );
 			}
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-			// All lights are always in the first set, which we use for objects
-			// which don't have any linking applied. But we only add lights to
-			// other sets as they are created by the LightLinker in response to
-			// calls to `CyclesObject::link()`.
-			m_object->set_light_set_membership( 1 );
-			m_object->set_shadow_set_membership( 1 );
-#endif
 		}
 
 		~CyclesObject() override
@@ -1836,12 +1699,6 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 
 		void link( const IECore::InternedString &type, const IECoreScenePreview::Renderer::ConstObjectSetPtr &objects ) override
 		{
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-			if( m_geometry->is_light() )
-			{
-				return;
-			}
-#endif
 			IECoreScenePreview::Renderer::ConstObjectSetPtr *setMemberData;
 			LightLinker::SetType setType;
 			if( type == g_lights )
@@ -1889,14 +1746,10 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 			if( m_object->get_geometry()->is_mesh() )
 			{
 				auto mesh = static_cast<ccl::Mesh *>( m_object->get_geometry() );
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-				mesh->set_subd_objecttoworld( m_object->get_tfm() );
-#else
-				if( mesh->get_subd_params() )
+				if( mesh->get_num_subd_faces() )
 				{
 					mesh->set_subd_objecttoworld( m_object->get_tfm() );
 				}
-#endif
 			}
 
 			ccl::array<ccl::Transform> motion;
@@ -2026,14 +1879,10 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 			if( geo->is_mesh() )
 			{
 				auto mesh = static_cast<ccl::Mesh *>( geo );
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-				mesh->set_subd_objecttoworld( m_object->get_tfm() );
-#else
-				if( mesh->get_subd_params() )
+				if( mesh->get_num_subd_faces() )
 				{
 					mesh->set_subd_objecttoworld( m_object->get_tfm() );
 				}
-#endif
 			}
 
 			SceneAlgo::tagUpdateWithLock( m_object.get(), m_scene );
@@ -2062,7 +1911,116 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 			// Instance IDs not needed in Cycles, because encapsulated instancers aren't supported.
 		}
 
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
+	private :
+
+		ccl::Scene *m_scene;
+		using UniqueObjectPtr = std::unique_ptr<ccl::Object, NodeDeleter::ObjectDeleter>;
+		UniqueObjectPtr m_object;
+		SharedGeometryPtr m_geometry;
+		const float m_frame;
+		ConstCyclesAttributesPtr m_attributes;
+		LightLinker *m_lightLinker;
+		IECoreScenePreview::Renderer::ConstObjectSetPtr m_linkedLights;
+		IECoreScenePreview::Renderer::ConstObjectSetPtr m_shadowedLights;
+
+};
+
+} // namespace
+
+//////////////////////////////////////////////////////////////////////////
+// CyclesLight
+//////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+
+class CyclesLight : public IECoreScenePreview::Renderer::ObjectInterface
+{
+
+	public :
+
+		CyclesLight( ccl::Scene *scene, const std::string &name, NodeDeleter *nodeDeleter )
+			:	m_scene( scene ), m_light( SceneAlgo::createNodeWithLock<ccl::Light>( scene ), NodeDeleter::GeometryDeleter( nodeDeleter ) ), m_object( SceneAlgo::createNodeWithLock<ccl::Object>( scene ), NodeDeleter::ObjectDeleter( nodeDeleter ) )
+		{
+			m_object->set_geometry( m_light.get() );
+			m_object->set_random_id( std::hash<string>()( name ) );
+			m_object->name = ccl::ustring( name );
+			m_light->name = ccl::ustring( name );
+			// All lights are always in the first set, which we use for objects
+			// which don't have any linking applied. But we only add lights to
+			// other sets as they are created by the LightLinker in response to
+			// calls to `CyclesObject::link()`.
+			m_object->set_light_set_membership( 1 );
+			m_object->set_shadow_set_membership( 1 );
+		}
+
+		~CyclesLight() override
+		{
+		}
+
+		void link( const IECore::InternedString &type, const IECoreScenePreview::Renderer::ConstObjectSetPtr &objects ) override
+		{
+		}
+
+		void transform( const Imath::M44f &transform ) override
+		{
+			// Set environment map rotation
+			/// \todo There are a few problems here :
+			///
+			/// - We're clobbering the `tex_mapping.rotation` parameter, which is exposed to users
+			///   but now has no effect for them. This also prevents us getting the orientation of USD
+			///   DomeLights correct - see ShaderNetworkAlgo.
+			/// - The light shader was created via `ShaderCache::get()`, and could therefore be shared
+			///   between several lights, so we're not at liberty to clobber the shader anyway.
+			if( m_light->get_light_type() == ccl::LIGHT_BACKGROUND && m_light->get_used_shaders().size() != 0 )
+			{
+				ccl::Shader *shader = (ccl::Shader*)m_light->get_used_shaders()[0];
+				for( ccl::ShaderNode *node : shader->graph->nodes )
+				{
+					if( node->type == ccl::EnvironmentTextureNode::get_node_type() )
+					{
+						ccl::EnvironmentTextureNode *env = (ccl::EnvironmentTextureNode *)node;
+						Imath::Eulerf euler( transform, Imath::Eulerf::Order::XZY );
+						env->tex_mapping.rotation = ccl::make_float3( -euler.x, -euler.y, -euler.z );
+						shader->tag_update( m_scene );
+						break;
+					}
+				}
+			}
+
+			m_object->set_tfm( SocketAlgo::setTransform( transform ) );
+			SceneAlgo::tagUpdateWithLock( m_object.get(), m_scene );
+		}
+
+		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override
+		{
+			// Cycles doesn't support motion samples on lights (yet)
+			transform( samples[0] );
+		}
+
+		bool attributes( const IECoreScenePreview::Renderer::AttributesInterface *attributes ) override
+		{
+			const CyclesAttributes *cyclesAttributes = static_cast<const CyclesAttributes *>( attributes );
+			if( cyclesAttributes->applyObject( m_object.get(), m_attributes.get(), m_scene ) )
+			{
+				m_attributes = cyclesAttributes;
+				SceneAlgo::tagUpdateWithLock( m_light.get(), m_scene );
+				SceneAlgo::tagUpdateWithLock( m_object.get(), m_scene );
+				return true;
+			}
+
+			return false;
+		}
+
+		void assignID( uint32_t id ) override
+		{
+			/// \todo Implement me
+		}
+
+		void assignInstanceID( uint32_t instanceID ) override
+		{
+		}
+
 		// Used by LightLinker
 		// ===================
 
@@ -2084,119 +2042,14 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 
 			SceneAlgo::tagUpdateWithLock( m_object.get(), m_scene );
 		}
-#endif // ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
 
 	private :
 
 		ccl::Scene *m_scene;
+		using UniqueLightPtr = std::unique_ptr<ccl::Light, NodeDeleter::GeometryDeleter>;
+		UniqueLightPtr m_light;
 		using UniqueObjectPtr = std::unique_ptr<ccl::Object, NodeDeleter::ObjectDeleter>;
 		UniqueObjectPtr m_object;
-		SharedGeometryPtr m_geometry;
-		const float m_frame;
-		ConstCyclesAttributesPtr m_attributes;
-		LightLinker *m_lightLinker;
-		IECoreScenePreview::Renderer::ConstObjectSetPtr m_linkedLights;
-		IECoreScenePreview::Renderer::ConstObjectSetPtr m_shadowedLights;
-
-};
-
-} // namespace
-
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) < 405
-
-//////////////////////////////////////////////////////////////////////////
-// CyclesLight
-//////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-
-class CyclesLight : public IECoreScenePreview::Renderer::ObjectInterface
-{
-
-	public :
-
-		CyclesLight( ccl::Scene *scene, ccl::ustring name, NodeDeleter *nodeDeleter )
-			:	m_scene( scene ), m_light( SceneAlgo::createNodeWithLock<ccl::Light>( scene ), NodeDeleter::LightDeleter( nodeDeleter ) )
-		{
-			m_light->name = name;
-			// All lights are always in the first set, which we use for objects
-			// which don't have any linking applied. But we only add lights to
-			// other sets as they are created by the LightLinker in response to
-			// calls to `CyclesObject::link()`.
-			m_light->set_light_set_membership( 1 );
-			m_light->set_shadow_set_membership( 1 );
-		}
-
-		~CyclesLight() override
-		{
-		}
-
-		void link( const IECore::InternedString &type, const IECoreScenePreview::Renderer::ConstObjectSetPtr &objects ) override
-		{
-		}
-
-		void transform( const Imath::M44f &transform ) override
-		{
-			m_light->set_tfm( SocketAlgo::setTransform( transform ) );
-			SceneAlgo::tagUpdateWithLock( m_light.get(), m_scene );
-		}
-
-		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override
-		{
-			// Cycles doesn't support motion samples on lights (yet)
-			transform( samples[0] );
-		}
-
-		bool attributes( const IECoreScenePreview::Renderer::AttributesInterface *attributes ) override
-		{
-			const CyclesAttributes *cyclesAttributes = static_cast<const CyclesAttributes *>( attributes );
-			if( cyclesAttributes->applyLight( m_light.get(), m_attributes.get(), m_scene ) )
-			{
-				m_attributes = cyclesAttributes;
-				SceneAlgo::tagUpdateWithLock( m_light.get(), m_scene );
-				return true;
-			}
-
-			return false;
-		}
-
-		void assignID( uint32_t id ) override
-		{
-			/// \todo Implement me
-		}
-
-		void assignInstanceID( uint32_t instanceID ) override
-		{
-		}
-
-		// Used by LightLinker
-		// ===================
-
-		uint64_t getLightSetMembership( LightLinker::SetType setType ) const
-		{
-			return setType == LightLinker::SetType::Light ? m_light->get_light_set_membership() : m_light->get_shadow_set_membership();
-		}
-
-		void setLightSetMembership( LightLinker::SetType setType, uint64_t membership )
-		{
-			if( setType == LightLinker::SetType::Light )
-			{
-				m_light->set_light_set_membership( membership );
-			}
-			else
-			{
-				m_light->set_shadow_set_membership( membership );
-			}
-
-			SceneAlgo::tagUpdateWithLock( m_light.get(), m_scene );
-		}
-
-	private :
-
-		ccl::Scene *m_scene;
-		using UniqueLightPtr = std::unique_ptr<ccl::Light, NodeDeleter::LightDeleter>;
-		UniqueLightPtr m_light;
 		ConstCyclesAttributesPtr m_attributes;
 
 };
@@ -2205,7 +2058,6 @@ IE_CORE_DECLAREPTR( CyclesLight )
 
 } // namespace
 
-#endif // ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) < 405
 
 //////////////////////////////////////////////////////////////////////////
 // LightLinker definition
@@ -2251,11 +2103,7 @@ uint32_t LightLinker::registerLightSet( SetType setType, const IECoreScenePrevie
 			// to `registerLightSet()`.
 			for( const auto &object : *lights )
 			{
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-				auto light = static_cast<CyclesObject *>( object.get() );
-#else
 				auto light = static_cast<CyclesLight *>( object.get() );
-#endif
 				light->setLightSetMembership(
 					setType,
 					light->getLightSetMembership( setType ) | indexToMask( lightSet.index )
@@ -2304,11 +2152,7 @@ void LightLinker::deregisterLightSet( SetType setType, const IECoreScenePreview:
 	lightSets.usedIndices = lightSets.usedIndices & ~indexToMask( it->second.index );
 	for( const auto &object : *lights )
 	{
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-		auto light = static_cast<CyclesObject *>( object.get() );
-#else
 		auto light = static_cast<CyclesLight *>( object.get() );
-#endif
 		light->setLightSetMembership(
 			setType,
 			light->getLightSetMembership( setType ) & ~indexToMask( it->second.index )
@@ -2477,9 +2321,10 @@ ccl::BVHLayout nameToBvhLayoutEnum( const IECore::InternedString &name )
 	return ccl::BVHLayout::BVH_LAYOUT_AUTO;
 }
 
-std::array<IECore::InternedString, 2> g_curveShapeTypeEnumNames = { {
+std::array<IECore::InternedString, 3> g_curveShapeTypeEnumNames = { {
 	"ribbon",
-	"thick"
+	"thick",
+	"thick-linear"
 } };
 
 ccl::CurveShapeType nameToCurveShapeTypeEnum( const IECore::InternedString &name )
@@ -2487,6 +2332,7 @@ ccl::CurveShapeType nameToCurveShapeTypeEnum( const IECore::InternedString &name
 #define MAP_NAME(enumName, enum) if(name == enumName) return enum;
 	MAP_NAME(g_curveShapeTypeEnumNames[0], ccl::CurveShapeType::CURVE_RIBBON);
 	MAP_NAME(g_curveShapeTypeEnumNames[1], ccl::CurveShapeType::CURVE_THICK);
+	MAP_NAME(g_curveShapeTypeEnumNames[2], ccl::CurveShapeType::CURVE_THICK_LINEAR);
 #undef MAP_NAME
 
 	return ccl::CurveShapeType::CURVE_THICK;
@@ -2554,7 +2400,6 @@ IECore::CompoundDataPtr sessionParamsAsData( const ccl::SessionParams params )
 	result->writable()["device"] = new StringData( params.device.id );
 	result->writable()["headless"] = new BoolData( params.headless );
 	result->writable()["background"] = new BoolData( params.background );
-	result->writable()["experimental"] = new BoolData( params.experimental );
 	result->writable()["samples"] = new BoolData( params.samples );
 	result->writable()["threads"] = new IntData( params.threads );
 	return result;
@@ -2646,7 +2491,6 @@ IECore::InternedString g_squareSamplesOptionName( "cycles:square_samples" );
 IECore::InternedString g_logLevelOptionName( "cycles:log_level" );
 IECore::InternedString g_progressLevelOptionName( "cycles:progress_level" );
 // Session
-IECore::InternedString g_experimentalOptionName( "cycles:session:experimental" );
 IECore::InternedString g_samplesOptionName( "cycles:session:samples" );
 IECore::InternedString g_pixelSizeOptionName( "cycles:session:pixel_size" );
 IECore::InternedString g_threadsOptionName( "cycles:session:threads" );
@@ -2676,6 +2520,12 @@ const boost::container::flat_map<std::string, ccl::PathRayFlag> g_rayTypes = {
 	{ "transmission", ccl::PATH_RAY_TRANSMIT },
 	{ "shadow", ccl::PATH_RAY_SHADOW },
 	{ "scatter", ccl::PATH_RAY_VOLUME_SCATTER }
+};
+
+const boost::container::flat_map<int, ccl::LogLevel> g_logLevels = {
+	{ 0, ccl::LOG_LEVEL_ERROR },
+	{ 1, ccl::LOG_LEVEL_WARNING },
+	{ 2, ccl::LOG_LEVEL_INFO }
 };
 
 // Dicing camera
@@ -2789,16 +2639,8 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 		{
 			const IECore::MessageHandler::Scope s( m_messageHandler.get() );
 			acquireSession();
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-			SharedGeometryPtr geometry = m_geometryCache->get( name );
-			if( !geometry )
-			{
-				return nullptr;
-			}
-			ObjectInterfacePtr result = new CyclesObject( m_scene, geometry, name, frame(), &m_lightLinker, m_nodeDeleter.get() );
-#else
-			CyclesLightPtr result = new CyclesLight( m_scene, ccl::ustring( name.c_str() ), m_nodeDeleter.get() );
-#endif
+
+			ObjectInterfacePtr result = new CyclesLight( m_scene, name, m_nodeDeleter.get() );
 			result->attributes( attributes );
 			return result;
 		}
@@ -2869,7 +2711,6 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			}
 
 			updateOptions();
-			updateSceneObjects();
 			updateBackground();
 
 			{
@@ -2988,7 +2829,6 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 		{
 			ccl::SessionParams params = defaultSessionParams( m_renderType );
 
-			params.experimental = optionValue( g_experimentalOptionName, params.experimental, modified );
 			params.samples = optionValue<int>( g_samplesOptionName, params.samples, modified );
 			params.pixel_size = optionValue<int>( g_pixelSizeOptionName, params.pixel_size, modified );
 			params.time_limit = optionValue<float>( g_timeLimitOptionName, params.time_limit, modified );
@@ -3044,11 +2884,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 
 			m_session = std::make_unique<ccl::Session>( sessionParams, sceneParams );
 			m_session->progress.set_update_callback( std::bind( &CyclesRenderer::progress, this ) );
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 404
 			m_scene = m_session->scene.get();
-#else
-			m_scene = m_session->scene;
-#endif
 
 			/// \todo Determine why this is here, or remove it.
 			m_scene->camera->need_flags_update = true;
@@ -3070,11 +2906,6 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 		{
 			m_geometryCache->clearUnused();
 			m_attributesCache->clearUnused();
-		}
-
-		void updateSceneObjects()
-		{
-			m_shaderCache->update();
 		}
 
 		void updateOptions()
@@ -3189,7 +3020,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 
 			// Misc
 
-			ccl::util_logging_verbosity_set( optionValue<int>( g_logLevelOptionName, 0 ) );
+			ccl::log_level_set( g_logLevels.at( optionValue<int>( g_logLevelOptionName, 0 ) ) );
 			optionValue<int>( g_cryptomatteDepthOptionName, 0, &m_outputsChanged );
 
 			m_optionsChanged = false;
@@ -3225,20 +3056,16 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 				/// every render. This might be much easier if attribute edits
 				/// were performed by a renderer method instead of an ObjectInterface
 				/// method. Or can we use `scene->light_manager->need_update()`?
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
 				ccl::Shader *backgroundShader = nullptr;
 				ccl::ustring lightgroup( "" );
-				for( ccl::Object *object : m_scene->objects )
+				/// \todo Avoid iterating over `m_scene->objects` to find the background light.
+				for( auto object : m_scene->objects )
 				{
-					if( !object->get_geometry() )
-					{
-						continue;
-					}
 					if( !object->get_geometry()->is_light() )
 					{
 						continue;
 					}
-					ccl::Light *light = static_cast<ccl::Light*>( object->get_geometry() );
+					auto light = static_cast<ccl::Light *>( object->get_geometry() );
 					if( light->get_light_type() == ccl::LIGHT_BACKGROUND && light->get_used_shaders().size() != 0 )
 					{
 						backgroundShader = (ccl::Shader*)light->get_used_shaders()[0];
@@ -3248,19 +3075,6 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 				}
 				m_scene->background->set_shader( backgroundShader ? backgroundShader : m_scene->default_background );
 				m_scene->background->set_lightgroup( lightgroup );
-#else
-				ccl::Light *backgroundLight = nullptr;
-				for( ccl::Light *light : m_scene->lights )
-				{
-					if( light->get_light_type() == ccl::LIGHT_BACKGROUND )
-					{
-						backgroundLight = light;
-						break;
-					}
-				}
-				m_scene->background->set_shader( backgroundLight ? backgroundLight->get_shader() : m_scene->default_background );
-				m_scene->background->set_lightgroup( backgroundLight ? backgroundLight->get_lightgroup() : ccl::ustring( "" ) );
-#endif
 			}
 
 			// Note : this is also responsible for tagging any changes

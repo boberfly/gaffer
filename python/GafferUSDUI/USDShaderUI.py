@@ -123,7 +123,7 @@ def __label( plug ) :
 
 	property = __primProperty( plug )
 	if property :
-		return property.GetMetadata( "displayName" ) + suffix
+		return property.GetMetadata( "displayName" ) + ( " (RenderMan)" if plug.getName().startswith( "ri:" ) else "" )
 
 	label = __sdrProperty( plug ).GetLabel() or None
 	if label :

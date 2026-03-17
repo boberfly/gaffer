@@ -56,6 +56,17 @@ Gaffer.Metadata.registerNode(
 	global options applicable to all renderers.
 	""",
 
+	plugs = {
+
+		"options" : {
+
+			"layout:customWidget:optionFilter:widgetType" : "GafferUI.PlugLayout.StandardFilterWidget",
+			"layout:customWidget:optionFilter:index" : 0,
+
+		},
+
+	}
+
 )
 
 class _GPUConfigPlugValueWidget( GafferUI.PlugValueWidget ) :

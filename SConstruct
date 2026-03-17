@@ -46,7 +46,6 @@ import locale
 import shutil
 import subprocess
 import tempfile
-import distutils.dir_util
 import codecs
 
 EnsureSConsVersion( 3, 0, 2 ) # Substfile is a default builder as of 3.0.2
@@ -1223,6 +1222,24 @@ if env["GAFFERUSD"] :
 	if "#define PXR_USE_INTERNAL_BOOST_PYTHON\n" in open( str( pxrVersionHeader ) ) :
 		usdPythonLib = "${USD_LIB_PREFIX}python"
 
+	usdVersion = None
+	for line in open( str( pxrVersionHeader ) ) :
+		m = re.match( r"^#define PXR_VERSION\s*([0-9]+)", line )
+		if m :
+			usdVersion = m.group( 1 )
+			break
+
+	if usdVersion is None :
+		sys.stderr.write( "ERROR : unable to parse \"{}\".\n".format( pxrVersionHeader ) )
+		Exit( 1 )
+
+	if env["USD_MONOLITHIC"] :
+		usdLibs = [ "usd_ms" ]
+	else :
+		usdLibs = [ "sdf", "arch", "tf", "vt" ] + ( [ "ndr" ] if int( usdVersion ) < 2508 else [] ) + [ "sdr", "usd", "usdLux" ]
+
+	usdLibs = [ "${USD_LIB_PREFIX}" + x for x in usdLibs ]
+
 ###############################################################################################
 # Definitions for the libraries we wish to build
 ###############################################################################################
@@ -1565,7 +1582,7 @@ libraries = {
 			"LIBS" : [
 				"IECoreScene$CORTEX_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX", "IECoreMaterialX",
 				"Gaffer", "GafferScene", "GafferDispatch", "GafferOSL",
-				"cycles_session", "cycles_scene", "cycles_graph", "cycles_bvh", "cycles_device", "cycles_kernel", "cycles_kernel_osl",
+				"cycles_device", "cycles_session", "cycles_scene", "cycles_graph", "cycles_bvh", "cycles_kernel", "cycles_kernel_osl",
 				"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew", "extern_hipew",
 				"OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslcomp$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX",
 				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4$EMBREE_LIB_SUFFIX", "openpgl",
@@ -1698,8 +1715,7 @@ libraries = {
 	"GafferUSD" : {
 		"envAppends" : {
 			"LIBS" :
-				[ "Gaffer", "GafferDispatch", "GafferScene", "GafferImage", "IECoreScene$CORTEX_LIB_SUFFIX", usdPythonLib, "python$PYTHON_ABI_VERSION" ] +
-				[ "${USD_LIB_PREFIX}" + x for x in ( [ "sdf", "arch", "tf", "vt", "ndr", "sdr", "usd", "usdLux" ] if not env["USD_MONOLITHIC"] else [ "usd_ms" ] ) ],
+				[ "Gaffer", "GafferDispatch", "GafferScene", "GafferImage", "IECoreScene$CORTEX_LIB_SUFFIX", usdPythonLib, "python$PYTHON_ABI_VERSION" ] + usdLibs,
 			# USD includes "at least one deprecated or antiquated header", so we
 			# have to drop our usual strict warning levels.
 			"CXXFLAGS" : [ "-Wno-deprecated" if env["PLATFORM"] != "win32" else "/wd4996", pxrboost ],
@@ -2713,7 +2729,7 @@ for f in exampleFiles :
 
 def installer( target, source, env ) :
 
-	distutils.dir_util.copy_tree( str( source[0] ), str( target[0] ), preserve_symlinks=True, update=True )
+	shutil.copytree( str( source[0] ), str( target[0] ), symlinks=True, dirs_exist_ok=True )
 
 if env.subst( "$PACKAGE_FILE" ).endswith( ".dmg" ) :
 

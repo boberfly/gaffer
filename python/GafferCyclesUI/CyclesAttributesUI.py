@@ -82,7 +82,7 @@ def __renderingSummary( plug ) :
 
 def __subdivisionSummary( plug ) :
 
-	return ", ".join( __attributeSummary( plug, [ "max_level", "dicing_rate" ] ) )
+	return ", ".join( __attributeSummary( plug, [ "max_level", "dicing_rate", "adaptive_space" ] ) )
 
 def __volumeSummary( plug ) :
 
@@ -105,7 +105,6 @@ def __shaderSummary( plug ) :
 	attributes = [
 		"shader:emission_sampling_method",
 		"shader:use_transparent_shadow",
-		"shader:heterogeneous_volume",
 		"shader:volume_sampling_method",
 		"shader:volume_interpolation_method",
 		"shader:volume_step_rate",
@@ -135,6 +134,9 @@ Gaffer.Metadata.registerNode(
 			"layout:section:Volume:summary" : __volumeSummary,
 			"layout:section:Object:summary" : __objectSummary,
 			"layout:section:Shader:summary" : __shaderSummary,
+
+			"layout:customWidget:attributeFilter:widgetType" : "GafferUI.PlugLayout.StandardFilterWidget",
+			"layout:customWidget:attributeFilter:index" : 0,
 
 		},
 

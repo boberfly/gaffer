@@ -1,6 +1,11 @@
 1.x.x.x (relative to 1.6.x.x)
 =======
 
+Features
+--------
+
+- Cycles : Updated to version 5.0.0.
+
 Improvements
 ------------
 
@@ -10,11 +15,17 @@ Improvements
   - Applications now run using a dedicated `gaffer` executable instead of `python`. This means the root process is now called `gaffer` on all platforms. The `bin/gaffer` (Linux) and `bin/gaffer.cmd` (Windows) launch scripts should still be used as before (#6654).
   - Matched TBB worker thread stack limit to the limit for the main thread. On Linux, this can be configured with `ulimit -s`.
 - ShaderTweaks : Added support for tweaking ramp parameters.
+- CyclesAttributes : Added `cycles:adaptive_space` attribute.
+- CyclesOptions : Added `cycles:integrator:volume_ray_marching` option.
+- LightEditor : Added column for `cycles:visibility:camera` attribute.
 
 Fixes
 -----
 
 - RenderController : Fixed bug where repeatedly setting the same VisibleSet could cause unnecessary updates.
+- UI : Fixed failure to cancel background computations when more than one UI element was waiting for the same result. This could result in the UI becoming unresponsive until the computation was complete.
+- BackgroundMethod : Fixed bug that allowed unwanted background computations to continue when a widget was hidden.
+- MeshTessellate : Fixed crashes caused by non-manifold geometry.
 
 API
 ---
@@ -43,25 +54,92 @@ Breaking Changes
 - GafferUI : Renamed SplineWidget to RampWidget. Renamed SplinePlugValueWidget to RampPlugValueWidget. The old RampPlugValueWidget is no longer exposed, since it was only used internally.
 - Metadata : Added `target` argument to `ValueFunction` signature.
 - Widget : The `toolTip`, `parenting` and `displayTransform` constructor arguments are no longer positional.
+- ValuePlug : Removed deprecated cache policies. Use `TaskCollaboration` instead of `TaskIsolation`. Use `Default` instead of `Legacy`. Instead of `Standard`, use `TaskCollaboration` for `computeCachePolicy()` and `Default` for `hashCachePolicy()`.
+- Box : Removed deprecated plug promotion methods. Use `PlugAlgo` instead.
+- CyclesLight : Removed `use_camera`, `use_diffuse`, `use_glossy`, `use_transmission`, `use_scatter`, and `lightgroup` parameter plugs as Cycles no longer considers these to be light parameters. Ray visibility and light group membership is now set via the `cycles:visibility:*` and `cycles:lightgroup` attributes on a CyclesAttributes node.
+- CyclesAttributes : Removed `cycles:shader:heterogeneous_volume` attribute as it is no longer used by Cycles.
+- CyclesOptions : Removed `cycles:background:volume_step_size` option as it is no longer used by Cycles.
 
 Build
 -----
 
 - Boost : Updated to version 1.85.0.
-- Cortex : Updated to version 10.7.0.0a3.
+- Cortex : Updated to version 10.7.0.0a6.
+- Cycles : Updated to version 5.0.0.
+- Embree : Updated to version 4.4.0.
 - Imath : Updated to version 3.1.12.
 - Jemalloc : Removed when building on macOS.
 - LLVM : Updated to version 17.0.6.
 - OpenColorIO : Updated to version 2.4.2.
 - OpenEXR : Updated to version 3.3.6.
 - OpenShadingLanguage : Updated to version 1.14.8.0.
+- OpenSubdiv : Updated to version 3.6.1.
 - PySide : Updated to version 6.5.8.
 - Python : Updated to version 3.11.14.
 - Qt : Updated to version 6.5.8.
 - TBB : Updated to version 2021.13.0.
 
-1.6.x.x (relative to 1.6.12.0)
+1.6.x.x (relative to 1.6.14.1)
 =======
+
+1.6.14.1 (relative to 1.6.14.0)
+========
+
+Fixes
+-----
+
+- RenderMan :
+  - Fixed crashes rendering deformation motion blur.
+  - Stopped exporting animation for primitive variables other than "P". RenderMan doesn't support animation on any other primitive variable.
+  - Added the name of the relevant primitive variable to warnings about unsupported data types.
+- SConstruct, ShowURL, ArnoldtextureBake : Replaced deprecated distutils with modern alternatives.
+
+1.6.14.0 (relative to 1.6.13.0)
+========
+
+Improvements
+------------
+
+- MergeMeshes, MergeCurves, MergePoints : Added `sortKey`, `sortPrimitiveVariable` and `sortOrder` plugs, to control the order primitives are merged in.
+- RenderMan :
+  - Added support for RenderMan 27.2 and removed support for RenderMan 27.0. Support for RenderMan 26.3 and 26.4 remains unchanged. We hate to remove support for a version within a minor Gaffer release, but RenderMan versions are coming thick and fast and we have to draw the line somewhere.
+  - Improved InteractiveRender responsiveness.
+- Transform Tools : Simplified display of the target node receiving transform edits. Plugs and non-viewable nodes are no longer included in the target path.
+- Scene Editors : Simplified display of edit source in column tooltips, the inspect and edit popups, and history window. Plugs and non-viewable nodes are no longer included in the source path.
+- PlugPopup : Improved default popup title. Plugs and non-viewable nodes are no longer included in the title.
+- Viewer : Added <kbd>D</kbd> hotkey for toggling between denoised and undenoised layers.
+- OSLShader : Added support for `$shaderType:$shaderName:$parameterName` style metadata keys for `correspondingInput` metadata.
+- RenderMan shaders : Added `correspondingInput` metadata to allow automatic node connections when inserting a shader between an existing connection and pass-through connections when a shader is disabled.
+- Dispatcher : Simplified jobs by removing tasks for nodes - such as Wedge - that do no work of their own. This is particularly noticeable in TractorDispatcher, resulting in simpler job graphs in the Tractor dashboard. This behaviour is enabled
+by default but can be temporarily disabled by setting the `GAFFERDISPATCH_OMIT_EMPTY_TASKS` environment variable to a value of `0`. In future, the environment variable will be removed.
+- TractorDispatcher : Added `startPaused` plug.
+- TractorDispatcher, LocalDispatcher : Added context variable summary to task names.
+
+Fixes
+-----
+
+- TractorDispatcher : Fixed bug handling tasks which were dependend on by more than one downstream task.
+- Wedge :
+  - Fixed value preview widget's context handling. The widget now correctly updates when the context changes, and uses the correct context with respect to the focus node.
+  - Fixed creation of context variables named "" if either the `variable` or `indexVariable` plugs had empty values.
+- Arnold : Fixed handling of `custom_attributes` output parameter. This is now merged with `header:*` parameters rather than overwriting them.
+- OSLImage : Fixed unnecessary dependency between input pixel data and output channel names. This fixes flickering in the Viewer's channel selector when viewing the output. This also fixes a loophole whereby theoretically a shader could change the output channel names based on the pixel values in the first image tile (shaders are now executed with a single black pixel to establish the output channel names).
+- VectorDataWidget : Fixed circular reference in right-click popup menu.
+- SceneInspector : Fixed ordering of Global Attributes - these are now sorted alphabetically like everything else.
+
+API
+---
+
+- MetadataAlgo : Added `firstViewableAncestor()` and `firstViewableNode()` functions.
+- Dispatcher : Added `name()` method to TaskBatch.
+
+1.6.13.0 (relative to 1.6.12.0)
+========
+
+Features
+--------
+
+- DiskBlur, FocalBlur : Added `boundingMode` plug with `Mirror` option.
 
 Improvements
 ------------
@@ -69,12 +147,29 @@ Improvements
 - Crop : Added `Auto` mode for `areaSource`, automatically cropping to show only non-empty pixels.
 - GraphEditor : Improved responsiveness of select-drag, by deferring NodeEditor update until the drag ends.
 - RenderManOptions : Added `ri:progress` option to control logging of render progress.
+- USDLight :
+  - Added filters to control which plugs are visible. Renderer-based filters show or hide renderer-specific parameters. A second, general purpose text filter provides additional filtering based on the plug name.
+  - Added RenderMan-specific light parameters.
+- FocalBlur : Improved performance and quality of infilling.
+- Renderer Attributes and Options : Added plug filter widget.
+
+Fixes
+-----
+
+- Anaglyph, ArnoldProcedural, ContactSheet, FocalBlur, MetadataOverlay, PromotePointInstances : Fixed bug that allowed the internal nodes to be edited.
+- ExtensionAlgo : Exported extensions now have `childNodesAreReadOnly` metadata applied correctly.
+- RenderManShader : Fixed default visibility of LamaDielectric's `dielectricNormal` parameter, which is now visible by default (and `normal` is now hidden).
+- Viewer : Fixed bug that displayed the shading menu when <kbd>Ctrl</kbd> + clicking the shading mode menu button instead of toggling between default shading and the last selected shading mode.
 
 API
 ---
 
 - Widget : Added `currentButtons()` static method. This returns the state of the mouse buttons during the last UI event to be processed.
 - LazyMethod : Added `deferUntilButtonRelease` option.
+- SATBlur : Added new node for performing fast variable-radius blurs using summed area tables.
+- PlugLayout :
+  - Added `setFilter()`, `getFilter()` and `removeFilter()` methods for filtering visible plugs in addition to the existing metadata-based plug visibility activators.
+  - Added `PlugLayout.StandardFilterWidget` which adds a child plug filter UI when added as a custom widget to a plug.
 
 1.6.12.0 (relative to 1.6.11.1)
 ========

@@ -152,7 +152,7 @@ def __rayDepthSummary( plug ) :
 def __volumesSummary( plug ) :
 
 	options = [
-		"background:volume_step_size",
+		"integrator:volume_ray_marching",
 		"integrator:volume_max_steps",
 		"integrator:volume_step_rate",
 	]
@@ -346,6 +346,9 @@ Gaffer.Metadata.registerNode(
 			"layout:section:Denoising:summary" : __denoisingSummary,
 			"layout:section:Background:summary" : __backgroundSummary,
 			"layout:section:Log:summary" : __logSummary,
+
+			"layout:customWidget:optionFilter:widgetType" : "GafferUI.PlugLayout.StandardFilterWidget",
+			"layout:customWidget:optionFilter:index" : 0,
 
 		},
 

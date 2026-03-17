@@ -135,17 +135,7 @@ ccl::ShaderNode *convertWalk( const ShaderNetwork::Parameter &outputParameter, c
 		if( scene->shader_manager->use_osl() )
 		{
 			std::string shaderFileName = g_shaderSearchPathCache.get( shader->getName() );
-			node = ccl::OSLShaderManager::osl_node(
-				shaderGraph,
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-				scene,
-#elif ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) == 404
-				scene->shader_manager.get(),
-#else
-				scene->shader_manager,
-#endif
-				shaderFileName.c_str()
-			);
+			node = ccl::OSLShaderManager::osl_node( shaderGraph, scene, shaderFileName.c_str() );
 		}
 		else
 		{
@@ -171,18 +161,10 @@ ccl::ShaderNode *convertWalk( const ShaderNetwork::Parameter &outputParameter, c
 	}
 	else if( const ccl::NodeType *nodeType = ccl::NodeType::find( ccl::ustring( shader->getName() ) ) )
 	{
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 404
-		if( nodeType->type == ccl::NodeType::SHADER )
+		if( nodeType->type == ccl::NodeType::SHADER && nodeType->create )
 		{
 			node = shaderGraph->create_node( nodeType );
 		}
-#else
-		if( nodeType->type == ccl::NodeType::SHADER && nodeType->create )
-		{
-			node = static_cast<ccl::ShaderNode *>( nodeType->create( nodeType ) );
-			node->set_owner( shaderGraph );
-		}
-#endif
 	}
 
 	if( !node )
@@ -192,10 +174,6 @@ ccl::ShaderNode *convertWalk( const ShaderNetwork::Parameter &outputParameter, c
 	}
 
 	node->name = ccl::ustring( namePrefix + outputParameter.shader.string() );
-
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) < 404
-	shaderGraph->add( node );
-#endif
 
 	// Set the shader parameters
 
@@ -408,21 +386,6 @@ Imath::Color3f constantLightStrength( const IECoreScene::ShaderNetwork *light )
 	return strength;
 }
 
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-int updateVisibility( const IECore::Data *data, const IECore::InternedString &name, const int rayType, int visibility )
-{
-	if( parameterValue<bool>( data, name, true ) )
-	{
-		visibility |= rayType;
-	}
-	else
-	{
-		visibility = visibility & ~rayType;
-	}
-	return visibility;
-}
-#endif
-
 const InternedString g_empty( "" );
 const InternedString g_out( "out" );
 
@@ -553,12 +516,6 @@ void setSingleSided( ccl::ShaderGraph *graph )
 	ccl::ShaderNode *transparentBSDF = graph->create_node<ccl::TransparentBsdfNode>();
 	ccl::ShaderNode *geometry = graph->create_node<ccl::GeometryNode>();
 
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) < 404
-	graph->add( mixClosure );
-	graph->add( transparentBSDF );
-	graph->add( geometry );
-#endif
-
 	if( ccl::ShaderOutput *shaderOutput = ShaderNetworkAlgo::output( geometry, "backfacing" ) )
 		if( ccl::ShaderInput *shaderInput = ShaderNetworkAlgo::input( mixClosure, "fac" ) )
 			graph->connect( shaderOutput, shaderInput );
@@ -594,20 +551,8 @@ bool hasOSL( const ccl::Shader *cshader )
 	return false;
 }
 
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-void convertLight( const IECoreScene::ShaderNetwork *light, ccl::Object *object )
-{
-	if( !object->get_geometry()->is_light() )
-	{
-		msg( Msg::Warning, "IECoreCycles::ShaderNetworkAlgo::convertLight", "Cycles object is not a light" );
-		return;
-	}
-
-	ccl::Light *cyclesLight = (ccl::Light*)object->get_geometry();
-#else
 void convertLight( const IECoreScene::ShaderNetwork *light, ccl::Light *cyclesLight )
 {
-#endif
 	const IECoreScene::Shader *lightShader = light->outputShader();
 	if( !lightShader )
 	{
@@ -655,10 +600,6 @@ void convertLight( const IECoreScene::ShaderNetwork *light, ccl::Light *cyclesLi
 		cyclesLight->set_light_type( ccl::LIGHT_POINT );
 	}
 
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-	int visibility = (int)(ccl::PATH_RAY_ALL_VISIBILITY & ~ccl::PATH_RAY_CAMERA);
-#endif
-
 	// Convert parameters
 
 	for( const auto &[name, value] : lightShader->parameters() )
@@ -668,35 +609,7 @@ void convertLight( const IECoreScene::ShaderNetwork *light, ccl::Light *cyclesLi
 			continue;
 		}
 
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-		// Accumulate the visibility flags and set at the end.
-		if( name == "use_camera" )
-		{
-			visibility = updateVisibility( value.get(), name, (int)ccl::PATH_RAY_CAMERA, visibility );
-		}
-		else if( name == "use_diffuse" )
-		{
-			visibility = updateVisibility( value.get(), name, (int)ccl::PATH_RAY_DIFFUSE, visibility );
-		}
-		else if( name == "use_glossy" )
-		{
-			visibility = updateVisibility( value.get(), name, (int)ccl::PATH_RAY_GLOSSY, visibility );
-		}
-		else if( name == "use_transmit" )
-		{
-			visibility = updateVisibility( value.get(), name, (int)ccl::PATH_RAY_TRANSMIT, visibility );
-		}
-		else if( name == "use_scatter" )
-		{
-			visibility = updateVisibility( value.get(), name, (int)ccl::PATH_RAY_VOLUME_SCATTER, visibility );
-		}
-		else if( name == "lightgroup" )
-		{
-			// At the object-level this can be set, but setting it from the light shader has precedence.
-			object->set_lightgroup( ccl::ustring( parameterValue<string>( value.get(), name, std::string() ).c_str() ) );
-		}
-#endif // #if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-		// Convert angle-based parameters, where we use degress and Cycles uses radians.
+		// Convert angle-based parameters, where we use degrees and Cycles uses radians.
 		else if( name == "angle" )
 		{
 			cyclesLight->set_angle( IECore::degreesToRadians( parameterValue<float>( value.get(), name, 0.0f ) ) );
@@ -741,11 +654,6 @@ void convertLight( const IECoreScene::ShaderNetwork *light, ccl::Light *cyclesLi
 	{
 		cyclesLight->set_strength( ccl::one_float3() );
 	}
-
-#if ( CYCLES_VERSION_MAJOR * 100 + CYCLES_VERSION_MINOR ) >= 405
-	// Set visibility for the light onto the object.
-	object->set_visibility( visibility );
-#endif
 }
 
 IECoreScene::ShaderNetworkPtr convertLightShader( const IECoreScene::ShaderNetwork *light )
@@ -1026,8 +934,6 @@ const InternedString g_texMappingYMappingParameter( "tex_mapping__y_mapping" );
 const InternedString g_texMappingZMappingParameter( "tex_mapping__z_mapping" );
 const InternedString g_translationParameter( "translation" );
 const InternedString g_treatAsPointParameter( "treatAsPoint" );
-const InternedString g_useDiffuseParameter( "use_diffuse" );
-const InternedString g_useGlossyParameter( "use_glossy" );
 const InternedString g_useMISParameter( "use_mis" );
 const InternedString g_useSpecularWorkflowParameter( "useSpecularWorkflow" );
 const InternedString g_UVParameter( "UV" );
@@ -1046,6 +952,7 @@ const InternedString g_vector3Parameter( "vector3" );
 const InternedString g_widthParameter( "width" );
 const InternedString g_wrapSParameter( "wrapS" );
 const InternedString g_wrapTParameter( "wrapT" );
+const InternedString g_USDRayVisibilityBlindDataKey( "__USDRayVisibility" );
 
 const InternedString g_interpolationParameter( "interpolation" );
 const InternedString g_filterTypeParameter( "filterType" );
@@ -1075,11 +982,16 @@ void transferUSDLightParameters( ShaderNetwork *network, InternedString shaderHa
 	transferUSDParameter( network, shaderHandle, usdShader, g_normalizeParameter, shader, g_normalizeParameter, false );
 	transferUSDParameter( network, shaderHandle, usdShader, g_shadowEnableParameter, shader, g_castShadowParameter, true );
 
-	const float diffuse = parameterValue( usdShader, g_diffuseParameter, 1.0f );
-	shader->parameters()[g_useDiffuseParameter] = new BoolData( diffuse > 0.0f );
-
-	const float specular = parameterValue( usdShader, g_specularParameter, 1.0f );
-	shader->parameters()[g_useGlossyParameter] = new BoolData( specular > 0.0f );
+	int visibility = (int)ccl::PATH_RAY_ALL_VISIBILITY;
+	if( parameterValue( usdShader, g_diffuseParameter, 1.0f ) == 0.0f )
+	{
+		visibility &= ~(int)ccl::PATH_RAY_DIFFUSE;
+	}
+	if( parameterValue( usdShader, g_specularParameter, 1.0f ) == 0.0f )
+	{
+		visibility &= ~(int)ccl::PATH_RAY_GLOSSY;
+	}
+	shader->blindData()->writable()[g_USDRayVisibilityBlindDataKey] = new IntData( visibility );
 
 	shader->parameters()[g_useMISParameter] = new BoolData( true );
 
