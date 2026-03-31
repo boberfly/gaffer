@@ -154,7 +154,7 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *sc
 
 		// Creases
 		size_t numEdges = mesh->cornerIds()->readable().size();
-		for( int length : mesh->creaseLengths()->readable() )
+		for( const int &length : mesh->creaseLengths()->readable() )
 		{
 			numEdges += length - 1;
 		}
@@ -165,24 +165,31 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *sc
 
 			auto id = mesh->creaseIds()->readable().begin();
 			auto sharpness = mesh->creaseSharpnesses()->readable().begin();
-			for( int length : mesh->creaseLengths()->readable() )
+			for( const int &length : mesh->creaseLengths()->readable() )
 			{
 				for( int j = 0; j < length - 1; ++j )
 				{
-					int v0 = *id++;
-					int v1 = *id;
-					float weight = (*sharpness) * 0.1f;
-					cmesh->add_edge_crease( v0, v1, weight );
+					const float weight = (*sharpness);
+					if( weight > 0.0f )
+					{
+						int v0 = *id++;
+						int v1 = *id;
+						cmesh->add_edge_crease( v0, v1, weight );
+					}
 				}
 				id++;
 				sharpness++;
 			}
 
 			sharpness = mesh->cornerSharpnesses()->readable().begin();
-			for( int cornerId : mesh->cornerIds()->readable() )
+			for( const int &cornerId : mesh->cornerIds()->readable() )
 			{
-				cmesh->add_vertex_crease( cornerId, (*sharpness) * 0.1f );
-				sharpness++;
+				const float weight = (*sharpness);
+				if( weight > 0.0f )
+				{
+					cmesh->add_vertex_crease( cornerId, weight );
+					sharpness++;
+				}
 			}
 		}
 	}
