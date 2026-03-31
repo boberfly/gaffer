@@ -65,7 +65,6 @@ IECORE_PUSH_DEFAULT_VISIBILITY
 #include "scene/osl.h"
 #include "util/path.h"
 #include "util/version.h"
-#include "util/unique_ptr.h"
 IECORE_POP_DEFAULT_VISIBILITY
 
 #include "fmt/format.h"
@@ -470,9 +469,6 @@ std::unique_ptr<ccl::ShaderGraph> convertGraph( const IECoreScene::ShaderNetwork
 		/// Hardcoded to the old OSL version to indicate that component connection adapters are
 		/// required - even though OSL now supports component connections, the Cycles API AFAIK doesn't.
 		IECoreScene::ShaderNetworkAlgo::convertToOSLConventions( toConvert.get(), 10900 );
-		// The above only added component connection adaptors for OSL. Now add them for native
-		// Cycles shaders, as well as MaterialX ones.
-		IECoreScene::ShaderNetworkAlgo::addComponentConnectionAdapters( toConvert.get() );
 		// Convert MaterialX nodes that are better suited to native Cycles shaders eg.
 		// ND_geomparamvalue_*/ND_image_*.
 		IECoreCycles::ShaderNetworkAlgo::convertMtlxShaders( toConvert.get() );
@@ -482,8 +478,14 @@ std::unique_ptr<ccl::ShaderGraph> convertGraph( const IECoreScene::ShaderNetwork
 		// GAFFERCYCLES_DISABLE_MATERIALX_USD_SHADERS environment variable disables this and uses the same
 		// conversion that the SVM backend uses.
 		const bool usdNodes = scene->shader_manager.get() && scene->shader_manager->use_osl() && !g_disableMaterialxUSDShaders;
-		IECoreMaterialX::ShaderNetworkAlgo::convertToOSLNodes( toConvert.get(), "cycles", /* usdNodes */ usdNodes, /* addAdapters */ false );
+		if( scene->shader_manager->use_osl() )
+		{
+			IECoreMaterialX::ShaderNetworkAlgo::convertToOSLNodes( toConvert.get(), "cycles", /* usdNodes */ usdNodes, /* addAdapters */ false );
+		}
 		IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( toConvert.get() );
+		// The above only added component connection adaptors for OSL. Now add them for native
+		// Cycles shaders, as well as MaterialX ones.
+		IECoreScene::ShaderNetworkAlgo::addComponentConnectionAdapters( toConvert.get() );
 		ShaderMap converted;
 		ccl::ShaderNode *node = convertWalk( toConvert->getOutput(), toConvert.get(), namePrefix, scene, graph.get(), converted );
 
@@ -903,6 +905,7 @@ const InternedString g_normalParameter( "normal" );
 const InternedString g_normalizeParameter( "normalize" );
 const InternedString g_occlusionParameter( "occlusion" );
 const InternedString g_opacityParameter( "opacity" );
+const InternedString g_opacityModeParameter( "opacityMode" );
 const InternedString g_opacityThresholdParameter( "opacityThreshold" );
 const InternedString g_parametricParameter( "parametric" );
 const InternedString g_positionParameter( "position");
@@ -933,7 +936,9 @@ const InternedString g_texMappingScaleParameter( "tex_mapping__scale" );
 const InternedString g_texMappingYMappingParameter( "tex_mapping__y_mapping" );
 const InternedString g_texMappingZMappingParameter( "tex_mapping__z_mapping" );
 const InternedString g_translationParameter( "translation" );
+const InternedString g_transmissionWeightParameter( "transmission_weight" );
 const InternedString g_treatAsPointParameter( "treatAsPoint" );
+const InternedString g_useClampParameter( "use_clamp" );
 const InternedString g_useMISParameter( "use_mis" );
 const InternedString g_useSpecularWorkflowParameter( "useSpecularWorkflow" );
 const InternedString g_UVParameter( "UV" );
@@ -1386,6 +1391,7 @@ void IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( ShaderNetwork *shaderNe
 			// with a little compare/multiply network.
 
 			float opacity = parameterValue( shader.get(), g_opacityParameter, 1.0f );
+			const string opacityMode = parameterValue( shader.get(), g_opacityModeParameter, string( "transparent" ) );
 			const float opacityThreshold = parameterValue( shader.get(), g_opacityThresholdParameter, 0.0f );
 			if( const ShaderNetwork::Parameter opacityInput = shaderNetwork->input( { handle, g_opacityParameter } ) )
 			{
@@ -1404,22 +1410,49 @@ void IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( ShaderNetwork *shaderNe
 					shaderNetwork->removeConnection( ShaderNetwork::Connection( opacityInput, { handle, g_opacityParameter } ) );
 					shaderNetwork->addConnection( ShaderNetwork::Connection( { multiplyHandle, g_valueParameter }, { handle, g_alphaParameter } ) );
 				}
-				else
+				else if( opacityMode == string( "presence" ) )
 				{
 					transferUSDParameter( shaderNetwork, handle, shader.get(), g_opacityParameter, newShader.get(), g_alphaParameter, 1.0f );
 				}
+				else
+				{
+					shaderNetwork->removeConnection( ShaderNetwork::Connection( opacityInput, { handle, g_opacityParameter } ) );
+				}
+
+				if( opacityMode == string( "transparent" ) )
+				{
+					ShaderPtr invertShader = new Shader( "math", "cycles:shader" );
+					invertShader->parameters()[g_value1Parameter] = new FloatData( 1.0f );
+					invertShader->parameters()[g_mathTypeParameter] = new StringData( "subtract" );
+					invertShader->parameters()[g_useClampParameter] = new BoolData( true );
+					const InternedString invertHandle = shaderNetwork->addShader( handle.string() + "OpacityInvert", std::move( invertShader ) );
+					shaderNetwork->addConnection( ShaderNetwork::Connection( opacityInput, { invertHandle, g_value2Parameter } ) );
+					shaderNetwork->addConnection( ShaderNetwork::Connection( { invertHandle, g_valueParameter }, { handle, g_transmissionWeightParameter } ) );
+				}
+			}
+			else if( opacityMode == string( "transparent" ) )
+			{
+				newShader->parameters()[g_transmissionWeightParameter] = new FloatData( 1.0f - opacity );
 			}
 			else
 			{
 				opacity = opacity > opacityThreshold ? opacity : 0.0f;
+				newShader->parameters()[g_alphaParameter] = new FloatData( opacity );
 			}
 
-			newShader->parameters()[g_alphaParameter] = new FloatData( opacity );
-
 			// Normal.
-			/// \todo Convert normal parameters once we have a solution for Cycles'
-			/// need for tangents to be provided for the correct use of normal maps.
-			removeInput( shaderNetwork, { handle, g_normalParameter } );
+			if( const ShaderNetwork::Parameter normalInput = shaderNetwork->input( { handle, g_normalParameter } ) )
+			{
+				ShaderPtr normalmapShader = new Shader( "normal_map", "cycles:shader" );
+				const InternedString normalmapHandle = shaderNetwork->addShader( handle.string() + "NormalMap", std::move( normalmapShader ) );
+				ShaderPtr normalizeShader = new Shader( "vector_math", "cycles:shader" );
+				normalizeShader->parameters()[g_mathTypeParameter] = new StringData( "normalize" );
+				const InternedString normalizeHandle = shaderNetwork->addShader( handle.string() + "Normalize", std::move( normalizeShader ) );
+				shaderNetwork->addConnection( ShaderNetwork::Connection( normalInput, { normalmapHandle, g_colorParameter } ) );
+				shaderNetwork->addConnection( ShaderNetwork::Connection( { normalmapHandle, g_normalParameter }, { normalizeHandle, g_value1Parameter } ) );
+				shaderNetwork->removeConnection( ShaderNetwork::Connection( normalInput, { handle, g_normalParameter } ) );
+				shaderNetwork->addConnection( ShaderNetwork::Connection( { normalizeHandle, g_vectorParameter }, { handle, g_normalParameter } ) );
+			}
 
 			// Remove occlusion.
 			removeInput( shaderNetwork, { handle, g_occlusionParameter } );
