@@ -96,8 +96,19 @@ def __sceneSummary( plug ) :
 		"scene:num_bvh_time_steps",
 		"scene:hair_subdivisions",
 		"scene:hair_shape",
-		"scene:texture_limit",
 	]
+	version = GafferCycles.majorVersion * 10000 + GafferCycles.minorVersion * 100 + GafferCycles.patchVersion
+	if version >= 50109 :
+		options += [
+			"scene:texture_resolution",
+			"scene:use_texture_cache",
+			"scene:auto_texture_cache",
+			"scene:texture_cache_path",
+		]
+	else :
+		options += [
+			"scene:texture_limit"
+		]
 
 	return ", ".join( __optionSummary( plug, options ) )
 

@@ -2517,7 +2517,14 @@ IECore::InternedString g_useBvhUnalignedNodesOptionName( "cycles:scene:use_bvh_u
 IECore::InternedString g_numBvhTimeStepsOptionName( "cycles:scene:num_bvh_time_steps" );
 IECore::InternedString g_hairSubdivisionsOptionName( "cycles:scene:hair_subdivisions" );
 IECore::InternedString g_hairShapeOptionName( "cycles:scene:hair_shape" );
+#if ( CYCLES_VERSION_MAJOR * 10000 + CYCLES_VERSION_MINOR * 100 + CYCLES_VERSION_PATCH >= 50199 )
+IECore::InternedString g_textureResolutionOptionName( "cycles:scene:texture_resolution" );
+IECore::InternedString g_useTextureCacheOptionName( "cycles:scene:use_texture_cache" );
+IECore::InternedString g_autoTextureCacheOptionName( "cycles:scene:auto_texture_cache" );
+IECore::InternedString g_textureCachePathOptionName( "cycles:scene:texture_cache_path" );
+#else
 IECore::InternedString g_textureLimitOptionName( "cycles:scene:texture_limit" );
+#endif
 // Background shader
 IECore::InternedString g_backgroundShaderOptionName( "cycles:background:shader" );
 // Integrator
@@ -2867,7 +2874,14 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			params.use_bvh_unaligned_nodes = optionValue<bool>( g_useBvhUnalignedNodesOptionName, params.use_bvh_unaligned_nodes, modified );
 			params.num_bvh_time_steps = optionValue<int>( g_numBvhTimeStepsOptionName, params.num_bvh_time_steps, modified );
 			params.hair_subdivisions = optionValue<int>( g_hairSubdivisionsOptionName, params.hair_subdivisions, modified );
+#if ( CYCLES_VERSION_MAJOR * 10000 + CYCLES_VERSION_MINOR * 100 + CYCLES_VERSION_PATCH >= 50199 )
+			params.texture_resolution = optionValue<float>( g_textureResolutionOptionName, params.texture_resolution, modified );
+			params.use_texture_cache = optionValue<bool>( g_useTextureCacheOptionName, params.use_texture_cache, modified );
+			params.auto_texture_cache = optionValue<bool>( g_autoTextureCacheOptionName, params.auto_texture_cache, modified );
+			params.texture_cache_path = optionValue<string>( g_textureCachePathOptionName, params.texture_cache_path, modified );
+#else
 			params.texture_limit = optionValue<int>( g_textureLimitOptionName, params.texture_limit, modified );
+#endif
 			params.shadingsystem = nameToShadingSystemEnum( optionValue<string>( g_shadingsystemOptionName, "OSL", modified ) );
 			return params;
 		}

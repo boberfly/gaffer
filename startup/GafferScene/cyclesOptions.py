@@ -299,6 +299,56 @@ Gaffer.Metadata.registerValues( {
 		"presetValues" : IECore.IntVectorData( [ 0, 1, 2, 3, 4, 5, 6, 7 ] ),
 
 	},
+    
+	"option:cycles:scene:texture_resolution" : {
+
+		"defaultValue" : 1.0,
+		"description" :
+		"""
+		Set the texture resolution bias.
+		""",
+		"label" : "Texture Resolution",
+		"layout:section" : "Scene",
+
+	},
+
+	"option:cycles:scene:use_texture_cache" : {
+
+		"defaultValue" : True,
+		"description" :
+		"""
+		Use texture cache.
+		""",
+		"label" : "Use Texture Cache",
+		"layout:section" : "Scene",
+
+	},
+
+	"option:cycles:scene:auto_texture_cache" : {
+
+		"defaultValue" : False,
+		"description" :
+		"""
+		Auto-create textures for cache.
+		""",
+		"label" : "Auto Texture Cache",
+		"layout:section" : "Scene",
+
+	},
+
+	"option:cycles:scene:texture_cache_path" : {
+
+		"defaultValue" : "",
+		"description" :
+		"""
+		Path to texture cache.
+		""",
+		"label" : "Texture Cache Path",
+		"layout:section" : "Scene",
+
+		"plugValueWidget:type" : "GafferUI.FileSystemPathPlugValueWidget",
+
+	},
 
 	"option:cycles:integrator:min_bounce" : {
 
