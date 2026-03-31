@@ -88,12 +88,6 @@ bool hasSmoothNormals( const IECoreScene::MeshPrimitive *mesh )
 		case PrimitiveVariable::Uniform :
 			// These are definitely intended to be faceted.
 			return false;
-		case PrimitiveVariable::FaceVarying :
-			// Could be a mix of faceted and non-faceted triangles, including
-			// triangles with a mix of soft and hard edges, which aren't
-			// representable in Cycles. Plump for faceted, among other things
-			// because the native Cortex cube geometry has FaceVarying normals.
-			return false;
 		default :
 			return true;
 	}
