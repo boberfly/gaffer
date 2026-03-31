@@ -891,7 +891,18 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			m_maxLevel = attributeValue<int>( g_maxLevelAttributeName, attributes, m_maxLevel );
 			m_dicingRate = attributeValue<float>( g_dicingRateAttributeName, attributes, m_dicingRate );
 			m_adaptiveSpace = attributeValue<std::string>( g_adaptiveSpaceAttributeName, attributes, m_adaptiveSpace );
-			m_color = attributeValue<Color3f>( g_displayColorAttributeName, attributes, m_color );
+			if( const IECore::Color3fVectorData *d = attribute<IECore::Color3fVectorData>( g_displayColorAttributeName, attributes ) )
+			{
+				const vector<Color3f> &color = d->readable();
+				if( color.size() )
+				{
+					m_color = color[0];
+				}
+			}
+			else
+			{
+				m_color = attributeValue<Color3f>( g_displayColorAttributeName, attributes, m_color );
+			}
 			m_lightGroup = attributeValue<std::string>( g_lightGroupAttributeName, attributes, m_lightGroup );
 			m_assetName = attributeValue<std::string>( g_cryptomatteAssetAttributeName, attributes, m_assetName );
 			m_isCausticsCaster = attributeValue<bool>( g_isCausticsCasterAttributeName, attributes, m_isCausticsCaster );
