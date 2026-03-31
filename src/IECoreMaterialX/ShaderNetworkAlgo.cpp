@@ -468,9 +468,9 @@ void IECoreMaterialX::ShaderNetworkAlgo::convertToOSLNodes( ShaderNetwork *netwo
 	for( const auto &[handle, shader] : originalNetwork->shaders() )
 	{
 		const bool isUsdPrefix = boost::starts_with( shader->getName(), g_usdNamePrefix );
-		if( !usdNodes && !isUsdPrefix )
+		if( !usdNodes && isUsdPrefix )
 		{
-			// Skip USD node conversion early if usdNodes isn't set or the prefix isn't there
+			// Skip USD node conversion early if usdNodes isn't set and has a USD prefix.
 			continue;
 		}
 
