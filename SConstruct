@@ -598,6 +598,12 @@ if env["PLATFORM"] != "win32" :
 			SHLINKFLAGS = [ "-Wl,-fatal_warnings" ],
 		)
 
+	# Disable consteval for fmt
+	if env["CXXSTD"] == "c++20":
+		env.Append(
+			CXXFLAGS = [ "-DFMT_CONSTEVAL=" ]
+		)
+
 	# Address Sanitiser
 
 	if env["ASAN"] :
@@ -725,6 +731,12 @@ else:
 				"/Zi",
 				"/Fd${TARGET}.pdb",
 			],
+		)
+
+	# Disable consteval for fmt
+	if env["CXXSTD"] == "c++20":
+		env.Append(
+			CXXFLAGS = [ "/DFMT_CONSTEVAL=" ]
 		)
 
 	# Reorder build commands so that `/external:I` includes come after `/I` includes.
@@ -1582,8 +1594,8 @@ libraries = {
 			"LIBS" : [
 				"IECoreScene$CORTEX_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX", "IECoreMaterialX",
 				"Gaffer", "GafferScene", "GafferDispatch", "GafferOSL",
-				"cycles_device", "cycles_session", "cycles_scene", "cycles_graph", "cycles_bvh", "cycles_kernel", "cycles_kernel_osl",
-				"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew", "extern_hipew",
+				"cycles_device", "cycles_session", "cycles_scene", "cycles_graph", "cycles_bvh", "cycles_kernel_cpu",
+				"cycles_kernel_osl", "cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew", "extern_hipew",
 				"OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslcomp$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX",
 				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4$EMBREE_LIB_SUFFIX", "openpgl",
 				"OpenImageDenoise$OIDN_LIB_SUFFIX", "OpenImageDenoise" + env.get("OIDN_LIB_SUFFIX", "") + "_core",
