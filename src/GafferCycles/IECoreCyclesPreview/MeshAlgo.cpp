@@ -163,13 +163,9 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *sc
 			{
 				for( int j = 0; j < length - 1; ++j )
 				{
-					const float weight = (*sharpness);
-					if( weight > 0.0f )
-					{
-						int v0 = *id++;
-						int v1 = *id;
-						cmesh->add_edge_crease( v0, v1, weight );
-					}
+					const int v0 = *id++;
+					const int v1 = *id;
+					cmesh->add_edge_crease( v0, v1, (*sharpness) * 0.1f );
 				}
 				id++;
 				sharpness++;
@@ -178,12 +174,8 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *sc
 			sharpness = mesh->cornerSharpnesses()->readable().begin();
 			for( const int &cornerId : mesh->cornerIds()->readable() )
 			{
-				const float weight = (*sharpness);
-				if( weight > 0.0f )
-				{
-					cmesh->add_vertex_crease( cornerId, weight );
-					sharpness++;
-				}
+				cmesh->add_vertex_crease( cornerId, (*sharpness) * 0.1f );
+				sharpness++;
 			}
 		}
 	}
