@@ -2287,7 +2287,10 @@ if exeEnv["PLATFORM"] != "win32" :
 else :
 	exeEnv.Append(
 
-		LINKFLAGS = [ "/STACK:8388608" ]
+		# Using 4MB stack to match TBB's default thread stack size.
+		# We read this value in `Application`, so it can be changed
+		# here and will propogate to TBB threads.
+		LINKFLAGS = [ "-Stack:" + str( 8 * 1024 * 1024 ) ],
 
 	)
 

@@ -5,6 +5,7 @@ Features
 --------
 
 - Cycles : Updated to version 5.0.0.
+- CurvesInterpolation : Added node for modifying CurvesPrimitive `basis` and `wrap`. This includes the ability to convert curves with `Pinned` wrap to `NonPeriodic`, adding the appropriate "phantom" points to maintain curve shape.
 
 Improvements
 ------------
@@ -13,11 +14,16 @@ Improvements
 - InteractiveRender : Added `useVisibleSet` plug. When on, only the scene locations contained in the Visible Set will be rendered.
 - Application :
   - Applications now run using a dedicated `gaffer` executable instead of `python`. This means the root process is now called `gaffer` on all platforms. The `bin/gaffer` (Linux) and `bin/gaffer.cmd` (Windows) launch scripts should still be used as before (#6654).
+  - Set the main thread stack limit to 4MB on Windows (#6809).
   - Matched TBB worker thread stack limit to the limit for the main thread. On Linux, this can be configured with `ulimit -s`.
 - ShaderTweaks : Added support for tweaking ramp parameters.
 - CyclesAttributes : Added `cycles:adaptive_space` attribute.
 - CyclesOptions : Added `cycles:integrator:volume_ray_marching` option.
 - LightEditor : Added column for `cycles:visibility:camera` attribute.
+- OpenColorIO : Added ACES Studio 2.0 config. The default config is still ACES 1.3, due to RenderMan not supporting ACES 2.0.
+- CurvesPrimitive : Added `Pinned` wrap mode in addition to the existing `Periodic` and `NonPeriodic` modes. This conveniently interpolates CatmullRom
+and BSpline curves to their endpoints automatically, without manual management of duplicate endpoints or "phantom vertices".
+- SceneReader, SceneWriter : Added support for pinned UsdGeomBasisCurves.
 
 Fixes
 -----
@@ -26,10 +32,18 @@ Fixes
 - UI : Fixed failure to cancel background computations when more than one UI element was waiting for the same result. This could result in the UI becoming unresponsive until the computation was complete.
 - BackgroundMethod : Fixed bug that allowed unwanted background computations to continue when a widget was hidden.
 - MeshTessellate : Fixed crashes caused by non-manifold geometry.
+- 3Delight : Fixed rendering of linear curves.
+- DeleteCurves : Fixed deletion of periodic curves.
+- ResamplePrimitiveVariables : Fixed resampling between Vertex and Varying for linear curves.
+- Cycles :
+  - Reduced memory usage when rendering a single segment of deformation blur on CPU devices.
+  - Fixed PointsPrimitive motion blur when rendering with even numbers of segments.
 
 API
 ---
 
+- SubGraph : Clarified via documentation that SubGraph is _not_ intended as a base class for custom nodes. Nodes should derive from DependencyNode
+  or some other base class instead.
 - Metadata : `ValueFunctions` now receive a `target` parameter. This is particularly useful when registering a function against a wildcard pattern.
 - PlugAlgo : Added `RampffData` and `RampfColor3fData` support to `createPlugFromData()`.
 - Widget :
@@ -39,6 +53,8 @@ API
 Breaking Changes
 ----------------
 
+- Arnold : Removed support for Arnold 7.3.
+- RenderMan : Removed support for RenderMan 27.1.
 - ValuePlug : Disconnection no longer emits `plugSetSignal()`.
 - ArnoldShader : The `standard_volume` shader is now assigned via an `ai:volume` attribute instead of `ai:surface`.
 - RenderUI : Removed deprecated `rendererPresetNames()` function.
@@ -59,18 +75,24 @@ Breaking Changes
 - CyclesLight : Removed `use_camera`, `use_diffuse`, `use_glossy`, `use_transmission`, `use_scatter`, and `lightgroup` parameter plugs as Cycles no longer considers these to be light parameters. Ray visibility and light group membership is now set via the `cycles:visibility:*` and `cycles:lightgroup` attributes on a CyclesAttributes node.
 - CyclesAttributes : Removed `cycles:shader:heterogeneous_volume` attribute as it is no longer used by Cycles.
 - CyclesOptions : Removed `cycles:background:volume_step_size` option as it is no longer used by Cycles.
+- OpenColorIO : Removed "Legacy (Gaffer 1.2)" config.
+- GLWidget : Removed built-in support for hosting in Maya and Houdini. Implement host integration via `GLWidget._registerQGLWidgetCreator()` instead.
+- StandardLightVisualiser : Made `surfaceTexture()` private. The new `registerSurfaceTexture()` method can be used to register a method to return surface texture data.
+- ExtensionAlgo : Changed base class for extension nodes from SubGraph to DependencyNode.
 
 Build
 -----
 
 - Boost : Updated to version 1.85.0.
-- Cortex : Updated to version 10.7.0.0a6.
+- Cortex : Updated to version 10.7.0.0a8.
 - Cycles : Updated to version 5.0.0.
 - Embree : Updated to version 4.4.0.
 - Imath : Updated to version 3.1.12.
 - Jemalloc : Removed when building on macOS.
 - LLVM : Updated to version 17.0.6.
-- OpenColorIO : Updated to version 2.4.2.
+- OpenColorIO :
+  - Updated to version 2.4.2.
+  - Added ACES 2.0 configs.
 - OpenEXR : Updated to version 3.3.6.
 - OpenShadingLanguage : Updated to version 1.14.8.0.
 - OpenSubdiv : Updated to version 3.6.1.
@@ -78,9 +100,78 @@ Build
 - Python : Updated to version 3.11.14.
 - Qt : Updated to version 6.5.8.
 - TBB : Updated to version 2021.13.0.
+- USD : Updated to version 26.03.
 
-1.6.x.x (relative to 1.6.14.1)
+1.6.x.x (relative to 1.6.15.0)
 =======
+
+Improvements
+------------
+
+- SceneInspector, AttributeEditor, HierarchyView, LightEditor, RenderPassEditor : Added inspection of scene edits performed by render adaptors registered to `client = "SceneEditor"`, such as those used by the Render Pass Editor to modify the scene at render time. Cells with values sourced from a render adaptor are displayed with a faded orange background and cannot be directly edited as render adaptors exist externally to the script and are not user-editable. The `render:defaultRenderer` option must be set in the scene globals in order for renderer-specific edits to be shown.
+- Render, InteractiveRender : The `render:defaultRenderer` option is now created as a fallback when viewing these nodes. The option is created with the current value of the node's `renderer` plug so Editors can display edits from render adaptors matching the currently selected renderer.
+
+Fixes
+-----
+
+- Spreadsheet : Fixed formatting of OptionalValuePlug values, such as for the renderer-specific plugs on USDLight nodes.
+- GraphEditor : Fixed bug allowing framing of nodes dragged from other scripts.
+- CompoundEditor : Fixed bug allowing pinning of nodes dragged from other scripts.
+- Scene Editors :
+  - Attribute and option histories in the `Show History...` window now include the entire history rather than pruning once the attribute or option fails to exist.
+  - Fixed cell background colour when the target edit scope is upstream of the first node creating the inspected attribute or option. It is now yellow to indicate the downstream override, whereas before it had the default colour.
+  - Fixed creation of edits in edit scopes upstream of the first node creating the target attribute or option. The upstream edit scope can now be edited, whereas before it would be reported as not being part of the scene history.
+  - Fixed bug preventing disabled attribute plugs from being edited on source nodes - such as USDLight and Camera - when the edit target was set to "Source" and there was a downstream edit in an EditScope.
+- SceneAlgo : `attributeHistory` and `optionHistory` now return the entire history rather than pruning once the attribute or option fails to exist.
+- SceneInspector, RenderPassEditor : Fixed bug causing history inspection to incorrectly include OptionTweaks `CreateIfMissing` tweaks that have not modified the scene due to the option already existing upstream of the tweak.
+
+API
+---
+
+- TestCase : Added `assertEventually()` method.
+
+1.6.15.0 (relative to 1.6.14.2)
+========
+
+Features
+--------
+
+- Arnold : Added support for Arnold 7.5.
+- ReflectionConstraint : Added a new node for constraining objects so that they are reflected in the target when viewed through a chosen camera.
+
+Improvements
+------------
+
+- StandardLightVisualiser : Added surface texture visualisation for inputs to the `color` parameter of USD lights when GafferArnold is used (#6651).
+
+Fixes
+-----
+
+- Cycles : Re-order shader conversion functions so that component connection adapters are run last.
+- MeshTessellate : Fixed node menu label.
+- Arnold : Silenced warnings when rendering `ray_switch_shader` nodes exported to USD from MtoA.
+
+API
+---
+
+- StandardLightVisualiser : Added `registerSurfaceTexture()` and accompanying `SurfaceTextureRegistration` convenience class for registering functions to provide surface textures.
+
+1.6.14.2 (relative to 1.6.14.1)
+========
+
+Fixes
+-----
+
+- SceneInspector, AttributeEditor :
+  - Fixed bug causing history inspection to incorrectly include AttributeTweaks `CreateIfMissing` tweaks that have not modified the scene due to the attribute already existing upstream of the tweak.
+  - Fixed bug causing history inspection to incorrectly include Attributes nodes with an enabled `global` plug when inspecting attributes on scene locations.
+- Scene Editors : Fixed bug that could cause a checkbox to fail to update when double-clicking.
+- PathListingWidget : Prevented redundant selection update when double-clicking.
+
+API
+---
+
+- GLWidget : Added `_registerQGLWidgetCreator()` function, which can be used to customise QGLWidget creation for custom host environments.
 
 1.6.14.1 (relative to 1.6.14.0)
 ========

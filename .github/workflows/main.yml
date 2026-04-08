@@ -77,7 +77,7 @@ jobs:
             testRunner: sudo -E -u testUser
             sconsCacheMegabytes: 400
             jobs: 4
-            dependenciesURL: https://github.com/ImageEngine/cortex/releases/download/10.7.0.0a6/cortex-10.7.0.0a6-linux-platform24.tar.gz
+            dependenciesURL: https://github.com/ImageEngine/cortex/releases/download/10.7.0.0a8/cortex-10.7.0.0a8-linux-platform24.tar.gz
             extraBuildArguments: CYCLES_ROOT=""
 
           - name: windows
@@ -141,6 +141,8 @@ jobs:
       run: |
         # Clear space on runner by deleting stuff we don't need from the host VM.
         rm -rf /hostVolume/usr/lib/jvm /hostVolume/usr/local/lib/android
+        # Remove unnecessary headers from `build:3.x.x` container.
+        rm -rf /usr/local/include/*
         # Set up an X server and window manager.
         Xvfb :99 -screen 0 1280x1024x24 &
         metacity --display :99.0 &
@@ -230,7 +232,7 @@ jobs:
         import sys
         import os
 
-        for arnoldVersion in [ "7.3.1.0", "7.4.1.0" ] :
+        for arnoldVersion in [ "7.4.1.0", "7.5.1.0" ] :
           arnoldRoot = os.path.join( os.environ["GITHUB_WORKSPACE"], "arnoldRoot", arnoldVersion )
           os.environ["ARNOLD_ROOT"] = arnoldRoot
 
@@ -310,35 +312,6 @@ jobs:
         PYTHONUTF8: 1
       if: ${{ env.RMANTREE != '' }}
 
-    - name: Install RenderMan 27.1
-      run: |
-        rm -r "$RMANTREE" # Free up precious disk space from the previous installation
-        ./.github/workflows/main/installRenderMan.py --version 27.1 --outputFormat "RMANTREE={rmanTree}" >> $GITHUB_ENV
-      shell: bash
-      env:
-        RENDERMAN_DOWNLOAD_USER: ${{ secrets.RENDERMAN_DOWNLOAD_USER }}
-        RENDERMAN_DOWNLOAD_PASSWORD: ${{ secrets.RENDERMAN_DOWNLOAD_PASSWORD }}
-        RENDERMAN_LICENSE_PASSPHRASE: ${{ secrets.RENDERMAN_LICENSE_PASSPHRASE }}
-      if: ${{ env.RENDERMAN_DOWNLOAD_USER != '' }}
-
-    - name: Build against RenderMan 27.1
-      run: |
-        scons -j ${{ matrix.jobs }} build BUILD_TYPE=${{ matrix.buildType }} OPTIONS=.github/workflows/main/sconsOptions ${{ matrix.extraBuildArguments }}
-      env:
-        PYTHONUTF8: 1
-      if: ${{ env.RMANTREE != '' }}
-
-    - name: Test against RenderMan 27.1
-      # RenderMan 27 claims to be compatible with VFXPlatform 2024, but requires a
-      # glibc version higher than the allowed maximum of 2.28. This means we
-      # can't run RenderMan in our Rocky 8 build container, which was carefully
-      # chosen to provide a conforming glibc version. So, to test RenderMan 27,
-      # we must run in a Rocky 9 container.
-      run: |
-        podman run -e CI -e RMANTREE -e GITHUB_WORKSPACE -e GAFFER_BUILD_DIR -v /opt/pixar:/opt/pixar -v $GITHUB_WORKSPACE:$GITHUB_WORKSPACE --mac-address a4:bb:6d:cf:40:7a --shm-size 4g --entrypoint=sh -w $GITHUB_WORKSPACE rockylinux:9.3-minimal -c .github/workflows/main/testGafferRenderMan.sh
-        df -H
-      if: ${{ env.RMANTREE != '' && runner.os != 'Windows' }}
-
     - name: Install RenderMan 27.2
       run: |
         rm -r "$RMANTREE" # Free up precious disk space from the previous installation
@@ -358,6 +331,11 @@ jobs:
       if: ${{ env.RMANTREE != '' }}
 
     - name: Test against RenderMan 27.2
+      # RenderMan 27 claims to be compatible with VFXPlatform 2024, but requires a
+      # glibc version higher than the allowed maximum of 2.28. This means we
+      # can't run RenderMan in our Rocky 8 build container, which was carefully
+      # chosen to provide a conforming glibc version. So, to test RenderMan 27,
+      # we must run in a Rocky 9 container.
       run: |
         podman run -e CI -e RMANTREE -e GITHUB_WORKSPACE -e GAFFER_BUILD_DIR -v /opt/pixar:/opt/pixar -v $GITHUB_WORKSPACE:$GITHUB_WORKSPACE --mac-address a4:bb:6d:cf:40:7a --shm-size 4g --entrypoint=sh -w $GITHUB_WORKSPACE rockylinux:9.3-minimal -c .github/workflows/main/testGafferRenderMan.sh
         df -H

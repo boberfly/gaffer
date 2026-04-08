@@ -96,6 +96,13 @@ T parameter( InternedString metadataTarget, const IECore::CompoundData *paramete
 	return defaultValue;
 }
 
+using SurfaceTextureMap = std::vector<StandardLightVisualiser::SurfaceTexture>;
+SurfaceTextureMap &surfaceTextureMap()
+{
+	static SurfaceTextureMap g_surfaceTextureMap;
+	return g_surfaceTextureMap;
+}
+
 const InternedString g_typeString( "type" );
 const InternedString g_colorParameterString( "colorParameter" );
 const InternedString g_tintParameterString( "tintParameter" );
@@ -352,7 +359,7 @@ Visualisations StandardLightVisualiser::visualise( const IECore::InternedString 
 
 	if( ornamentWireframePoints->readable().size() > 0 )
 	{
-		IECoreGL::CurvesPrimitivePtr curves = new IECoreGL::CurvesPrimitive( IECore::CubicBasisf::linear(), false, ornamentWireframeVertsPerCurve );
+		IECoreGL::CurvesPrimitivePtr curves = new IECoreGL::CurvesPrimitive( IECore::CubicBasisf::linear(), IECoreScene::CurvesPrimitive::Wrap::NonPeriodic, ornamentWireframeVertsPerCurve );
 		curves->addPrimitiveVariable( "P", IECoreScene::PrimitiveVariable( IECoreScene::PrimitiveVariable::Vertex, ornamentWireframePoints ) );
 		curves->addPrimitiveVariable( "Cs", IECoreScene::PrimitiveVariable( IECoreScene::PrimitiveVariable::Constant, new Color3fData( lightWireframeColor( muted ) ) ) );
 		result.push_back( Visualisation::createOrnament( curves, /* affectsFramingBound = */ false ) );
@@ -374,8 +381,21 @@ Visualisations StandardLightVisualiser::visualise( const IECore::InternedString 
 	return result;
 }
 
+void StandardLightVisualiser::registerSurfaceTexture( SurfaceTexture texture )
+{
+	surfaceTextureMap().push_back( texture );
+}
+
 IECore::DataPtr StandardLightVisualiser::surfaceTexture( const IECore::InternedString &attributeName, const IECoreScene::ShaderNetwork *shaderNetwork, const IECore::CompoundObject *attributes, int maxTextureResolution ) const
 {
+	for( const auto &textureFunction : ::surfaceTextureMap() )
+	{
+		if( DataPtr result = textureFunction( attributeName, shaderNetwork, attributes, maxTextureResolution ) )
+		{
+			return result;
+		}
+	}
+
 	const IECore::InternedString metadataTarget = metadataTargetForNetwork( attributeName, shaderNetwork );
 	const IECore::CompoundData *shaderParameters = shaderNetwork->outputShader()->parametersData();
 	const std::string textureName = parameter<std::string>( metadataTarget, shaderParameters, "textureNameParameter", "" );

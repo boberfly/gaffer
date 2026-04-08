@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2023, Cinesite VFX Ltd. All rights reserved.
+#  Copyright (c) 2026, Cinesite VFX Ltd. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -34,40 +34,19 @@
 #
 ##########################################################################
 
-import IECore
-
 import Gaffer
-import GafferScene
-import GafferArnold
+import GafferImage
+import GafferImageTest
 
-# Register a render adaptor that inserts a `color_manager_ocio` driven
-# by the OpenColorIOAlgo context, if no Arnold color manager exists in the
-# scene already.
+class MetadataOverlayTest( GafferImageTest.ImageTestCase ) :
 
-def __ocioColorManagerAdaptor() :
+	def testDependencyNodeMethods( self ) :
 
-	result = GafferScene.SceneProcessor()
+		node = GafferImage.MetadataOverlay()
+		self.assertIsInstance( node, Gaffer.DependencyNode )
 
-	result["colorManager"] = GafferArnold.ArnoldColorManager()
-	result["colorManager"].loadColorManager( "color_manager_ocio" )
-	result["colorManager"]["in"].setInput( result["in"] )
-	result["colorManager"]["parameters"]["config"].setValue( "${ocio:config}" )
-	result["colorManager"]["parameters"]["color_space_linear"].setValue( "${ocio:workingSpace}" )
-	# We use the `srgb_texture` alias here as it is common between the ACES 1.3 and 2.0 configs, which
-	# otherwise have different names for the equivalent colorspace.
-	result["colorManager"]["parameters"]["color_space_narrow"].setValue( "srgb_texture" )
+		self.assertTrue( node.enabledPlug().isSame( node["enabled"] ) )
+		self.assertTrue( node.correspondingInput( node["out"] ).isSame( node["in"] ) )
 
-	result["optionQuery"] = GafferScene.OptionQuery()
-	result["optionQuery"]["scene"].setInput( result["in"] )
-	result["optionQuery"].addQuery( Gaffer.ObjectPlug( defaultValue = IECore.NullObject().defaultNullObject() ), "ai:color_manager" )
-
-	result["expression"] = Gaffer.Expression()
-	result["expression"].setExpression(
-		"""parent["colorManager"]["enabled"] = not parent["optionQuery"]["out"]["out0"]["exists"]"""
-	)
-
-	result["out"].setInput( result["colorManager"]["out"] )
-
-	return result
-
-GafferScene.SceneAlgo.registerRenderAdaptor( "DefaultArnoldColorManager", __ocioColorManagerAdaptor, renderer = "Arnold" )
+if __name__ == "__main__":
+	unittest.main()

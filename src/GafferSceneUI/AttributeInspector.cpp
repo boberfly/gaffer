@@ -164,17 +164,7 @@ AttributeHistoryCache g_attributeHistoryCache(
 		assert( canceller == Context::current()->canceller() );
 		cost = 1;
 		SceneAlgo::History::ConstPtr attributesHistory = g_historyCache.get( key, canceller );
-		if( auto h = SceneAlgo::attributeHistory( attributesHistory.get(), key.attribute ) )
-		{
-			return h;
-		}
-		else
-		{
-			// The specific attribute doesn't exist. But we return the history for the
-			// whole CompoundObject so we get a chance to discover nodes that could
-			// _create_ the attribute.
-			return attributesHistory;
-		}
+		return SceneAlgo::attributeHistory( attributesHistory.get(), key.attribute );
 	},
 	// Max cost
 	1000,
@@ -316,7 +306,7 @@ Gaffer::ValuePlugPtr AttributeInspector::source( const GafferScene::SceneAlgo::H
 
 	else if( auto attributes = runTimeCast<GafferScene::Attributes>( sceneNode ) )
 	{
-		if( !(attributes->filterPlug()->match( attributes->inPlug() ) & PathMatcher::ExactMatch ) )
+		if( attributes->globalPlug()->getValue() || !( attributes->filterPlug()->match( attributes->inPlug() ) & PathMatcher::ExactMatch ) )
 		{
 			return nullptr;
 		}
@@ -347,6 +337,7 @@ Gaffer::ValuePlugPtr AttributeInspector::source( const GafferScene::SceneAlgo::H
 			return nullptr;
 		}
 
+		ConstCompoundObjectPtr attributes;
 		for( const auto &tweak : TweakPlug::Range( *attributeTweaks->tweaksPlug() ) )
 		{
 			if(
@@ -354,6 +345,24 @@ Gaffer::ValuePlugPtr AttributeInspector::source( const GafferScene::SceneAlgo::H
 				tweak->enabledPlug()->getValue()
 			)
 			{
+				if( tweak->modePlug()->getValue() == TweakPlug::CreateIfMissing )
+				{
+					if( !attributes )
+					{
+						ScenePlug::ScenePath currentPath( history->context->get<ScenePlug::ScenePath>( ScenePlug::scenePathContextName ) );
+						attributes = attributeTweaks->localisePlug()->getValue() ?
+							attributeTweaks->inPlug()->fullAttributes( currentPath, /* withGlobalAttributes = */ true ) :
+							attributeTweaks->inPlug()->attributesPlug()->getValue();
+					}
+
+					if( attributes->members().count( m_attribute ) )
+					{
+						// This `CreateIfMissing` tweak has not modified the scene as the
+						// attribute already exists upstream.
+						continue;
+					}
+				}
+
 				return tweak;
 			}
 		}

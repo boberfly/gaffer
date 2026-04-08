@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2013, Image Engine Design Inc. All rights reserved.
+//  Copyright (c) 2026, Cinesite VFX Ltd. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -36,41 +36,45 @@
 
 #pragma once
 
-#include "Gaffer/DependencyNode.h"
+#include "GafferScene/ObjectProcessor.h"
 
-namespace Gaffer
+#include "Gaffer/OptionalValuePlug.h"
+
+namespace GafferScene
 {
 
-/// > Caution : This is _not_ expected to be used as a base class for
-/// > custom nodes. Any Node can use an internal network without needing to
-/// > inherit from SubGraph. SubGraph is only intended for use when the user
-/// > will interact directly with the internal network.
-class GAFFER_API SubGraph : public DependencyNode
+class GAFFERSCENE_API CurvesInterpolation : public ObjectProcessor
 {
 
 	public :
 
-		explicit SubGraph( const std::string &name=defaultName<SubGraph>() );
-		~SubGraph() override;
+		explicit CurvesInterpolation( const std::string &name=defaultName<CurvesInterpolation>() );
+		~CurvesInterpolation() override;
 
-		GAFFER_NODE_DECLARE_TYPE( Gaffer::SubGraph, SubGraphTypeId, DependencyNode );
+		GAFFER_NODE_DECLARE_TYPE( GafferScene::CurvesInterpolation, CurvesInterpolationTypeId, ObjectProcessor );
 
-		/// Does nothing
-		void affects( const Plug *input, AffectedPlugsContainer &outputs ) const override;
+		/// Values are from `IECore::StandardCubicBasis`.
+		Gaffer::OptionalValuePlug *basisPlug();
+		const Gaffer::OptionalValuePlug *basisPlug() const;
 
-		/// Returns getChild<BoolPlug>( "enabled" ).
-		BoolPlug *enabledPlug() override;
-		const BoolPlug *enabledPlug() const override;
+		Gaffer::OptionalValuePlug *wrapPlug();
+		const Gaffer::OptionalValuePlug *wrapPlug() const;
 
-		/// Implemented to allow a user to define a pass-through behaviour
-		/// by wiring the nodes inside this sub graph up appropriately. The
-		/// input to the output plug must be connected from a node inside
-		/// the sub graph, where that node itself has its enabled plug driven
-		/// by the external enabled plug, and the correspondingInput for the
-		/// node comes from one of the inputs to the sub graph.
-		Plug *correspondingInput( const Plug *output ) override;
-		const Plug *correspondingInput( const Plug *output ) const override;
+		Gaffer::BoolPlug *expandPinnedPlug();
+		const Gaffer::BoolPlug *expandPinnedPlug() const;
+
+	protected :
+
+		bool affectsProcessedObject( const Gaffer::Plug *input ) const override;
+		void hashProcessedObject( const ScenePath &path, const Gaffer::Context *context, IECore::MurmurHash &h ) const override;
+		IECore::ConstObjectPtr computeProcessedObject( const ScenePath &path, const Gaffer::Context *context, const IECore::Object *inputObject ) const override;
+
+	private :
+
+		static size_t g_firstPlugIndex;
 
 };
 
-} // namespace Gaffer
+IE_CORE_DECLAREPTR( CurvesInterpolation )
+
+} // namespace GafferScene
