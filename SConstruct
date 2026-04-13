@@ -431,7 +431,7 @@ for path in [
 	] + env["LOCATE_DEPENDENCY_SYSTEMPATH"] :
 
 	env.Append(
-		CXXFLAGS = [ systemIncludeArgument, path ]
+		CXXFLAGS = [ systemIncludeArgument + path ]
 	)
 
 env["BUILD_DIR"] = os.path.abspath( env["BUILD_DIR"] )
@@ -1395,7 +1395,7 @@ libraries = {
 				"OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslcomp$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX",
 				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4", "openpgl", "zstd",
 			],
-			"CXXFLAGS" : [ systemIncludeArgument, "$CYCLES_ROOT/include" ],
+			"CXXFLAGS" : [ systemIncludeArgument + "$CYCLES_ROOT/include" ],
 			"CPPDEFINES" : cyclesDefines,
 			"FRAMEWORKS" : [ "Foundation", "Metal", "IOKit" ],
 		},
@@ -1403,7 +1403,7 @@ libraries = {
 			"LIBS" : [
 				"GafferScene", "GafferDispatch", "GafferBindings", "GafferCycles", "IECoreScene",
 			],
-			"CXXFLAGS" : [ systemIncludeArgument, "$CYCLES_ROOT/include" ],
+			"CXXFLAGS" : [ systemIncludeArgument + "$CYCLES_ROOT/include" ],
 			"CPPDEFINES" : cyclesDefines,
 		},
 		"requiredOptions" : [ "CYCLES_ROOT" ],
@@ -1660,7 +1660,7 @@ if os.path.exists( env.subst("$VTUNE_ROOT") ):
 
 		libraries[library].setdefault( "envAppends", {} )
 		libraries[library]["envAppends"].setdefault( "CXXFLAGS", [] ).extend(
-			[ systemIncludeArgument, "$VTUNE_ROOT/include", "-DGAFFER_VTUNE" ]
+			[ systemIncludeArgument + "$VTUNE_ROOT/include", "-DGAFFER_VTUNE" ]
 		)
 		libraries[library]["envAppends"].setdefault( "LIBPATH", [] ).extend( [ "$VTUNE_ROOT/lib64" ] )
 		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "ittnotify", "dl" ] )
