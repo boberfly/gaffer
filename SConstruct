@@ -262,6 +262,10 @@ options.Add(
 )
 
 options.Add(
+	BoolVariable( "BOOST_CMAKE", "Build using a Boost built with CMake.", False ),
+)
+
+options.Add(
 	"GLEW_LIB_SUFFIX",
 	"The suffix used when locating the glew libraries.",
 	"",
@@ -825,7 +829,7 @@ baseLibEnv.Append(
 
 	LIBS = [
 		"boost_filesystem$BOOST_LIB_SUFFIX",
-		"boost_regex$BOOST_LIB_SUFFIX",
+		"boost_regex$BOOST_LIB_SUFFIX" if not env["BOOST_CMAKE"] else "",
 		"boost_chrono$BOOST_LIB_SUFFIX",
 		"tbb",
 		"fmt",
