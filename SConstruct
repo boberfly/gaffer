@@ -340,6 +340,10 @@ options.Add(
 )
 
 options.Add(
+	BoolVariable( "GLEW_LIB_STATIC", "Whether or not to use glew statically", False ),
+)
+
+options.Add(
 	"ENV_VARS_TO_IMPORT",
 	"By default SCons ignores the environment it is run in, to avoid it contaminating the "
 	"build process. This can be problematic if some of the environment is critical for "
@@ -1623,7 +1627,11 @@ for library in ( "GafferUI", "GafferScene", "GafferSceneUI", "GafferImageUI" ) :
 	else :
 		libraries[library]["envAppends"]["LIBS"].append( [ "GL", "GLX" ] )
 		libraries[library]["pythonEnvAppends"]["LIBS"].append( [ "GL", "GLX" ] )
-	libraries[library]["envAppends"]["LIBS"].append( "GLEW$GLEW_LIB_SUFFIX" )
+	if env["GLEW_LIB_STATIC"] :
+		libraries[library]["envAppends"]["LIBS"].append( "libGLEW$GLEW_LIB_SUFFIX" if env["PLATFORM"] == "win32" else "GLEW$GLEW_LIB_SUFFIX" )
+		libraries[library]["envAppends"].setdefault( "CXXFLAGS", [] ).extend( [ "-DGLEW_STATIC" ] )
+	else :
+		libraries[library]["envAppends"]["LIBS"].append( "GLEW$GLEW_LIB_SUFFIX" )
 
 # Add on Qt libraries to definitions - these vary from platform to platform
 
