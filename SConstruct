@@ -1413,7 +1413,7 @@ libraries = {
 				"cycles_device", "cycles_session", "cycles_scene", "cycles_graph", "cycles_bvh", "cycles_kernel_cpu", "cycles_kernel_osl",
 				"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew",
 				"OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslcomp$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX",
-				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4", "openpgl", "zstd",
+				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4", "openpgl",
 				"OpenImageDenoise", "OpenImageDenoise_core", "extern_hipew",
 			],
 			"CXXFLAGS" : [ systemIncludeArgument + "$CYCLES_ROOT/include" ],
@@ -1665,7 +1665,7 @@ if env["PLATFORM"] == "win32" :
 	for library in ( "GafferCycles", ) :
 
 		libraries[library].setdefault( "envAppends", {} )
-		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "Version" ] )
+		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "zstd" if env["PLATFORM"] != "win32" else "zstd_static", "Version" ] )
 		libraries[library].setdefault( "pythonEnvAppends", {} )
 		libraries[library]["pythonEnvAppends"].setdefault( "LIBS", [] ).extend( [ "Advapi32" ] )
 
