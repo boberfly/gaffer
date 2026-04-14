@@ -802,6 +802,12 @@ if commandEnv["ASAN"] :
 	# ASan detects loads of memory leaks in Python, so turn leak detection off.
 	commandEnv["ENV"]["ASAN_OPTIONS"] = "detect_leaks=0"
 
+if "IECORE_DLL_DIRECTORIES" in os.environ :
+	# When building for Windows as of python 3.8, os.add_dll_directories must know of
+	# all DLLs that need to be loaded. Having this set in the environment allows DLLs
+	# to be found which may not reside in the default build directory eg. Imath, OpenImageIO
+	commandEnv["ENV"]["IECORE_DLL_DIRECTORIES"] = os.environ["IECORE_DLL_DIRECTORIES"]
+
 # Set up the environment variables that the Gaffer wrapper will use to
 # populate paths used to support third-party software.
 for option, envVar in {
