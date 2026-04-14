@@ -8,14 +8,20 @@ setlocal EnableDelayedExpansion
 
 set "HOME=%USERPROFILE:\=/%"
 
-set PYTHONHOME=%~dp0%..
-rem Needed for `gaffer.exe` to find the Python DLLs it needs because they are not in the same directory.
-set PATH=%PYTHONHOME%\bin;%PATH%
+set GAFFER_ROOT=%~dp0%..
+if defined PYTHONHOME (
+	rem Needed for `gaffer.exe` to find the Python DLLs it needs because they are not in the same directory.
+	set PATH=%PYTHONHOME%\bin;%PATH%
+) else (
+	set PYTHONHOME=%~dp0%..
+	rem Needed for `gaffer.exe` to find the Python DLLs it needs because they are not in the same directory.
+	set PATH=%PYTHONHOME%\bin;%PATH%
+)
 
 if "%GAFFER_DEBUG%" NEQ "" (
-	%GAFFER_DEBUGGER% "%PYTHONHOME%"\bin\__private\gaffer.exe "%PYTHONHOME%"/bin/__private/_gaffer.py %*
+	%GAFFER_DEBUGGER% "%GAFFER_ROOT%"\bin\__private\gaffer.exe "%GAFFER_ROOT%"/bin/__private/_gaffer.py %*
 ) else (
-	"%PYTHONHOME%"\bin\__private\gaffer.exe "%PYTHONHOME%"/bin/__private/_gaffer.py %*
+	"%GAFFER_ROOT%"\bin\__private\gaffer.exe "%GAFFER_ROOT%"/bin/__private/_gaffer.py %*
 )
 
 endlocal
