@@ -815,6 +815,7 @@ for option, envVar in {
 	"DELIGHT_ROOT" : "DELIGHT",
 	"ONNX_ROOT" : "ONNX_ROOT",
 	"RENDERMAN_ROOT" : "RMANTREE",
+	"CYCLES_ROOT" : "CYCLES_ROOT",
 }.items() :
 	if commandEnv[option] != "" :
 		commandEnv["ENV"][envVar] = commandEnv[option]
