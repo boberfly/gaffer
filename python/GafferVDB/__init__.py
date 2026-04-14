@@ -43,7 +43,10 @@ import warnings
 # we use the warnings module to suppress these during the import
 with warnings.catch_warnings():
 	warnings.simplefilter("ignore")
-	import pyopenvdb
+	try :
+		import openvdb
+	except :
+		import pyopenvdb
 
 from ._GafferVDB import *
 
