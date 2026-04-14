@@ -63,6 +63,7 @@
 #endif
 
 #include "OpenImageIO/ustring.h"
+#include "OpenImageIO/version.h"
 
 #include "boost/algorithm/string/classification.hpp"
 #include "boost/algorithm/string/join.hpp"
@@ -1256,8 +1257,10 @@ struct StringParameter
 #if OSL_LIBRARY_VERSION_CODE >= 11400
 
 	static_assert( sizeof( ustring ) == sizeof( ustringhash ) );
+#if OIIO_VERSION >= 30000
 	static_assert( is_trivially_copyable_v<ustring> );
 	static_assert( is_trivially_copyable_v<ustringhash> );
+#endif
 
 	ustring asUString() const
 	{
