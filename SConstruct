@@ -1042,6 +1042,11 @@ cyclesDefines = [
 	( "WITH_CUDA" ),
 	( "WITH_CUDA_DYNLOAD" ),
 	( "WITH_OPTIX" ),
+	# OpenImageDenoise
+	( "WITH_OPENIMAGEDENOISE" ),
+	# HIP
+	( "WITH_HIP" ),
+	( "WITH_HIP_DYNLOAD" ),
 ]
 
 
@@ -1405,6 +1410,7 @@ libraries = {
 				"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew",
 				"OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslcomp$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX",
 				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4", "openpgl", "zstd",
+				"OpenImageDenoise", "OpenImageDenoise_core", "extern_hipew",
 			],
 			"CXXFLAGS" : [ systemIncludeArgument + "$CYCLES_ROOT/include" ],
 			"CPPDEFINES" : cyclesDefines,
@@ -1650,6 +1656,8 @@ if env["PLATFORM"] == "win32" :
 
 	for library in ( "GafferCycles", ) :
 
+		libraries[library].setdefault( "envAppends", {} )
+		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "Version" ] )
 		libraries[library].setdefault( "pythonEnvAppends", {} )
 		libraries[library]["pythonEnvAppends"].setdefault( "LIBS", [] ).extend( [ "Advapi32" ] )
 
