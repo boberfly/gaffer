@@ -75,6 +75,7 @@ def prependToPath( pathToPrepend, envVar ) :
 	os.environ[envVar] = os.pathsep.join( path )
 
 gafferRoot = pathlib.Path( __file__ ).resolve().parents[2]
+cortexRoot = pathlib.Path( os.environ["CORTEX_ROOT"] ).resolve()
 
 # Clean environment setup
 # =======================
@@ -88,6 +89,10 @@ if sys.platform == "linux" :
 
 # Cortex Setup
 # ============
+
+prependToPath( cortexRoot / "glsl", "IECOREGL_SHADER_PATHS" )
+prependToPath( cortexRoot / "glsl", "IECOREGL_SHADER_INCLUDE_PATHS" )
+prependToPath( cortexRoot / "ops", "IECORE_OP_PATHS" )
 
 prependToPath( gafferRoot / "glsl", "IECOREGL_SHADER_PATHS" )
 prependToPath( gafferRoot / "glsl", "IECOREGL_SHADER_INCLUDE_PATHS" )
@@ -159,7 +164,7 @@ if sys.platform == "win32" and "OSL_LOAD_DLLS_FROM_PATH" not in os.environ :
 # USD Setup
 # =========
 
-prependToPath( gafferRoot / "resources" / "IECoreUSD", "PXR_PLUGINPATH_NAME" )
+prependToPath( cortexRoot / "resources" / "IECoreUSD", "PXR_PLUGINPATH_NAME" )
 prependToPath( gafferRoot / "materialX", "PXR_MTLX_STDLIB_SEARCH_PATHS" )
 
 if sys.platform == "win32" and "PXR_USD_WINDOWS_DLL_PATH" not in os.environ :
