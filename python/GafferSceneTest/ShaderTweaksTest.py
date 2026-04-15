@@ -50,6 +50,7 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 	def test( self ) :
 
 		l = GafferSceneTest.TestLight()
+		l.loadShader( "simpleLight" )
 		l["parameters"]["intensity"].setValue( imath.Color3f( 1 ) )
 
 		t = GafferScene.ShaderTweaks()
@@ -159,6 +160,7 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 
 		plane = GafferScene.Plane()
 		shader = GafferSceneTest.TestShader( "surface" )
+		shader.loadShader( "simpleShader" )
 		shader["type"].setValue( "surface" )
 
 		planeFilter = GafferScene.PathFilter()
@@ -173,6 +175,7 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 		self.assertEqual( len( originalNetwork ), 1 )
 
 		textureShader = GafferSceneTest.TestShader( "texture" )
+		textureShader.loadShader( "simpleShader" )
 
 		tweaks = GafferScene.ShaderTweaks()
 		tweaks["in"].setInput( assignment["out"] )
@@ -223,6 +226,7 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 		# connection, just as it would overwrite an existing value.
 
 		upstreamTextureShader = GafferSceneTest.TestShader( "upstreamTexture" )
+		upstreamTextureShader.loadShader( "simpleShader" )
 		shader["parameters"]["c"].setInput( upstreamTextureShader["out"]["c"] )
 		tweaks["tweaks"][0]["name"].setValue( "c" )
 		tweakedNetwork = tweaks["out"].attributes( "/plane" )["surface"]
@@ -231,6 +235,7 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 
 		plane = GafferScene.Plane()
 		shader = GafferSceneTest.TestShader( "surface" )
+		shader.loadShader( "simpleShader" )
 		shader["type"].setValue( "surface" )
 
 		planeFilter = GafferScene.PathFilter()
@@ -245,6 +250,7 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 		self.assertEqual( len( originalNetwork ), 1 )
 
 		textureShader = GafferSceneTest.TestShader( "texture" )
+		textureShader.loadShader( "simpleShader" )
 		textureShader["out"] = Gaffer.Plug( direction = Gaffer.Plug.Direction.Out )
 		textureShader["out"]["color"] = Gaffer.Color3fPlug( direction = Gaffer.Plug.Direction.Out )
 		textureShader["out"]["opacity"] = Gaffer.Color3fPlug( direction = Gaffer.Plug.Direction.Out )
@@ -272,9 +278,11 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 
 		plane = GafferScene.Plane()
 		shader = GafferSceneTest.TestShader( "surface" )
+		shader.loadShader( "simpleShader" )
 		shader["type"].setValue( "surface" )
 
 		textureShader1 = GafferSceneTest.TestShader( "texture1" )
+		textureShader1.loadShader( "simpleShader" )
 		shader["parameters"]["c"].setInput( textureShader1["out"]["c"] )
 
 		planeFilter = GafferScene.PathFilter()
@@ -290,6 +298,7 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 		self.assertEqual( originalNetwork.input( ( "surface", "c" ) ), ( "texture1", "c" ) )
 
 		textureShader2 = GafferSceneTest.TestShader( "texture2" )
+		textureShader2.loadShader( "simpleShader" )
 
 		tweaks = GafferScene.ShaderTweaks()
 		tweaks["in"].setInput( assignment["out"] )
@@ -316,9 +325,11 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 
 		plane = GafferScene.Plane()
 		shader = GafferSceneTest.TestShader( "surface" )
+		shader.loadShader( "simpleShader" )
 		shader["type"].setValue( "surface" )
 
 		textureShader = GafferSceneTest.TestShader( "texture1" )
+		textureShader.loadShader( "simpleShader" )
 		shader["parameters"]["c"].setInput( textureShader["out"]["c"] )
 
 		planeFilter = GafferScene.PathFilter()
@@ -351,6 +362,7 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 
 		box["plane"] = GafferScene.Plane()
 		box["shader"] = GafferSceneTest.TestShader()
+		box["shader"].loadShader( "simpleShader" )
 		box["shader"]["type"].setValue( "surface" )
 
 		box["planeFilter"] = GafferScene.PathFilter()
@@ -375,6 +387,7 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 	def testIgnoreMissing( self ) :
 
 		l = GafferSceneTest.TestLight()
+		l.loadShader( "simpleLight" )
 		l["parameters"]["intensity"].setValue( imath.Color3f( 1 ) )
 
 		f = GafferScene.PathFilter()
@@ -392,6 +405,7 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 			t["out"].attributes( "/light" )
 
 		inputShader = GafferSceneTest.TestShader()
+		inputShader.loadShader( "simpleShader" )
 		badTweak["value"].setInput( inputShader["out"]["c"]["r"] )
 
 		with self.assertRaisesRegex( RuntimeError, "Cannot apply tweak \"badParameter\" because shader \"__shader\" does not have parameter \"badParameter\"" ) :
@@ -424,6 +438,7 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 		group["in"][0].setInput( plane["out"] )
 
 		globalSurface = GafferSceneTest.TestShader( "surface" )
+		globalSurface.loadShader( "simpleShader" )
 		globalSurface["type"].setValue( "surface" )
 		globalSurface["parameters"]["c"].setValue( imath.Color3f( 4, 5, 6 ) )
 		globalSurface["parameters"]["i"].setValue( 3 )
@@ -434,6 +449,7 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 		globalAttributes["extraAttributes"].setValue( IECore.CompoundObject( { "surface" : globalSurface.attributes()["surface"] } ) )
 
 		shader = GafferSceneTest.TestShader( "surface" )
+		shader.loadShader( "simpleShader" )
 		shader["type"].setValue( "surface" )
 		shader["parameters"]["c"].setValue( imath.Color3f( 1, 2, 3 ) )
 		shader["parameters"]["i"].setValue( 2 )
@@ -503,6 +519,7 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 	def testRemove( self ) :
 
 		light = GafferSceneTest.TestLight()
+		light.loadShader( "simpleLight" )
 		self.assertIn( "intensity", light["out"].attributes( "/light" )["light"].outputShader().parameters )
 
 		pathFilter = GafferScene.PathFilter()
@@ -525,8 +542,10 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 		plane = GafferScene.Plane()
 
 		texture = GafferSceneTest.TestShader( "texture" )
+		texture.loadShader( "simpleShader" )
 
 		surface = GafferSceneTest.TestShader( "surface" )
+		surface.loadShader( "simpleShader" )
 		surface["parameters"]["c"].setInput( texture["out"]["c"] )
 		surface["type"].setValue( "test:surface" )
 
@@ -560,12 +579,16 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 	def testWildcards( self ) :
 
 		shaderA_A = GafferSceneTest.TestShader( "A_A" )
+		shaderA_A.loadShader( "simpleShader" )
 		shaderA_B = GafferSceneTest.TestShader( "A_B" )
+		shaderA_B.loadShader( "simpleShader" )
 		shaderA_B["parameters"]["c"].setInput( shaderA_A["out"]["c"] )
 		shaderB_A = GafferSceneTest.TestShader( "B_A" )
+		shaderB_A.loadShader( "simpleShader" )
 		shaderB_A["parameters"]["c"].setInput( shaderA_B["out"]["c"] )
 
 		light = GafferSceneTest.TestLight()
+		light.loadShader( "simpleLight" )
 		light["parameters"]["intensity"].setInput( shaderB_A["out"]["c"] )
 
 		pathFilter = GafferScene.PathFilter()
@@ -606,6 +629,7 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 		self.assertEqual( tweaked.shaders()["B_A"].parameters["i"].value, 42 )
 
 		extraShader = GafferSceneTest.TestShader( "extra" )
+		extraShader.loadShader( "simpleShader" )
 		tweaks["tweaks"][0]["value"].setInput( extraShader["out"]["c"]["r"] )
 
 		with self.assertRaisesRegex( RuntimeError, r'Cannot apply tweak "\*_A.i" to "A_A.i" : Mode must be "Replace" or "Create" when inserting a connection' ) :
@@ -707,6 +731,78 @@ class ShaderTweaksTest( GafferSceneTest.SceneTestCase ) :
 		network = shaderTweaks["out"].attributes( "/plane" )["test:surface"]
 		self.assertEqual( set( network.shaders().keys() ), { "surface" } )
 		self.assertFalse( network.input( ( "surface", "a" ) ) )
+
+	def testShadertypeFilter( self ) :
+
+		shaderA = GafferSceneTest.TestShader( "A" )
+		shaderA.loadShader( "simpleShader" )
+		shaderB = GafferSceneTest.TestShader( "B" )
+		shaderB.loadShader( "mix" )
+		shaderB["parameters"]["a"].setInput( shaderA["out"]["c"] )
+		shaderC = GafferSceneTest.TestShader( "C" )
+		shaderC.loadShader( "mixClosures" )
+		shaderC["type"].setValue( "surface" )
+		shaderC["parameters"]["mix"].setInput( shaderB["out"]["c"]["r"] )
+
+		plane = GafferScene.Plane()
+
+		planeFilter = GafferScene.PathFilter()
+		planeFilter["paths"].setValue( IECore.StringVectorData( [ "/plane" ] ) )
+
+		assignment = GafferScene.ShaderAssignment()
+		assignment["in"].setInput( plane["out"] )
+		assignment["filter"].setInput( planeFilter["out"] )
+		assignment["shader"].setInput( shaderC["out"] )
+
+		tweaks = GafferScene.ShaderTweaks()
+		tweaks["in"].setInput( assignment["out"] )
+		tweaks["shader"].setValue( "surface" )
+		tweaks["filter"].setInput( planeFilter["out"] )
+
+		originalNetwork = tweaks["out"].attributes( "/plane" )["surface"]
+
+		tweaks["tweaks"].addChild(
+			Gaffer.TweakPlug( "{shaderType=mix}.mix", 42, mode = Gaffer.TweakPlug.Mode.Add )
+		)
+
+		tweaked = tweaks["out"].attributes( "/plane" )["surface"]
+		self.assertEqual( tweaked.shaders()["B"].parameters["mix"].value, 42.5 )
+
+		tweaks["tweaks"][0]["name"].setValue( "{shaderType=mixClosures}.mix" )
+
+		with self.assertRaisesRegex( RuntimeError, 'Cannot apply tweak "{shaderType=mixClosures}.mix" to "C.mix" : "Add" mode is not compatible with an existing input connection.' ):
+			tweaks["out"].attributes( "/plane" )
+
+		# If we use both a handle and a shaderType, then both must match
+		tweaks["tweaks"][0]["name"].setValue( "B{shaderType=mixClosures}.mix" )
+		self.assertEqual( tweaks["out"].attributes( "/plane" )["surface"], originalNetwork )
+
+		tweaks["tweaks"][0]["name"].setValue( "B{shaderType=mix}.mix" )
+		self.assertEqual( tweaks["out"].attributes( "/plane" )["surface"], tweaked )
+
+		tweaks["tweaks"][0]["name"].setValue( "*{shaderType=mix}.mix" )
+		self.assertEqual( tweaks["out"].attributes( "/plane" )["surface"], tweaked )
+
+		# Filtering on an empty shader type matches nothing
+		tweaks["tweaks"][0]["name"].setValue( "*{shaderType=}.mix" )
+		self.assertEqual( tweaks["out"].attributes( "/plane" )["surface"], originalNetwork )
+
+		# In order to be valid, the parameter name must either be a valid shaderType qualifier, with an optional
+		# shader handle, and a parameter name, or a simple `handle.parameter`, or lastly, just a parameter
+		# name, with no braces or periods. If we get something we don't understand, we throw an exception
+		with self.assertRaisesRegex( RuntimeError, r'Could not parse shader parameter: "\*{shaderType}.mix"' ):
+			tweaks["tweaks"][0]["name"].setValue( "*{shaderType}.mix" )
+			tweaks["out"].attributes( "/plane" )
+		with self.assertRaisesRegex( RuntimeError, r'Could not parse shader parameter: "\*{}.mix"' ):
+			tweaks["tweaks"][0]["name"].setValue( "*{}.mix" )
+			tweaks["out"].attributes( "/plane" )
+		with self.assertRaisesRegex( RuntimeError, 'Could not parse shader parameter: ".mix"' ):
+			tweaks["tweaks"][0]["name"].setValue( ".mix" )
+			tweaks["out"].attributes( "/plane" )
+		with self.assertRaisesRegex( RuntimeError, 'Could not parse shader parameter: "{{{"' ):
+			tweaks["tweaks"][0]["name"].setValue( "{{{" )
+			tweaks["out"].attributes( "/plane" )
+
 
 if __name__ == "__main__":
 	unittest.main()
