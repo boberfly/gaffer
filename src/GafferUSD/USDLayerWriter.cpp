@@ -49,6 +49,12 @@
 #include "IECoreScene/SceneInterface.h"
 
 IECORE_PUSH_DEFAULT_VISIBILITY
+#ifdef _POSIX_SOURCE
+#undef _POSIX_SOURCE
+#endif
+#ifdef _POSIX_THREADS
+#undef _POSIX_THREADS
+#endif
 #include "pxr/usd/sdf/attributeSpec.h"
 #include "pxr/usd/sdf/layer.h"
 #include "pxr/usd/sdf/primSpec.h"

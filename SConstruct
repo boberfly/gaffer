@@ -510,7 +510,7 @@ if env["PLATFORM"] != "win32" :
 			env.Append( CXXFLAGS = [ "-Wsuggest-override" ] )
 
 		# Turn off the parts of `-Wextra` that we don't like.
-		env.Append( CXXFLAGS = [ "-Wno-cast-function-type", "-Wno-unused-parameter" ] )
+		env.Append( CXXFLAGS = [ "-Wno-cast-function-type", "-Wno-unused-parameter", "-Wno-unused-but-set-parameter", "-Wno-deprecated-copy", "-Wno-suggest-override", "-Wno-missing-field-initializers", "-Wno-class-memaccess" ] )
 
 		# Set this weird compiler flag that in general is expected to cause compiled code to be about
 		# half a percent slower, but works around this ridiculous bug:
