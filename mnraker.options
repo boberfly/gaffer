@@ -1,0 +1,196 @@
+import os
+import shutil
+
+buildDir = os.environ.get( "REZ_BUILD_PATH", "" ).replace('\\', '/')
+
+ARNOLD_ROOT = os.environ.get( "REZ_ARNOLD_ROOT", "" ).replace("\\", "/")
+DELIGHT_ROOT = os.environ.get( "REZ_DELIGHT_ROOT", "" ).replace("\\", "/")
+RENDERMAN_ROOT = os.environ.get( "RMANTREE", "" ).replace("\\", "/")
+
+ONNX_ROOT = os.environ.get("REZ_ONNXRUNTIME_ROOT", "" ).replace("\\", "/")
+CYCLES_ROOT = os.environ.get( "REZ_CYCLES_ROOT", "" ).replace("\\", "/")
+SPHINX = os.environ.get("REZ_SPHINX_ROOT", "" ).replace("\\", "/")
+PYBIND11 = os.environ.get( "REZ_PYBIND11_ROOT", "" ).replace("\\", "/")
+OSLHOME = os.environ.get( "REZ_OSL_ROOT", "" ).replace("\\", "/")
+
+zlibRoot = os.environ.get( "REZ_ZLIB_ROOT", "" ).replace("\\", "/")
+openusdRoot = os.environ.get( "REZ_OPENUSD_ROOT", "" ).replace("\\", "/")
+materialxRoot = os.environ.get( "REZ_MATERIALX_ROOT", "" ).replace("\\", "/")
+cortexRoot = os.environ.get( "REZ_CORTEX_ROOT", "" ).replace("\\", "/")
+freetypeRoot = os.environ.get( "REZ_FREETYPE_ROOT", "" ).replace("\\", "/")
+imathRoot = os.environ.get( "REZ_IMATH_ROOT", "" ).replace("\\", "/")
+boostRoot = os.environ.get( "REZ_BOOST_ROOT", "" ).replace("\\", "/")
+tbbRoot = os.environ.get( "TBB_ROOT", "" ).replace("\\", "/")
+openexrRoot = os.environ.get( "REZ_OPENEXR_ROOT", "" ).replace("\\", "/")
+fmtRoot = os.environ.get( "REZ_FMT_ROOT", "" ).replace("\\", "/")
+opencolorioRoot = os.environ.get( "REZ_OPENCOLORIO_ROOT", "" ).replace("\\", "/")
+openimageioRoot = os.environ.get( "REZ_OPENIMAGEIO_ROOT", "" ).replace("\\", "/")
+opensubdivRoot = os.environ.get( "REZ_OPENSUBDIV_ROOT", "" ).replace("\\", "/")
+libpngRoot = os.environ.get( "REZ_LIBPNG_ROOT", "" ).replace("\\", "/")
+bzip2Root = os.environ.get( "REZ_BZIP2_ROOT", "" ).replace("\\", "/")
+openvdbRoot = os.environ.get( "REZ_OPENVDB_ROOT", "" ).replace("\\", "/")
+alembicRoot = os.environ.get( "REZ_ALEMBIC_ROOT", "" ).replace("\\", "/")
+oidnRoot = os.environ.get( "REZ_OIDN_ROOT", "" ).replace("\\", "/")
+embreeRoot = os.environ.get( "REZ_EMBREE_ROOT", "" ).replace("\\", "/")
+glewRoot = os.environ.get( "REZ_GLEW_ROOT", "" ).replace("\\", "/")
+qtRoot = os.environ.get( "REZ_QT6_ROOT", os.environ.get( "REZ_QT5_ROOT", "" ) ).replace("\\", "/")
+openpglRoot = os.environ.get( "REZ_OPENPGL_ROOT", "" ).replace("\\", "/")
+zstandardRoot = os.environ.get( "REZ_ZSTANDARD_ROOT", "" ).replace("\\", "/")
+bloscRoot = os.environ.get( "REZ_BLOSC_ROOT", "" ).replace("\\", "/")
+
+imathSuffix = ''
+openimageioSuffix = os.environ['REZ_OPENIMAGEIO_SUFFIX_NAME']
+boostPythonSuffix = "".join(os.environ["REZ_PYTHON_VERSION"].split(".")[:2])
+#glewSuffix = ''
+openvdbSuffix = os.environ['REZ_OPENVDB_SUFFIX_NAME']
+
+imathMajorVersion = os.environ.get( "REZ_IMATH_MAJOR_VERSION" )
+imathMinorVersion = os.environ.get( "REZ_IMATH_MINOR_VERSION" )
+
+openexrMajorVersion = os.environ.get( "REZ_OPENEXR_MAJOR_VERSION" )
+openexrMinorVersion = os.environ.get( "REZ_OPENEXR_MINOR_VERSION" )
+
+pythonRoot = os.environ.get('REZ_PYTHON_ROOT', "").replace('\\', '/')
+pythonBin = pythonRoot + '/bin/python'
+pythonLibPath = pythonRoot + '/lib'
+pythonVersion = ".".join(os.environ["REZ_PYTHON_VERSION"].split(".")[:2])
+pythonIncludePath = pythonRoot + '/include/python' + pythonVersion
+
+boostPythonSuffix = "".join(os.environ["REZ_PYTHON_VERSION"].split(".")[:2])
+
+pythonLinkFlags = '-L{pythonRoot}/lib -lpthread -ldl -lutil -lm'.format(pythonRoot=pythonRoot)
+platform = os.environ['REZ_PLATFORM_VERSION']
+INKSCAPE = os.environ.get("INKSCAPE_BIN", "inkscape") # todo: make a rez wrapper?
+SPHINX = os.environ.get("REZ_SPHINX_ROOT", "sphinx-build") # todo: make a rez wrapper?
+if platform == 'windows':
+    GLEW_LIB_SUFFIX = "32"
+    pythonLinkFlags = ''
+    pythonBin = pythonRoot + '/bin/python.exe'
+    pythonLibPath = pythonRoot + '/libs'
+    pythonIncludePath = pythonRoot + '/include'
+    imathSuffix = '-' + os.environ['REZ_IMATH_MAJOR_VERSION'] + "_" + os.environ['REZ_IMATH_MINOR_VERSION']
+    INKSCAPE = os.environ.get("INKSCAPE_BIN", "C:\\Program Files\\Inkscape\\bin\\inkscape.exe") # todo: make a rez wrapper?
+    ENV_VARS_TO_IMPORT = "PATH REZ_CORTEX_ROOT CORTEX_ROOT OSLHOME PYTHONHOME IECORE_DLL_DIRECTORIES"
+elif platform == 'osx':
+    pythonLibPath = '{pythonRoot}/lib/Python.framework/Versions/{pythonVersion}/lib'.format(pythonRoot=pythonRoot, pythonVersion=pythonVersion)
+    pythonIncludePath = '{pythonRoot}/lib/Python.framework/Headers'.format(pythonRoot=pythonRoot)
+    pythonLinkFlags = '-lpython{pythonVersion}'.format(pythonVersion=pythonVersion)
+    ENV_VARS_TO_IMPORT = "PATH LD_LIBRARY_PATH REZ_CORTEX_ROOT CORTEX_ROOT OSLHOME PYTHONHOME"
+else:
+    ENV_VARS_TO_IMPORT = "PATH LD_LIBRARY_PATH REZ_CORTEX_ROOT CORTEX_ROOT OSLHOME PYTHONHOME"
+
+arch = os.environ['REZ_ARCH_VERSION']
+if arch == 'AMD64':
+	arch = 'x86_64'
+elif arch == 'ARM64':
+	arch = 'aarch64'
+elif arch == 'arm64':
+	arch = 'aarch64'
+
+cxxcompiler = os.environ.get("REZ_EPH_CXXCOMPILER_REQUEST", os.environ.get("REZ_BUILD_TOOLCHAIN_CXX_BIN", None))
+cxxcompiler = shutil.which( cxxcompiler )
+
+boostSuffix = ''
+boostIncludePath = boostRoot + '/include'
+boostLayout = os.environ.get('REZ_EPH_BOOST_LAYOUT_REQUEST', '0')
+boostCmake = True
+boostMajorVersion = os.environ['REZ_BOOST_MAJOR_VERSION']
+boostMinorVersion = os.environ['REZ_BOOST_MINOR_VERSION']
+if boostLayout == '0':
+    boostLayout = 'versioned' if platform == 'windows' else 'system'
+if boostLayout == 'versioned':
+    boostVersion = boostMajorVersion + "_" + boostMinorVersion
+    boostIncludePath += "/boost-" + boostVersion
+    if platform == 'windows' : 
+        if cxxcompiler == 'clang' :
+            boostSuffix += '-clangcl'
+        else :
+            msvcVer = os.environ.get('REZ_MSVC_TOOLSET_MAJOR_VERSION', '143')
+            boostSuffix += '-vc' + msvcVer
+    # Always -mt
+    boostSuffix += '-mt'
+    boostSuffix += '-x64' if arch == 'x86_64' else 'arm'
+    boostSuffix += '-' + boostVersion
+
+boostCmake = True
+if int(boostMajorVersion) * 10000 + int(boostMinorVersion) * 100 <= 18000:
+    boostCmake = False
+    cxxFlags.append("-Wno-enum-constexpr-conversion")
+
+BOOST_CMAKE=boostCmake
+BOOST_LIB_SUFFIX=boostSuffix
+BOOST_PYTHON_LIB_SUFFIX = boostPythonSuffix + boostSuffix
+IMATH_LIB_SUFFIX=imathSuffix
+
+LOCATE_DEPENDENCY_CPPPATH=[
+    pythonIncludePath,
+	tbbRoot + "/include",
+	openusdRoot + "/include",
+    freetypeRoot + "/include/freetype2",
+	cortexRoot + "/include",
+	opencolorioRoot + "/include",
+	openimageioRoot + "/include",
+	opensubdivRoot + "/include",
+	fmtRoot + "/include",
+	PYBIND11 + "/include",
+	openvdbRoot + "/include",
+	OSLHOME + "/include",
+    oidnRoot + "/include",
+]
+LOCATE_DEPENDENCY_LIBPATH=[
+    pythonLibPath,
+	openusdRoot + "/lib",
+	OSLHOME + "/lib",
+	cortexRoot + "/lib",
+    glewRoot + "/lib",
+	boostRoot + "/lib",
+	tbbRoot + "/lib",
+	imathRoot + "/lib",
+	openexrRoot + "/lib",
+	opencolorioRoot + "/lib",
+	openimageioRoot + "/lib",
+	opensubdivRoot + "/lib",
+	fmtRoot + "/lib",
+	freetypeRoot + "/lib",
+	zlibRoot + "/lib",
+	libpngRoot + "/lib",
+	bzip2Root + "/lib",
+	openvdbRoot + "/lib",
+	alembicRoot + "/lib",
+    qtRoot + "/lib",
+    embreeRoot + "/lib",
+    openpglRoot + "/lib",
+    zstandardRoot + "/lib",
+    oidnRoot + "/lib",
+    bloscRoot + "/lib",
+]
+LOCATE_DEPENDENCY_SYSTEMPATH=[
+    buildDir + "/include",
+	boostIncludePath,
+    qtRoot + "/include",
+	cortexRoot + "/include",
+    glewRoot + "/include",
+	glewRoot + "/include/GL",
+	imathRoot + "/include",
+	imathRoot + "/include/Imath",
+	openexrRoot + "/include",
+	openexrRoot + "/include/OpenEXR",
+	zlibRoot + "/include",
+    embreeRoot + "/include",
+]
+LOCATE_DEPENDENCY_PYTHONPATH=[
+	os.environ.get("PYTHONPATH", "").replace("\\", "/"),
+	openusdRoot + "/lib/python",
+	materialxRoot + "/python",
+	cortexRoot + "/python",
+]
+
+#GLEW_LIB_STATIC = True
+
+if platform != 'windows' : 
+    CXX=cxxcompiler
+#else :
+#    CXX='"' + cxxcompiler + '"'
+
+OIIO_LIB_SUFFIX=openimageioSuffix
+VDB_LIB_SUFFIX=openvdbSuffix
