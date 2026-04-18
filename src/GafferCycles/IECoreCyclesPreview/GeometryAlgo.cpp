@@ -83,15 +83,7 @@ namespace
 
 using namespace IECoreCycles;
 
-struct Converters
-{
-
-	GeometryAlgo::Converter converter;
-	GeometryAlgo::MotionConverter motionConverter;
-
-};
-
-using Registry = std::unordered_map<IECore::TypeId, Converters>;
+using Registry = std::unordered_map<IECore::TypeId, IECoreCycles::GeometryAlgo::Converter>;
 
 Registry &registry()
 {
@@ -228,29 +220,18 @@ namespace IECoreCycles
 namespace GeometryAlgo
 {
 
-ccl::Geometry *convert( const IECore::Object *object, ccl::Scene *scene )
-{
-	const Registry &r = registry();
-	Registry::const_iterator it = r.find( object->typeId() );
-	if( it == r.end() )
-	{
-		return nullptr;
-	}
-	return it->second.converter( object, scene );
-}
-
-ccl::Geometry *convert( const std::vector<const IECore::Object *> &samples, const std::vector<float> &times, ccl::Session *session )
+ccl::Geometry *convert( const IECoreScenePreview::Renderer::ObjectSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times, ccl::Session *session )
 {
 	if( samples.empty() )
 	{
 		return nullptr;
 	}
 
-	const IECore::Object *firstSample = samples.front();
+	const IECore::Object *firstSample = samples.front().get();
 	const IECore::TypeId firstSampleTypeId = firstSample->typeId();
-	for( std::vector<const IECore::Object *>::const_iterator it = samples.begin()+1, eIt = samples.end(); it != eIt; ++it )
+	for( const auto &sample : samples )
 	{
-		if( (*it)->typeId() != firstSampleTypeId )
+		if( sample->typeId() != firstSampleTypeId )
 		{
 			throw IECore::Exception( "Inconsistent object types." );
 		}
@@ -262,22 +243,15 @@ ccl::Geometry *convert( const std::vector<const IECore::Object *> &samples, cons
 	{
 		return nullptr;
 	}
-	if( it->second.motionConverter )
-	{
-		// Cycles expects the middle sample (rounding down for even numbers of
-		// samples) to be specified as the main sample, and the other samples to
-		// be provided via ATTR_STD_MOTION_VERTEX_POSITION.
-		return it->second.motionConverter( samples, times, (samples.size() - 1) / 2, session->scene.get() );
-	}
-	else
-	{
-		return it->second.converter( samples.front(), session->scene.get() );
-	}
+	// Cycles expects the middle sample (rounding down for even numbers of
+	// samples) to be specified as the main sample, and the other samples to
+	// be provided via ATTR_STD_MOTION_VERTEX_POSITION.
+	return it->second( samples, times, (samples.size() - 1) / 2, session->scene.get() );
 }
 
-void registerConverter( IECore::TypeId fromType, Converter converter, MotionConverter motionConverter )
+void registerConverter( IECore::TypeId fromType, Converter converter )
 {
-	registry()[fromType] = { converter, motionConverter };
+	registry()[fromType] = converter;
 }
 
 void convertPrimitiveVariable( const std::string &name, const IECoreScene::PrimitiveVariable &primitiveVariable, ccl::AttributeSet &attributes, ccl::AttributeElement attributeElement )
@@ -431,7 +405,7 @@ void convertPrimitiveVariable( const std::string &name, const IECoreScene::Primi
 	}
 }
 
-void convertMotion( const std::vector<const IECoreScene::Primitive *> &samples, size_t primarySampleIndex, ccl::Geometry &geometry )
+void convertMotion( const IECoreScenePreview::Renderer::Samples<const IECoreScene::Primitive *> &samples, size_t primarySampleIndex, ccl::Geometry &geometry )
 {
 	if( samples.size() < 2 )
 	{

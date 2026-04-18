@@ -59,9 +59,13 @@ from GafferUI.PlugValueWidget import sole
 
 def __shaderMetadata( node, key ) :
 
-	return Gaffer.Metadata.value(
-		node["type"].getValue() + ":" + node["name"].getValue(), key
-	)
+	try :
+		type = node["type"].getValue()
+		name = node["name"].getValue()
+	except :
+		return None
+
+	return Gaffer.Metadata.value( f"{type}:{name}", key )
 
 def __nodeDescriptionMetadata( node ) :
 
@@ -75,8 +79,14 @@ def __nodeDescriptionMetadata( node ) :
 def __parameterMetadata( plug, key, shaderFallbackKey = None ) :
 
 	shader = plug.node()
+	try :
+		type = shader["type"].getValue()
+		name = shader["name"].getValue()
+	except :
+		return None
+
 	result = Gaffer.Metadata.value(
-		shader["type"].getValue() + ":" + shader["name"].getValue() + ":" + plug.relativeName( shader["parameters"] ),
+		"{}:{}:{}".format( type, name, plug.relativeName( shader["parameters"] ) ),
 		key
 	)
 
@@ -268,7 +278,10 @@ class _ShaderNamePlugValueWidget( GafferUI.PlugValueWidget ) :
 def __shaderNameExtractor( node ) :
 
 	if isinstance( node, GafferScene.Shader ) :
-		return node["name"].getValue()
+		try :
+			return node["name"].getValue()
+		except :
+			return ""
 	else :
 		return ""
 
@@ -416,7 +429,7 @@ GafferUI.GraphEditor.plugContextMenuSignal().connect( __graphEditorPlugContextMe
 # ShaderParameterDialog
 ##########################################################################
 
-class _DuplicateIconColumn ( GafferUI.PathColumn ) :
+class _DuplicateIconColumn( GafferUI.PathColumn ) :
 
 	def __init__( self, title, property ) :
 
@@ -444,11 +457,11 @@ class _DuplicateIconColumn ( GafferUI.PathColumn ) :
 
 		return data
 
-	def headerData( self, canceller = None ) :
+	def headerData( self, rootPath, canceller = None ) :
 
 		return self.CellData( self.__title )
 
-class _ShaderInputColumn ( GafferUI.PathColumn ) :
+class _ShaderInputColumn( GafferUI.PathColumn ) :
 
 	def __init__( self, title ) :
 
@@ -479,7 +492,7 @@ class _ShaderInputColumn ( GafferUI.PathColumn ) :
 
 		return data
 
-	def headerData( self, canceller = None ) :
+	def headerData( self, rootPath, canceller = None ) :
 
 		return self.CellData( self.__title )
 
