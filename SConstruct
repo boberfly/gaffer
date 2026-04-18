@@ -2073,7 +2073,7 @@ if exeEnv["PLATFORM"] != "win32" :
 	exeEnv["LINKFLAGS"] = exeEnv["LINKFLAGS"].replace( "-Wl,--as-needed", "" )
 	exeEnv.Append(
 
-		LINKFLAGS = [ "-pthread", "-Wl,-export-dynamic", "-Wl,--no-as-needed" ],
+		LINKFLAGS = [ "-pthread"] + ["-Wl,-export-dynamic", "-Wl,--no-as-needed" ] if exeEnv["PLATFORM"] != "darwin" else [],
 		LIBS = [
 			"dl",
 			"pthread",
