@@ -518,7 +518,7 @@ if env["PLATFORM"] != "win32" :
 			env.Append( CXXFLAGS = [ "-Wsuggest-override" ] )
 
 		# Turn off the parts of `-Wextra` that we don't like.
-		env.Append( CXXFLAGS = [ "-Wno-cast-function-type", "-Wno-unused-parameter", "-Wno-unused-but-set-parameter", "-Wno-deprecated-copy", "-Wno-suggest-override", "-Wno-missing-field-initializers", "-Wno-class-memaccess" ] )
+		env.Append( CXXFLAGS = [ "-Wno-cast-function-type", "-Wno-unused-parameter", "-Wno-unused-but-set-parameter", "-Wno-deprecated-copy", "-Wno-suggest-override", "-Wno-class-memaccess" ] )
 
 		# Set this weird compiler flag that in general is expected to cause compiled code to be about
 		# half a percent slower, but works around this ridiculous bug:
@@ -1549,7 +1549,7 @@ libraries = {
 				[ "Gaffer", "GafferDispatch", "GafferScene", "GafferImage", "IECoreScene$CORTEX_LIB_SUFFIX", usdPythonLib, "python$PYTHON_ABI_VERSION" ] + usdLibs,
 			# USD includes "at least one deprecated or antiquated header", so we
 			# have to drop our usual strict warning levels.
-			"CXXFLAGS" : [ "-Wno-deprecated" if env["PLATFORM"] != "win32" else "/wd4996" ],
+			"CXXFLAGS" : [ "-Wno-deprecated", "-Wno-missing-field-initializers" ] if env["PLATFORM"] != "win32" else [ "/wd4996" ],
 		},
 		"pythonEnvAppends" : {
 			"LIBS" : [ "GafferUSD", "GafferScene", "GafferDispatch", "GafferBindings" ],
