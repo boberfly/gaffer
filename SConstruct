@@ -493,7 +493,7 @@ if env["PLATFORM"] != "win32" :
 		)
 
 		# Turn off the parts of `-Wextra` that we don't like.
-		env.Append( CXXFLAGS = [ "-Wno-unused-parameter" ] )
+		env.Append( CXXFLAGS = [ "-Wno-unused-parameter", "-Wno-deprecated-declarations", "-Wno-deprecated-copy-with-user-provided-copy", "-Wno-deprecated-copy" ] )
 
 	elif "g++" in os.path.basename( env["CXX"] ) :
 
