@@ -243,6 +243,12 @@ options.Add(
 )
 
 options.Add(
+	"LOCATE_DEPENDENCY_FRAMEWORKPATH",
+	"The locations on which to search for frameworks for macOS.",
+	"",
+)
+
+options.Add(
 	"IMATH_LIB_SUFFIX",
 	"The suffix used when locating the Imath library.",
 	"",
@@ -421,8 +427,10 @@ env = Environment(
 		"$LOCATE_DEPENDENCY_LIBPATH",
 	],
 
-	FRAMEWORKPATH = "$BUILD_DIR/lib",
-
+	FRAMEWORKPATH = [
+		"$BUILD_DIR/lib",
+		"$LOCATE_DEPENDENCY_FRAMEWORKPATH",
+	],
 )
 
 # include 3rd party headers with -isystem rather than -I.

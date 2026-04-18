@@ -75,6 +75,8 @@ elif platform == 'osx':
     pythonLibPath = '{pythonRoot}/lib/Python.framework/Versions/{pythonVersion}/lib'.format(pythonRoot=pythonRoot, pythonVersion=pythonVersion)
     pythonIncludePath = '{pythonRoot}/lib/Python.framework/Headers'.format(pythonRoot=pythonRoot)
     pythonLinkFlags = '-lpython{pythonVersion}'.format(pythonVersion=pythonVersion)
+    LOCATE_DEPENDENCY_FRAMEWORKPATH = ":".split(os.environ.get('DYLD_FRAMEWORK_PATH', ''))
+    INKSCAPE = os.environ.get("INKSCAPE_BIN", "/Applications/Inkscape.app/Contents/MacOS/inkscape")
     ENV_VARS_TO_IMPORT = "PATH LD_LIBRARY_PATH REZ_CORTEX_ROOT CORTEX_ROOT OSLHOME PYTHONHOME"
 else:
     ENV_VARS_TO_IMPORT = "PATH LD_LIBRARY_PATH REZ_CORTEX_ROOT CORTEX_ROOT OSLHOME PYTHONHOME"
