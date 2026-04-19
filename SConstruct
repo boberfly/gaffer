@@ -335,6 +335,24 @@ options.Add(
 	"",
 )
 
+options.Add(
+	"PNG_ROOT",
+	"The directory in which png is installed. Used to get a static library.",
+	"",
+)
+
+options.Add(
+	"ZLIB_ROOT",
+	"The directory in which zlib is installed. Used to get a static library.",
+	"",
+)
+
+options.Add(
+	"ZSTD_ROOT",
+	"The directory in which zstandard is installed. Used to get a static library.",
+	"",
+)
+
 # general variables
 
 options.Add(
@@ -1197,7 +1215,7 @@ libraries = {
 	"GafferImage" : {
 		"envAppends" : {
 			"CPPPATH" : [ "$BUILD_DIR/include/freetype2" ],
-			"LIBS" : [ "Gaffer", "GafferDispatch", "IECoreImage$CORTEX_LIB_SUFFIX", "OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "OpenColorIO$OCIO_LIB_SUFFIX", "freetype", "bz2_static", "libpng16_static" if env["PLATFORM"] == "win32" else "png", "zlibstatic" if env["PLATFORM"] == "win32" else "z"],
+			"LIBS" : [ "Gaffer", "GafferDispatch", "IECoreImage$CORTEX_LIB_SUFFIX", "OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "OpenColorIO$OCIO_LIB_SUFFIX", "freetype", "bz2_static", "libpng16_static" if env["PLATFORM"] == "win32" else File(env["PNG_ROOT"] + "/lib/libpng.a"), "zlibstatic" if env["PLATFORM"] == "win32" else File(env["ZLIB_ROOT"]+"/lib/libz.a")],
 		},
 		"pythonEnvAppends" : {
 			"CPPPATH" : [ "$PYBIND11/include" ],
@@ -1674,7 +1692,7 @@ if env["PLATFORM"] == "win32" :
 	for library in ( "GafferCycles", ) :
 
 		libraries[library].setdefault( "envAppends", {} )
-		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ "zstd" if env["PLATFORM"] != "win32" else "zstd_static", "Version" ] )
+		libraries[library]["envAppends"].setdefault( "LIBS", [] ).extend( [ File(env["ZSTD_ROOT"]+"/lib/libzstd.a") if env["PLATFORM"] != "win32" else "zstd_static", "Version" ] )
 		libraries[library].setdefault( "pythonEnvAppends", {} )
 		libraries[library]["pythonEnvAppends"].setdefault( "LIBS", [] ).extend( [ "Advapi32" ] )
 
