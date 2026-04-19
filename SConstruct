@@ -498,6 +498,9 @@ if env["PLATFORM"] != "win32" :
 		env.Append( CXXFLAGS = [ "-DBOOST_NO_CXX98_FUNCTION_BASE", "-D_HAS_AUTO_PTR_ETC=0" ] )
 		env["GAFFER_PLATFORM"] = "macos"
 
+		# Increase rpaths
+		env.Append( LINKFLAGS = [ "-headerpad_max_install_names" ] )
+
 	else :
 
 		env["GAFFER_PLATFORM"] = "linux"
@@ -2088,7 +2091,11 @@ exeEnv.Append(
 )
 
 if exeEnv["PLATFORM"] != "win32" :
-	exeEnv["LINKFLAGS"] = exeEnv["LINKFLAGS"].replace( "-Wl,--as-needed", "" )
+	if isinstance( exeEnv["LINKFLAGS"], str ) :
+		exeEnv["LINKFLAGS"] = exeEnv["LINKFLAGS"].replace( "-Wl,--as-needed", "" )
+	else :
+		if "-Wl,--as-needed" in exeEnv["LINKFLAGS"] :
+			exeEnv["LINKFLAGS"].remove( "-Wl,--as-needed" )
 	exeEnv.Append(
 
 		LINKFLAGS = [ "-pthread"] + ["-Wl,-export-dynamic", "-Wl,--no-as-needed" ] if exeEnv["PLATFORM"] != "darwin" else [],

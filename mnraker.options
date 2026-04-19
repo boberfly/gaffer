@@ -13,6 +13,11 @@ SPHINX = os.environ.get("REZ_SPHINX_ROOT", "" ).replace("\\", "/")
 PYBIND11 = os.environ.get( "REZ_PYBIND11_ROOT", "" ).replace("\\", "/")
 OSLHOME = os.environ.get( "REZ_OSL_ROOT", "" ).replace("\\", "/")
 
+# To get a static version on Linux/macOS
+PNG_ROOT = os.environ.get( "REZ_LIBPNG_ROOT", "" ).replace("\\", "/")
+ZLIB_ROOT = os.environ.get( "REZ_ZLIB_ROOT", "" ).replace("\\", "/")
+ZSTD_ROOT = os.environ.get( "REZ_ZSTANDARD_ROOT", "" ).replace("\\", "/")
+
 zlibRoot = os.environ.get( "REZ_ZLIB_ROOT", "" ).replace("\\", "/")
 openusdRoot = os.environ.get( "REZ_OPENUSD_ROOT", "" ).replace("\\", "/")
 materialxRoot = os.environ.get( "REZ_MATERIALX_ROOT", "" ).replace("\\", "/")
