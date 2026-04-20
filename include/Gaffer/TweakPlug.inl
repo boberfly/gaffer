@@ -39,6 +39,7 @@
 #include "Gaffer/PlugAlgo.h"
 
 #include "fmt/format.h"
+#include "fmt/ostream.h"
 
 namespace Gaffer
 {
@@ -262,3 +263,10 @@ bool TweaksPlug::applyTweaks(
 }
 
 } // namespace Gaffer
+
+namespace fmt
+{
+
+template <> struct formatter<Gaffer::TweakPlug::Mode> : ostream_formatter { };
+
+} // namespace fmt
