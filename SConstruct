@@ -651,6 +651,7 @@ else:
 				"/wd4146",  # suppress warning "unary minus operator applied to unsigned type, result still unsigned" (from Cryptomatte::MurmurHash3_x86_32())
 				"/D_CRT_NONSTDC_NO_WARNINGS",  # suppress warnings about deprecated POSIX names. The names are deprecated, not the functions, so this is safe.
 				"/wd4245",  # suppress warning 'initializing': conversion from 'int' to 'const OpenImageIO_v3_0::span_size_t', signed/unsigned mismatch
+				"/wd4273",  # suppress warning 'pxrInternal_v0_26_3__pxrReserved__::Vt_ArrayEditStreamImpl': inconsistent dll linkage
 			],
 		)
 
