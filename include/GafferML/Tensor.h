@@ -41,9 +41,18 @@
 
 #include "IECore/Data.h"
 
+#include "fmt/ostream.h"
+
 #include "onnxruntime_cxx_api.h"
 
 #include <vector>
+
+namespace fmt
+{
+
+template <> struct formatter<ONNXTensorElementDataType> : ostream_formatter { };
+
+} // namespace fmt
 
 namespace GafferML
 {

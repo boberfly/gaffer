@@ -44,6 +44,7 @@
 #include "IECore/BoxOps.h"
 
 #include "fmt/format.h"
+#include "fmt/ostream.h"
 #include <limits>
 
 using namespace std;
@@ -51,6 +52,13 @@ using namespace Imath;
 using namespace IECore;
 using namespace Gaffer;
 using namespace GafferImage;
+
+namespace fmt
+{
+
+template <> struct formatter<GafferImage::Merge::Operation> : ostream_formatter { };
+
+} // namespace fmt
 
 namespace
 {
