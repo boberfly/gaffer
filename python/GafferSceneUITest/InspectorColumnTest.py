@@ -778,5 +778,18 @@ class InspectorColumnTest( GafferUITest.TestCase ) :
 		self.assertEqual( GafferSceneUI.Private.InspectorColumn.cellDataFromValue( 1 ).value, 1 )
 		self.assertEqual( GafferSceneUI.Private.InspectorColumn.cellDataFromValue( IECore.IntData( 1 ) ).value, 1 )
 
+	def testCancellation( self ) :
+
+		plane = GafferScene.Plane()
+		inspector = GafferSceneUI.Private.BasicInspector( plane["out"]["object"], None, lambda objectPlug : objectPlug.getValue() )
+		column = GafferSceneUI.Private.InspectorColumn( inspector )
+		path = GafferScene.ScenePath( plane["out"], Gaffer.Context(), "/plane" )
+
+		canceller = IECore.Canceller()
+		canceller.cancel()
+
+		with self.assertRaises( IECore.Cancelled ) :
+			column.cellData( path, canceller )
+
 if __name__ == "__main__":
 	unittest.main()

@@ -404,6 +404,8 @@
 				"listPrependSmall",
 				"listRemoveSmall",
 				"removeSmall",
+				"setExpressionIncludeSmall",
+				"setExpressionExcludeSmall",
 			]
 		},
 
@@ -528,16 +530,19 @@
 				"searchFieldBackground",
 				"search",
 				"searchOn",
+				"home",
+				"historyBack",
+				"historyForward",
 			],
 
 		},
-		
+
 		"nodeEditor" : {
-			
+
 			"options" : {
 				"validatePixelAlignment" : True,
 			},
-			
+
 			"ids" : [
 				"rendererArnoldOnIcon",
 				"rendererArnoldOffIcon",

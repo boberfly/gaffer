@@ -86,7 +86,12 @@ InspectorColumn::CellData VisibilityColumn::cellData( const Gaffer::Path &path, 
 		return result;
 	}
 
-	Context::Scope scopedContext( context.get() );
+	Context::EditableScope scopedContext( context.get() );
+	if( canceller )
+	{
+		scopedContext.setCanceller( canceller );
+	}
+
 	const bool visible = GafferScene::SceneAlgo::visible( m_scene.get(), path.names() );
 	const auto visibilityValue = runTimeCast<const BoolData>( inspectorResult->value() );
 

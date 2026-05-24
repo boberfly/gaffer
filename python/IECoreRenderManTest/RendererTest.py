@@ -50,6 +50,7 @@ import IECoreImage
 import IECoreScene
 import IECoreRenderMan
 import IECoreRenderManTest
+import IECoreVDB
 
 import GafferTest
 import GafferScene
@@ -812,9 +813,6 @@ class RendererTest( GafferTest.TestCase ) :
 		self.assertEventually(
 			lambda : self.assertEqualWithAbsError( self.__colorAtUV( "myLovelySphere", imath.V2f( 0.6, 0.5 ) ), imath.Color4f( 1 ), 0.02 )
 		)
-		# Store converged color for later comparison with modified portal.
-		color = self.__colorAtUV( "myLovelySphere", imath.V2f( 0.6, 0.5 ) )
-		self.assertEqualWithAbsError( color, imath.Color4f( 1 ), 0.02 )
 
 		renderer.pause()
 
@@ -834,9 +832,8 @@ class RendererTest( GafferTest.TestCase ) :
 
 		renderer.render()
 
-		expectedColor = color * imath.Color4f( 2, 0, 2, 1 )
 		self.assertEventually(
-			lambda : self.assertEqualWithAbsError( self.__colorAtUV( "myLovelySphere", imath.V2f( 0.6, 0.5 ) ), expectedColor, 0.04 )
+			lambda : self.assertEqualWithAbsError( self.__colorAtUV( "myLovelySphere", imath.V2f( 0.6, 0.5 ) ), imath.Color4f( 2, 0, 2, 1 ), 0.04 )
 		)
 		self.assertEventually(
 			lambda : self.assertEqual( self.__colorAtUV( "myLovelySphere", imath.V2f( 0.3, 0.5 ) )[0], 0 )
@@ -1380,6 +1377,38 @@ class RendererTest( GafferTest.TestCase ) :
 						list( itertools.chain( *[ iter( [ x, x, x ] ) for x in range( 0, 4 ) ] ) )
 					)
 					self.__assertPrimitiveVariableEqual( prototype, "Ri:wrap", [ "periodic" if wrap == Wrap.Periodic else "nonperiodic" ] )
+
+	def testMatrixPrimitiveVariables( self ) :
+
+		with IECoreRenderManTest.RileyCapture() as capture :
+
+			renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+				self.renderer,
+				GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+			)
+
+			mesh = IECoreScene.MeshPrimitive.createPlane( imath.Box2f( imath.V2f( -1 ), imath.V2f( 1 ) ) )
+			mesh["constantMatrix"] = IECoreScene.PrimitiveVariable(
+				IECoreScene.PrimitiveVariable.Interpolation.Constant,
+				imath.M44f().translate( imath.V3f( 1, 2, 3 ) )
+			)
+			mesh["vertexMatrix"] = IECoreScene.PrimitiveVariable(
+				IECoreScene.PrimitiveVariable.Interpolation.Vertex,
+				IECore.M44fVectorData( [ imath.M44f().translate( imath.V3f( 1, 2, 3 ) ) ] * 4 )
+			)
+
+			renderer.object(
+				"mesh", mesh, renderer.attributes( IECore.CompoundObject() )
+			)
+
+			del mesh, renderer
+
+		prototype = next(
+			x for x in capture.json if x["method"] == "CreateGeometryPrototype"
+		)
+
+		self.__assertPrimitiveVariableEqual( prototype, "constantMatrix", [ 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 2, 3, 1 ] )
+		self.__assertPrimitiveVariableEqual( prototype, "vertexMatrix", [ 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 2, 3, 1 ] * 4 )
 
 	def testAutomaticInstancingAttribute( self ) :
 
@@ -2551,6 +2580,79 @@ class RendererTest( GafferTest.TestCase ) :
 		self.__assertShadingNetworkParameterEqual( displacements[0]["displacement"], "texture.filename", [ "dispDirA/displacement.exr" ] )
 		self.__assertShadingNetworkParameterEqual( displacements[1]["displacement"], "texture.filename", [ "dispDirB/displacement.exr" ] )
 
+	def testMaterialAssignment( self ) :
+
+		surfaceShader1 = IECoreScene.ShaderNetwork(
+			shaders = { "output" : IECoreScene.Shader( "PxrSurface", parameters = { "diffuseColor" : imath.Color3f( 1 ) } ) },
+			output = "output"
+		)
+
+		surfaceShader2 = IECoreScene.ShaderNetwork(
+			shaders = { "output" : IECoreScene.Shader( "PxrSurface", parameters = { "diffuseColor" : imath.Color3f( 2 ) } ) },
+			output = "output"
+		)
+
+		volumeShader1 = IECoreScene.ShaderNetwork(
+			shaders = { "output" : IECoreScene.Shader( "PxrVolume", parameters = { "diffuseColor" : imath.Color3f( 3 ) } ) },
+			output = "output"
+		)
+
+		volumeShader2 = IECoreScene.ShaderNetwork(
+			shaders = { "output" : IECoreScene.Shader( "PxrVolume", parameters = { "diffuseColor" : imath.Color3f( 4 ) } ) },
+			output = "output"
+		)
+
+		for riVolume, volume, riSurface, surface, expectedColor in [
+			( None, None, None, None, None ),
+			( volumeShader1, None, None, None, [ 3, 3, 3 ] ),
+			( volumeShader1, volumeShader2, None, None, [ 3, 3, 3 ] ),
+			( None, volumeShader2, None, None, [ 4, 4, 4 ] ),
+			( volumeShader1, None, surfaceShader1, None, [ 3, 3, 3 ] ),
+			( None, None, surfaceShader1, None, [ 1, 1, 1 ] ),
+			( None, None, surfaceShader1, surfaceShader2, [ 1, 1, 1 ] ),
+			( None, None, None, surfaceShader2, [ 2, 2, 2 ] ),
+		] :
+
+			with self.subTest( riVolume = bool( riVolume ), volume = bool( volume ), riSurface = bool( riSurface ), surface = bool( surface ) ) :
+
+				with IECoreRenderManTest.RileyCapture() as capture :
+
+					renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+						self.renderer,
+						GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Batch
+					)
+
+					mesh = IECoreScene.MeshPrimitive.createPlane( imath.Box2f( imath.V2f( -1 ), imath.V2f( 1 ) ) )
+
+					attributes = {}
+					if riVolume is not None :
+						attributes["ri:volume"] = riVolume
+
+					if volume is not None :
+						attributes["volume"] = volume
+
+					if riSurface is not None :
+						attributes["ri:surface"] = riSurface
+
+					if surface is not None :
+						attributes["surface"] = surface
+
+					attributes = renderer.attributes( IECore.CompoundObject( attributes ) )
+
+					renderer.object( "mesh", mesh, attributes )
+
+					del attributes
+					del renderer
+
+				materials = [ x for x in capture.json if x["method"] == "CreateMaterial" ]
+				self.assertEqual( len( materials ), 1 )
+
+				if expectedColor is None :
+					node = materials[0]["material"]["nodes"][-1]
+					self.__assertNotInParameters( node["params"]["params"], "diffuseColor" )
+				else :
+					self.__assertShadingNetworkParameterEqual( materials[0]["material"], "output.diffuseColor", expectedColor )
+
 	def testCamera( self ) :
 
 		for ( proj, nearClip, farClip, focalLength, aperture, translate, dof, fStop, flWorldScale, focusDist ) in [
@@ -2757,6 +2859,65 @@ class RendererTest( GafferTest.TestCase ) :
 		self.runOverscanTest( imath.V2i( 200, 200 ), 14, 13, 12, 11 )
 		self.runOverscanTest( imath.V2i( 750, 750 ), 249, 249, 249, 249 )
 		self.runOverscanTest( imath.V2i( 162, 512 ), 745, 347, 819, 882 )
+
+	def testVolumeTransformEdit( self ) :
+
+		renderer = GafferScene.Private.IECoreScenePreview.Renderer.create(
+			self.renderer,
+			GafferScene.Private.IECoreScenePreview.Renderer.RenderType.Interactive
+		)
+
+		renderer.output(
+			"test",
+			IECoreScene.Output(
+				"test",
+				"ieDisplay",
+				"rgba",
+				{
+					"driverType" : "ImageDisplayDriver",
+					"handle" : "myLovelySphere",
+				}
+			)
+		)
+
+		sphere = renderer.object(
+			"sphere",
+			IECoreVDB.VDBObject( "./python/GafferArnoldTest/volumes/sphere.vdb" ),
+			renderer.attributes( IECore.CompoundObject( {
+				"ri:surface" : IECoreScene.ShaderNetwork(
+					shaders = {
+						"output" : IECoreScene.Shader( "PxrVolume", parameters = { "densityFloatPrimVar" : "density" } )
+					},
+					output = "output",
+				)
+			} ) )
+		)
+		sphere.transform( imath.M44f().translate( imath.V3f( 0, -2, -2 ) ) )
+		renderer.render()
+
+		# Volume should be visible in the middle of the image, and not at the top.
+		self.assertEventually(
+			lambda : self.assertGreater( self.__colorAtUV( "myLovelySphere", imath.V2f( 0.5, 0.5 ) ).a, 0.25 )
+		)
+		self.assertEventually(
+			lambda : self.assertEqual( self.__colorAtUV( "myLovelySphere", imath.V2f( 0.5, 0.0 ) ).a, 0 )
+		)
+
+		renderer.pause()
+		sphere.transform( imath.M44f().translate( imath.V3f( 0, 0, -2 ) ) )
+		renderer.render()
+
+		# Volume should have moved to the top of the image.
+		self.assertEventually(
+			lambda : self.assertEqual( self.__colorAtUV( "myLovelySphere", imath.V2f( 0.5, 0.5 ) ).a, 0 )
+		)
+		self.assertEventually(
+			lambda : self.assertGreater( self.__colorAtUV( "myLovelySphere", imath.V2f( 0.5, 0.0 ) ).a, 0.25 )
+		)
+
+		renderer.pause()
+		del sphere
+		del renderer
 
 	def __assertParameterEqual( self, paramList, name, data, tolerance = None ) :
 

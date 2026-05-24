@@ -62,7 +62,7 @@ namespace GeometryAlgo
 {
 
 /// Converts animated samples of an `IECore::Object` into an equivalent `ccl::Geometry` object.
-IECORECYCLES_API ccl::Geometry *convert( const IECoreScenePreview::Renderer::ObjectSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times, ccl::Session *session );
+IECORECYCLES_API ccl::Geometry *convert( const IECoreScenePreview::Renderer::ObjectSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times, ccl::Scene *scene );
 
 /// Converts a primitive variable to a `ccl::Attribute` inside of a `ccl::AttributeSet`.
 IECORECYCLES_API void convertPrimitiveVariable( const std::string &name, const IECoreScene::PrimitiveVariable &primitiveVariable, ccl::AttributeSet &attributes, ccl::AttributeElement attributeElement );

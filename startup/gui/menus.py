@@ -306,6 +306,7 @@ nodeMenu.append( "/Scene/Object/Merge Curves", GafferScene.MergeCurves, searchTe
 nodeMenu.append( "/Scene/Object/Mesh Tessellate", GafferScene.MeshTessellate, searchText = "MeshTessellate" )
 nodeMenu.append( "/Scene/Object/Camera Tweaks", GafferScene.CameraTweaks, searchText = "CameraTweaks" )
 nodeMenu.append( "/Scene/Object/Curves Interpolation", GafferScene.CurvesInterpolation, searchText = "CurvesInterpolation" )
+nodeMenu.append( "/Scene/Object/Curves Tangents", GafferScene.CurvesTangents, searchText = "CurvesTangents" )
 nodeMenu.append( "/Scene/Object/Curve Sampler", GafferScene.CurveSampler, searchText = "CurveSampler" )
 nodeMenu.append( "/Scene/Object/Closest Point Sampler", GafferScene.ClosestPointSampler, searchText = "ClosestPointSampler" )
 nodeMenu.append( "/Scene/Object/UV Sampler", GafferScene.UVSampler, searchText = "UVSampler" )
@@ -471,27 +472,6 @@ if moduleSearchPath.find( "GafferOSL" ) :
 		os.environ["OSL_SHADER_PATHS"].split( os.path.pathsep ),
 		[ "oso" ],
 		__shaderNodeCreator,
-		# The OSLCode node also generates a great many shaders behind
-		# the scenes that we don't want to place in the menus. Typically
-		# these aren't on the OSL_SHADER_PATHS anyway because they are
-		# given to the renderer via absolute paths, but at the time of
-		# writing it is necessary to place them on the OSL_SHADER_PATHS
-		# in order to use them in Arnold. We don't enable this by default
-		# because it causes Arnold to potentially load a huge number of
-		# shader plugins at startup, but we hide any oslCode shaders here
-		# in case someone else enables it.
-		#
-		# This match expression filters these categories of shader out
-		# as follows :
-		#
-		# - (^|.*/) matches any number (including zero) of directory
-		#   names preceding the shader name.
-		# - (?!oslCode) is a negative lookahead, asserting that the shader
-		#   name does not start "oslCode", the prefix for all OSLCode
-		#   shaders.
-		# - [^/]*$ matches the rest of the shader name, ensuring it
-		#   doesn't include any directory separators.
-		matchExpression = re.compile( "(^|.*/)(?!oslCode)[^/]*$"),
 		searchTextPrefix = "osl",
 	)
 
@@ -563,10 +543,11 @@ def __usdLightCreator( lightType ) :
 
 	return light
 
-for lightType in [
-	"DistantLight", "DiskLight", "RectLight", "SphereLight", "CylinderLight", "DomeLight", "SpotLight"
-] :
-	nodeMenu.append( "/USD/Light/{}".format( IECore.CamelCase.toSpaced( lightType ) ), functools.partial( __usdLightCreator, lightType ), searchText = lightType )
+if os.environ.get( "GAFFERUSD_HIDE_LIGHT_UI", "" ) != "1" :
+	for lightType in [
+		"DistantLight", "DiskLight", "RectLight", "SphereLight", "CylinderLight", "DomeLight", "SpotLight"
+	] :
+		nodeMenu.append( "/USD/Light/{}".format( IECore.CamelCase.toSpaced( lightType ) ), functools.partial( __usdLightCreator, lightType ), searchText = lightType )
 
 nodeMenu.append( "/USD/Attributes", GafferUSD.USDAttributes, searchText = "USDAttributes" )
 nodeMenu.append( "/USD/Layer Writer", GafferUSD.USDLayerWriter, searchText = "USDLayerWriter" )

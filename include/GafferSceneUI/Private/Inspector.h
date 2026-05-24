@@ -212,7 +212,7 @@ class GAFFERSCENEUI_API Inspector : public IECore::RunTimeTyped, public Gaffer::
 
 	private :
 
-		void inspectHistoryWalk( const GafferScene::SceneAlgo::History *history, Result *result ) const;
+		void inspectHistoryWalk( const GafferScene::SceneAlgo::History *history, Result *result, const IECore::Canceller *canceller ) const;
 		void plugDirtied( Gaffer::Plug *plug );
 		void plugMetadataChanged( IECore::InternedString key, const Gaffer::Plug *plug );
 		void nodeMetadataChanged( IECore::InternedString key, const Gaffer::Node *node );
@@ -305,7 +305,9 @@ class GAFFERSCENEUI_API Inspector::Result : public IECore::RefCounted
 		const T typedValue( const T &defaultValue, bool useFallbacks = true ) const;
 
 		/// The plug that was used to author the current value, or null if
-		/// it cannot be determined.
+		/// it cannot be determined. This may be an input plug that the user
+		/// could edit, or where not possible, an output plug where the value
+		/// was first visible.
 		///
 		/// > Note : Does not consider fallback values. When a fallback is in
 		/// > effect because the main value is null, `source()` will either

@@ -34,6 +34,7 @@
 #
 ##########################################################################
 
+import functools
 import unittest
 
 import IECore
@@ -89,18 +90,20 @@ class BasicInspectorTest( GafferUITest.TestCase ) :
 
 	def testInspectObject( self ) :
 
-		sphere = GafferScene.Sphere()
-		inspection = self.__inspect( sphere["out"]["object"], lambda objectPlug : objectPlug.getValue(), path = "/sphere" )
+		script = Gaffer.ScriptNode()
 
-		self.assertEqual( inspection.value(), sphere["out"].object( "/sphere" ) )
-		self.assertIsNone( inspection.source() )
+		script["sphere"] = GafferScene.Sphere()
+		inspection = self.__inspect( script["sphere"]["out"]["object"], lambda objectPlug : objectPlug.getValue(), path = "/sphere" )
+
+		self.assertEqual( inspection.value(), script["sphere"]["out"].object( "/sphere" ) )
+		self.assertEqual( inspection.source(), script["sphere"]["out"]["object"] )
 		self.assertEqual( inspection.sourceType(), inspection.SourceType.Other )
 		self.assertEqual( inspection.fallbackDescription(), "" )
 		self.assertFalse( inspection.editable() )
-		self.assertEqual( inspection.nonEditableReason(), "No editable source found in history." )
+		self.assertEqual( inspection.nonEditableReason(), "sphere.out.object is not editable." )
 		self.assertRaises( RuntimeError, inspection.acquireEdit )
 		self.assertFalse( inspection.canDisableEdit() )
-		self.assertEqual( inspection.nonDisableableReason(), "No editable source found in history." )
+		self.assertEqual( inspection.nonDisableableReason(), "sphere.out.object is not editable." )
 		self.assertRaises( RuntimeError, inspection.disableEdit )
 		self.assertFalse( inspection.canEdit( inspection.value() ) )
 		self.assertRaises( RuntimeError, inspection.edit, inspection.value() )
@@ -113,19 +116,21 @@ class BasicInspectorTest( GafferUITest.TestCase ) :
 
 	def testInspectGlobals( self ) :
 
-		options = GafferScene.CustomOptions()
-		options["options"].addChild( Gaffer.NameValuePlug( "test", 10 ) )
-		inspection = self.__inspect( options["out"]["globals"], lambda globalsPlug : globalsPlug.getValue() )
+		script = Gaffer.ScriptNode()
 
-		self.assertEqual( inspection.value(), options["out"].globals() )
-		self.assertIsNone( inspection.source() )
+		script["options"] = GafferScene.CustomOptions()
+		script["options"]["options"].addChild( Gaffer.NameValuePlug( "test", 10 ) )
+		inspection = self.__inspect( script["options"]["out"]["globals"], lambda globalsPlug : globalsPlug.getValue() )
+
+		self.assertEqual( inspection.value(), script["options"]["out"].globals() )
+		self.assertEqual( inspection.source(), script["options"]["out"]["globals"] )
 		self.assertEqual( inspection.sourceType(), inspection.SourceType.Other )
 		self.assertEqual( inspection.fallbackDescription(), "" )
 		self.assertFalse( inspection.editable() )
-		self.assertEqual( inspection.nonEditableReason(), "No editable source found in history." )
+		self.assertEqual( inspection.nonEditableReason(), "options.out.globals is not editable." )
 		self.assertRaises( RuntimeError, inspection.acquireEdit )
 		self.assertFalse( inspection.canDisableEdit() )
-		self.assertEqual( inspection.nonDisableableReason(), "No editable source found in history." )
+		self.assertEqual( inspection.nonDisableableReason(), "options.out.globals is not editable." )
 		self.assertRaises( RuntimeError, inspection.disableEdit )
 		self.assertFalse( inspection.canEdit( inspection.value() ) )
 		self.assertRaises( RuntimeError, inspection.edit, inspection.value() )
@@ -163,6 +168,111 @@ class BasicInspectorTest( GafferUITest.TestCase ) :
 			[ c.property( "history:node" ) for c in children ],
 			[ cube, primitiveVariables, meshTangents, group ]
 		)
+
+	def testSourceAndSourceType( self ) :
+
+		script = Gaffer.ScriptNode()
+
+		script["cube"] = GafferScene.Cube()
+
+		script["cubeFilter"] = GafferScene.PathFilter()
+		script["cubeFilter"]["paths"].setValue( IECore.StringVectorData( [ "/cube" ] ) )
+
+		script["primitiveVariables1"] = GafferScene.PrimitiveVariables()
+		script["primitiveVariables1"]["in"].setInput( script["cube"]["out"] )
+		script["primitiveVariables1"]["filter"].setInput( script["cubeFilter"]["out"] )
+		script["primitiveVariables1"]["primitiveVariables"].addChild( Gaffer.NameValuePlug( "beforeEditScope", 10 ) )
+
+		script["editScope"] = Gaffer.EditScope()
+		script["editScope"].setup( script["primitiveVariables1"]["out"] )
+		script["editScope"]["in"].setInput( script["primitiveVariables1"]["out"] )
+
+		script["editScope"]["primitiveVariables"] = GafferScene.PrimitiveVariables()
+		script["editScope"]["primitiveVariables"]["in"].setInput( script["editScope"]["in"] )
+		script["editScope"]["primitiveVariables"]["filter"].setInput( script["cubeFilter"]["out"] )
+		script["editScope"]["primitiveVariables"]["primitiveVariables"].addChild( Gaffer.NameValuePlug( "insideEditScope", 10 ) )
+
+		script["editScope"]["out"].setInput( script["editScope"]["primitiveVariables"]["out"] )
+
+		script["primitiveVariables2"] = GafferScene.PrimitiveVariables()
+		script["primitiveVariables2"]["in"].setInput( script["editScope"]["out"] )
+		script["primitiveVariables2"]["filter"].setInput( script["cubeFilter"]["out"] )
+		script["primitiveVariables2"]["primitiveVariables"].addChild( Gaffer.NameValuePlug( "afterEditScope", 10 ) )
+
+		def primitiveVariableData( objectPlug, primitiveVariable ) :
+
+			o = objectPlug.getValue()
+			if primitiveVariable in o :
+				return o[primitiveVariable].data
+
+			return None
+
+		def assertExpectedSource( scene, primitiveVariable, source, sourceType = None, editScope = None ) :
+
+			inspection = self.__inspect(
+				scene["object"], functools.partial( primitiveVariableData, primitiveVariable = primitiveVariable ),
+				path = "/cube", editScope = editScope
+			)
+
+			if source is None :
+				self.assertIsNone( inspection )
+				return
+
+			self.assertIsNotNone( inspection )
+			self.assertEqual( inspection.source(), source )
+			self.assertEqual( inspection.sourceType(), sourceType )
+			self.assertFalse( inspection.editable() )
+			with self.assertRaisesRegex( RuntimeError, "Not editable.*" ) :
+				inspection.acquireEdit()
+
+		SourceType = GafferSceneUI.Private.Inspector.Result.SourceType
+		assertExpectedSource( script["primitiveVariables2"]["out"], "afterEditScope", script["primitiveVariables2"]["out"]["object"], SourceType.Other )
+		assertExpectedSource( script["primitiveVariables2"]["out"], "afterEditScope", script["primitiveVariables2"]["out"]["object"], SourceType.Downstream, editScope = script["editScope"] )
+		assertExpectedSource( script["primitiveVariables2"]["out"], "insideEditScope", script["editScope"]["primitiveVariables"]["out"]["object"], SourceType.Other )
+		assertExpectedSource( script["primitiveVariables2"]["out"], "insideEditScope", script["editScope"]["primitiveVariables"]["out"]["object"], SourceType.EditScope, editScope = script["editScope"] )
+		assertExpectedSource( script["primitiveVariables2"]["out"], "beforeEditScope", script["primitiveVariables1"]["out"]["object"], SourceType.Other )
+		assertExpectedSource( script["primitiveVariables2"]["out"], "beforeEditScope", script["primitiveVariables1"]["out"]["object"], SourceType.Upstream, editScope = script["editScope"] )
+
+		assertExpectedSource( script["editScope"]["out"], "afterEditScope", None )
+		assertExpectedSource( script["editScope"]["out"], "afterEditScope", None, editScope = script["editScope"] )
+		assertExpectedSource( script["editScope"]["out"], "insideEditScope", script["editScope"]["primitiveVariables"]["out"]["object"], SourceType.Other )
+		assertExpectedSource( script["editScope"]["out"], "insideEditScope", script["editScope"]["primitiveVariables"]["out"]["object"], SourceType.EditScope, editScope = script["editScope"] )
+		assertExpectedSource( script["editScope"]["out"], "beforeEditScope", script["primitiveVariables1"]["out"]["object"], SourceType.Other )
+		assertExpectedSource( script["editScope"]["out"], "beforeEditScope", script["primitiveVariables1"]["out"]["object"], SourceType.Upstream, editScope = script["editScope"] )
+
+		assertExpectedSource( script["editScope"]["in"], "afterEditScope", None )
+		assertExpectedSource( script["editScope"]["in"], "afterEditScope", None, editScope = script["editScope"] )
+		assertExpectedSource( script["editScope"]["in"], "insideEditScope", None )
+		assertExpectedSource( script["editScope"]["in"], "insideEditScope", None, editScope = script["editScope"] )
+		assertExpectedSource( script["editScope"]["in"], "beforeEditScope", script["primitiveVariables1"]["out"]["object"], SourceType.Other )
+		assertExpectedSource( script["editScope"]["in"], "beforeEditScope", script["primitiveVariables1"]["out"]["object"], SourceType.Upstream, editScope = script["editScope"] )
+
+	def testCancellation( self ) :
+
+		cube = GafferScene.Cube()
+
+		inspector = GafferSceneUI.Private.BasicInspector( cube["out"]["object"], None, lambda objectPlug : objectPlug.getValue() )
+
+		context = Gaffer.Context()
+		context["scene:path"] = GafferScene.ScenePlug.stringToPath( "/cube" )
+
+		canceller = IECore.Canceller()
+		canceller.cancel()
+
+		# This will detect the cancellation in `SceneAlgo::history()`.
+		with Gaffer.Context( context, canceller ) :
+			with self.assertRaises( IECore.Cancelled ) :
+				inspector.inspect()
+
+		# This will cache the results of `SceneAlgo::history()`.
+		with context :
+			inspector.inspect()
+
+		# So this will need to detect the cancellation in the Inspector's
+		# own logic.
+		with Gaffer.Context( context, canceller ) :
+			with self.assertRaises( IECore.Cancelled ) :
+				inspector.inspect()
 
 if __name__ == "__main__":
 	unittest.main()

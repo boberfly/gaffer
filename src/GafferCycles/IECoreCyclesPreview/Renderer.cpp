@@ -1454,8 +1454,8 @@ class GeometryCache
 
 	public :
 
-		GeometryCache( ccl::Session *session, NodeDeleter *nodeDeleter )
-			: m_session( session ), m_nodeDeleter( nodeDeleter )
+		GeometryCache( ccl::Scene *scene, NodeDeleter *nodeDeleter )
+			: m_scene( scene ), m_nodeDeleter( nodeDeleter )
 		{
 		}
 
@@ -1527,7 +1527,7 @@ class GeometryCache
 			const std::string &nodeName
 		)
 		{
-			auto geometry = SharedGeometryPtr( GeometryAlgo::convert( samples, times, m_session ), NodeDeleter::GeometryDeleter( m_nodeDeleter ) );
+			auto geometry = SharedGeometryPtr( GeometryAlgo::convert( samples, times, m_scene ), NodeDeleter::GeometryDeleter( m_nodeDeleter ) );
 			if( geometry )
 			{
 				geometry->name = ccl::ustring( nodeName.c_str() );
@@ -1536,13 +1536,13 @@ class GeometryCache
 			if( auto vdb = IECore::runTimeCast<const IECoreVDB::VDBObject>( samples.front().get() ) )
 			{
 				assert( geometry->is_volume() );
-				GeometryAlgo::convertVoxelGrids( vdb, static_cast<ccl::Volume*>( geometry.get() ), m_session->scene.get(), attributes->getVolumePrecision(), attributes->getVolumeClipping() );
+				GeometryAlgo::convertVoxelGrids( vdb, static_cast<ccl::Volume*>( geometry.get() ), m_scene, attributes->getVolumePrecision(), attributes->getVolumeClipping() );
 			}
 
 			return geometry;
 		}
 
-		ccl::Session *m_session;
+		ccl::Scene *m_scene;
 		NodeDeleter *m_nodeDeleter;
 		using Geometry = tbb::concurrent_hash_map<IECore::MurmurHash, SharedGeometryPtr>;
 		Geometry m_geometry;
@@ -2550,7 +2550,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			return result;
 		}
 
-		ObjectInterfacePtr light( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
+		ObjectInterfacePtr light( const std::string &name, const ObjectSamples &samples, const SampleTimes &times, const AttributesInterface *attributes ) override
 		{
 			const IECore::MessageHandler::Scope s( m_messageHandler.get() );
 			acquireSession();
@@ -2560,7 +2560,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			return result;
 		}
 
-		ObjectInterfacePtr lightFilter( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
+		ObjectInterfacePtr lightFilter( const std::string &name, const ObjectSamples &samples, const SampleTimes &times, const AttributesInterface *attributes ) override
 		{
 			const IECore::MessageHandler::Scope s( m_messageHandler.get() );
 			acquireSession();
@@ -2790,7 +2790,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			}
 
 			m_shaderCache = std::make_unique<ShaderCache>( m_scene );
-			m_geometryCache = std::make_unique<GeometryCache>( m_session.get(), m_nodeDeleter.get() );
+			m_geometryCache = std::make_unique<GeometryCache>( m_scene, m_nodeDeleter.get() );
 			m_attributesCache = std::make_unique<AttributesCache>( m_shaderCache.get() );
 		}
 

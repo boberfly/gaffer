@@ -75,6 +75,39 @@ Gaffer.Metadata.registerNode(
 	}
 )
 
+# \todo Remove this method when merging to `1.7`. Instead, register
+# dynamic metadata methods to `light:*:*` and determine the renderer
+# in that method. This will be consistent with `ShaderUI` and `LightUI`
+# registrations of the form `{shaderType}:{shaderName}:{parameterName}`.
+def __registerIcons() :
+
+	visited = set()
+	for rendererTarget in Gaffer.Metadata.targetsWithMetadata( "renderer:*", "optionPrefix" ) :
+		renderer = rendererTarget[9:]  # Trim off "renderer:"
+		# \todo Once we standardize on `arnold:` prefix instead of `ai:`, we can remove this special case.
+		prefix = "arnold:" if renderer == "Arnold" else Gaffer.Metadata.value( rendererTarget, "optionPrefix" )
+
+		if prefix in visited :
+			# A prefix can be registered for multiple renderers. We register them in
+			# order of importance, so skip all but the first.
+			continue
+
+		Gaffer.Metadata.registerValue(
+			GafferUSD.USDLight.staticTypeId(),
+			f"parameters.{prefix}*",
+			"labelPlugValueWidget:icon",
+			"renderer" + renderer + "OnIcon.png"
+		)
+		Gaffer.Metadata.registerValue(
+			GafferUSD.USDLight.staticTypeId(),
+			f"parameters.{prefix}*",
+			"labelPlugValueWidget:iconToolTip",
+			f"Parameter is specific to {renderer}."
+		)
+		visited.add( prefix )
+
+__registerIcons()
+
 class _RendererFilter( GafferUI.Widget ) :
 
 	def __init__( self, plug, **kw ) :

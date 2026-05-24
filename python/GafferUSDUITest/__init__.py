@@ -36,6 +36,7 @@
 
 from .DocumentationTest import DocumentationTest
 from .NodeUITest import NodeUITest
+from .USDShaderUITest import USDShaderUITest
 
 if __name__ == "__main__":
 	unittest.main()

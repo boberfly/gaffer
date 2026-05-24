@@ -83,6 +83,7 @@
 #include "ShufflesBinding.h"
 #include "MessagesBinding.h"
 #include "TweakPlugBinding.h"
+#include "SetExpressionAlgoBinding.h"
 
 #include "GafferBindings/DependencyNodeBinding.h"
 
@@ -184,6 +185,7 @@ BOOST_PYTHON_MODULE( _Gaffer )
 	bindTweakPlugs();
 	bindOptionalValuePlug();
 	bindCollect();
+	bindSetExpressionAlgo();
 
 	NodeClass<Backdrop>();
 	DependencyNodeClass<PatternMatch>();

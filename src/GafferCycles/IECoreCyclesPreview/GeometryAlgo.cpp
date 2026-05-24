@@ -38,7 +38,6 @@
 
 #include "IECoreScene/PrimitiveVariable.h"
 
-#include "IECore/ObjectInterpolator.h"
 #include "IECore/SimpleTypedData.h"
 
 IECORE_PUSH_DEFAULT_VISIBILITY
@@ -62,21 +61,6 @@ using namespace IECoreScene;
 //////////////////////////////////////////////////////////////////////////
 // Internal utilities
 //////////////////////////////////////////////////////////////////////////
-
-namespace std
-{
-
-/// \todo Move to IECore/TypeIds.h
-template<>
-struct hash<IECore::TypeId>
-{
-	size_t operator()( IECore::TypeId typeId ) const
-	{
-		return hash<size_t>()( typeId );
-	}
-};
-
-} // namespace std
 
 namespace
 {
@@ -142,6 +126,13 @@ ccl::Attribute *convertTypedPrimitiveVariable( const std::string &name, const Pr
 		data = static_cast<const T *>( primitiveVariable.data.get() );
 	}
 
+	// Special case for normals as they need to be octahedrally encoded.
+	const bool isNormal = typeDesc == ccl::TypeNormal;
+	if( isNormal )
+	{
+		attributeElement = attributeElement == ccl::ATTR_ELEMENT_CORNER ? ccl::ATTR_ELEMENT_CORNER_NORMAL : ccl::ATTR_ELEMENT_VERTEX_NORMAL;
+	}
+
 	// Create attribute. Cycles will allocate a buffer based on `attributeElement` and the information
 	// `attributes.geometry` contains.
 
@@ -167,13 +158,26 @@ ccl::Attribute *convertTypedPrimitiveVariable( const std::string &name, const Pr
 
 	// Copy data into buffer.
 
-	if constexpr( std::is_same_v<T, V3fVectorData> && isNormal )
+	if( isNormal )
 	{
-		// Special case for normals as they need to be octahedrally encoded.
-		ccl::packed_normal *pn = attribute->data_normal();
-		for( const auto &v : data->readable() )
+		if constexpr( std::is_same_v<T, V3fVectorData> )
 		{
-			*pn++ = ccl::packed_normal( ccl::make_float3( v.x, v.y, v.z ) );
+			ccl::packed_normal *pn = attribute->data_normal();
+			for( const auto &v : data->readable() )
+			{
+				*pn++ = ccl::packed_normal( ccl::make_float3( v.x, v.y, v.z ) );
+			}
+		}
+		else
+		{
+			msg(
+				Msg::Warning, "IECoreCyles::GeometryAlgo::convertPrimitiveVariable",
+				fmt::format(
+					"Primitive variable \"{}\" has unsupported type \"{}\" (expected V3fVectorData).",
+					name, primitiveVariable.data->typeName()
+				)
+			);
+			return nullptr;
 		}
 	}
 	else if constexpr( std::is_same_v<T, V3fVectorData> || std::is_same_v<T, Color3fVectorData> )
@@ -220,7 +224,7 @@ namespace IECoreCycles
 namespace GeometryAlgo
 {
 
-ccl::Geometry *convert( const IECoreScenePreview::Renderer::ObjectSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times, ccl::Session *session )
+ccl::Geometry *convert( const IECoreScenePreview::Renderer::ObjectSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times, ccl::Scene *scene )
 {
 	if( samples.empty() )
 	{
@@ -246,7 +250,7 @@ ccl::Geometry *convert( const IECoreScenePreview::Renderer::ObjectSamples &sampl
 	// Cycles expects the middle sample (rounding down for even numbers of
 	// samples) to be specified as the main sample, and the other samples to
 	// be provided via ATTR_STD_MOTION_VERTEX_POSITION.
-	return it->second( samples, times, (samples.size() - 1) / 2, session->scene.get() );
+	return it->second( samples, times, (samples.size() - 1) / 2, scene );
 }
 
 void registerConverter( IECore::TypeId fromType, Converter converter )
