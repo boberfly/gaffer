@@ -292,15 +292,34 @@ PrimitiveVariable inAim( const Primitive *inputPrimitive, Primitive *outputPrimi
 PrimitiveVariable inMatrix( const Primitive *inputPrimitive, Primitive *outputPrimitive, const std::string &matrixName, bool deleteInputs )
 {
 	ViewSpec spec;
-	auto matrixView = indexedView<M33f>( inputPrimitive, outputPrimitive, matrixName, deleteInputs, spec );
+	const auto it = inputPrimitive->variables.find( matrixName );
+	if( it == inputPrimitive->variables.end() )
+	{
+		throw IECore::Exception(
+			fmt::format( "Primitive variable \"{}\" not found", matrixName )
+		);
+	}
 
 	QuatfVectorDataPtr quaternionData = new QuatfVectorData;
 	auto &quaternions = quaternionData->writable();
-	quaternions.reserve( matrixView.size() );
 
-	for( auto &m : matrixView )
+	if( const M44fVectorData *data = runTimeCast<const M44fVectorData>( it->second.data.get() ) )
 	{
-		quaternions.push_back( extractQuat( M44f( m, V3f( 0 ) ) ) );
+		auto matrixView = indexedView<M44f>( inputPrimitive, outputPrimitive, matrixName, deleteInputs, spec );
+		quaternions.reserve( matrixView.size() );
+		for( auto &m : matrixView )
+		{
+			quaternions.push_back( extractQuat( m ) );
+		}
+	}
+	else
+	{
+		auto matrixView = indexedView<M33f>( inputPrimitive, outputPrimitive, matrixName, deleteInputs, spec );
+		quaternions.reserve( matrixView.size() );
+		for( auto &m : matrixView )
+		{
+			quaternions.push_back( extractQuat( M44f( m, V3f( 0 ) ) ) );
+		}
 	}
 
 	return PrimitiveVariable( spec.interpolation, quaternionData );

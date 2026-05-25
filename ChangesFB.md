@@ -24,6 +24,7 @@ Improvements
 - Tractor : Ensure username is passed to the spooler
 - GafferUI : OpenGL differences fix with the latest Qt.py
 - Arnold : `ramp_rgb` and `ramp_float` support, with correct USD conversions
+- GafferScene : Support M44f orientation conversions.
 
 Fixes
 -----
