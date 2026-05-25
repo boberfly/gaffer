@@ -122,28 +122,38 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *sc
 		const vector<int> &vertexIds = mesh->vertexIds()->readable();
 		const size_t numVerts = points.size();
 
-		cmesh->reserve_mesh( numVerts, numFaces );
-		for( size_t i = 0; i < numVerts; i++ )
-		{
-			cmesh->add_vertex( ccl::make_float3( points[i].x, points[i].y, points[i].z ) );
-		}
-
 		const std::vector<int> &vertsPerFace = mesh->verticesPerFace()->readable();
 		size_t ncorners = 0;
 		for( size_t i = 0; i < vertsPerFace.size(); i++ )
 		{
 			ncorners += vertsPerFace[i];
 		}
-		cmesh->reserve_subd_faces( numFaces, ncorners );
+		cmesh->resize_subd_faces( numFaces, ncorners );
 
-		int indexOffset = 0;
+		cmesh->resize_mesh( numVerts, 0 );
+		ccl::float3 *verts = cmesh->get_verts().data();
+		for( const auto &v : points )
+		{
+			*verts++ = ccl::make_float3( v.x, v.y, v.z );
+		}
+
+		std::copy( vertexIds.begin(), vertexIds.end(), cmesh->get_subd_face_corners().data() );
+
+		int *subdStartCorner = cmesh->get_subd_start_corner().data();
+		int *subdNumCorners = cmesh->get_subd_num_corners().data();
+		int *subdPtexOffset = cmesh->get_subd_ptex_offset().data();
+
+		int cornerIndex = 0;
+		int ptexOffset = 0;
 		for( size_t i = 0; i < vertsPerFace.size(); i++ )
 		{
-			cmesh->add_subd_face(
-				const_cast<int*>(&vertexIds[indexOffset]), vertsPerFace[i],
-				/* shader = */ 0, /* smooth = */ true
-			);
-			indexOffset += vertsPerFace[i];
+			subdStartCorner[i] = cornerIndex;
+			subdNumCorners[i] = vertsPerFace[i];
+			cornerIndex += vertsPerFace[i];
+
+			subdPtexOffset[i] = ptexOffset;
+			const int numPtex = ( vertsPerFace[i] == 4 ) ? 1 : vertsPerFace[i];
+			ptexOffset += numPtex;
 		}
 
 		// Creases
@@ -178,30 +188,41 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *sc
 				sharpness++;
 			}
 		}
+
+		std::fill( cmesh->get_subd_shader().begin(), cmesh->get_subd_shader().end(), 0 );
+		std::fill( cmesh->get_subd_smooth().begin(), cmesh->get_subd_smooth().end(), true );
+
+		cmesh->tag_subd_face_corners_modified();
+		cmesh->tag_subd_start_corner_modified();
+		cmesh->tag_subd_num_corners_modified();
+		cmesh->tag_subd_shader_modified();
+		cmesh->tag_subd_smooth_modified();
+		cmesh->tag_subd_ptex_offset_modified();
 	}
 	else
 	{
 		const V3fVectorData *p = mesh->variableData<V3fVectorData>( "P", PrimitiveVariable::Vertex );
 		const vector<Imath::V3f> &points = p->readable();
-		const size_t numVerts = points.size();
 		const std::vector<int> &vertexIds = mesh->vertexIds()->readable();
 
+		const size_t numVerts = points.size();
 		const size_t numFaces = mesh->numFaces();
-		cmesh->reserve_mesh( numVerts, numFaces );
+		cmesh->resize_mesh( numVerts, numFaces );
 
-		for( size_t i = 0; i < numVerts; i++ )
+		ccl::float3 *verts = cmesh->get_verts().data();
+		for( const auto &v : points )
 		{
-			cmesh->add_vertex( ccl::make_float3( points[i].x, points[i].y, points[i].z ) );
+			*verts++ = ccl::make_float3( v.x, v.y, v.z );
 		}
+		std::copy( vertexIds.begin(), vertexIds.end(), cmesh->get_triangles().data() );
 
 		const bool smooth = hasSmoothNormals( mesh );
-		for( size_t i = 0; i < vertexIds.size(); i+= 3 )
-		{
-			cmesh->add_triangle(
-				vertexIds[i], vertexIds[i+1], vertexIds[i+2],
-				/* shader = */ 0, /* smooth = */ smooth
-			);
-		}
+		std::fill( cmesh->get_shader().begin(), cmesh->get_shader().end(), 0 );
+		std::fill( cmesh->get_smooth().begin(), cmesh->get_smooth().end(), smooth );
+
+		cmesh->tag_triangles_modified();
+		cmesh->tag_shader_modified();
+		cmesh->tag_smooth_modified();
 	}
 
 	// Convert primitive variables.

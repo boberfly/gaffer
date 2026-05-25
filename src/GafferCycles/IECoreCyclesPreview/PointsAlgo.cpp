@@ -66,29 +66,31 @@ ccl::PointCloud *convertCommon( const IECoreScene::PointsPrimitive *points, ccl:
 	PrimitiveVariableMap variablesToConvert = points->variables;
 
 	size_t numPoints = points->getNumPoints();
-	pointcloud->reserve( numPoints );
+	pointcloud->resize( numPoints );
 
 	const V3fVectorData *p = points->variableData<V3fVectorData>( "P", PrimitiveVariable::Vertex );
 	const vector<Imath::V3f> &pos = p->readable();
 
+	ccl::float3 *cpoints = pointcloud->get_points().data();
+	for( const auto &v : pos )
+	{
+		*cpoints++ = ccl::make_float3( v.x, v.y, v.z );
+	}
+
 	if( const FloatVectorData *w = points->variableData<FloatVectorData>( "width", PrimitiveVariable::Vertex ) )
 	{
 		const vector<float> &width = w->readable();
-
+		float *radius = pointcloud->get_radius().data();
 		for( size_t i = 0; i < numPoints; ++i )
 		{
-			pointcloud->add_point( SocketAlgo::setVector( pos[i] ), width[i] * 0.5f, 0);
+			*radius++ = width[i] * 0.5f;
 		}
 		variablesToConvert.erase( "width" );
 	}
 	else if( const FloatVectorData *w = points->variableData<FloatVectorData>( "radius", PrimitiveVariable::Vertex ) )
 	{
 		const vector<float> &width = w->readable();
-
-		for( size_t i = 0; i < numPoints; ++i )
-		{
-			pointcloud->add_point( SocketAlgo::setVector( pos[i] ), width[i], 0);
-		}
+		std::copy( width.begin(), width.end(), pointcloud->get_radius().data() );
 		variablesToConvert.erase( "radius" );
 	}
 	else
@@ -107,11 +109,14 @@ ccl::PointCloud *convertCommon( const IECoreScene::PointsPrimitive *points, ccl:
 			variablesToConvert.erase( "radius" );
 		}
 
-		for( size_t i = 0; i < numPoints; ++i )
-		{
-			pointcloud->add_point( SocketAlgo::setVector( pos[i] ), width, 0);
-		}
+		std::fill( pointcloud->get_radius().begin(), pointcloud->get_radius().end(), width );
 	}
+
+	std::fill( pointcloud->get_shader().begin(), pointcloud->get_shader().end(), 0 );
+
+	pointcloud->tag_points_modified();
+	pointcloud->tag_radius_modified();
+	pointcloud->tag_shader_modified();
 
 	// Convert primitive variables. P is done, and width/radius if found (removed above).
 	variablesToConvert.erase( "P" );

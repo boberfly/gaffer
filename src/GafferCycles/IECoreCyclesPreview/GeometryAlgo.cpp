@@ -160,7 +160,7 @@ ccl::Attribute *convertTypedPrimitiveVariable( const std::string &name, const Pr
 	// space for its own usage. For instance, vertex attributes on subdivs reserve one extra element for
 	// each non-quad face.
 
-	const size_t allocatedSize = attribute->element_size( attributes.geometry, attributes.prim );
+	const size_t allocatedSize = attribute->element_size( attributes.geometry, attributeElement, attributes.prim );
 	if( dataSize( data ) > allocatedSize )
 	{
 		msg(
@@ -178,7 +178,7 @@ ccl::Attribute *convertTypedPrimitiveVariable( const std::string &name, const Pr
 	if constexpr( std::is_same_v<T, V3fVectorData> && isNormal )
 	{
 		// Special case for normals as they need to be octahedrally encoded.
-		ccl::packed_normal *pn = attribute->data_normal();
+		ccl::packed_normal *pn = attribute->data_normal_for_write();
 		for( const auto &v : data->readable() )
 		{
 			*pn++ = ccl::packed_normal( ccl::make_float3( v.x, v.y, v.z ) );
@@ -187,7 +187,7 @@ ccl::Attribute *convertTypedPrimitiveVariable( const std::string &name, const Pr
 	else if constexpr( std::is_same_v<T, V3fVectorData> || std::is_same_v<T, Color3fVectorData> )
 	{
 		// Special case for arrays of `float3`, where each element actually contains 4 floats for alignment purposes.
-		ccl::float3 *f3 = attribute->data_float3();
+		ccl::float3 *f3 = attribute->data_float3_for_write();
 		for( const auto &v : data->readable() )
 		{
 			*f3++ = ccl::make_float3( v.x, v.y, v.z );
@@ -196,7 +196,7 @@ ccl::Attribute *convertTypedPrimitiveVariable( const std::string &name, const Pr
 	else
 	{
 		// All other cases, (including int to float conversion) are a simple element-by-element copy.
-		std::copy( data->baseReadable(), data->baseReadable() + data->baseSize(), (float *)attribute->data() );
+		std::copy( data->baseReadable(), data->baseReadable() + data->baseSize(), (float *)attribute->data_for_write() );
 	}
 
 	return attribute;
@@ -473,7 +473,7 @@ void convertMotion( const std::vector<const IECoreScene::Primitive *> &samples, 
 	geometry.set_motion_steps( samples.size() );
 
 	ccl::Attribute *positionAttribute = geometry.attributes.add( ccl::ATTR_STD_MOTION_VERTEX_POSITION, ccl::ustring( "motion_P" ) );
-	ccl::float4 *positionData = positionAttribute->data_float4();
+	ccl::float4 *positionData = positionAttribute->data_float4_for_write();
 
 	const float *radius = nullptr;
 	if( geometry.is_pointcloud() )
@@ -606,7 +606,7 @@ void convertVoxelGrids( const IECoreVDB::VDBObject *vdbObject, ccl::Volume *volu
 		params.frame = 0.0f;
 
 		std::scoped_lock lock( scene->mutex );
-		attr->data_voxel() = scene->image_manager->add_image( std::move( loader ), params, false );
+		attr->data_voxel_for_write() = scene->image_manager->add_image( std::move( loader ), params, false );
 	}
 }
 

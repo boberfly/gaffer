@@ -376,6 +376,12 @@ options.Add(
 	"",
 )
 
+options.Add(
+	"JPEG_ROOT",
+	"The directory in which the jpeg library is installed. Used to build IECoreCycles",
+	""
+)
+
 # general variables
 
 options.Add(
@@ -1206,8 +1212,8 @@ cyclesDefines = [
 	# OpenImageDenoise
 	( "WITH_OPENIMAGEDENOISE" ),
 	# HIP
-	( "WITH_HIP" ),
-	( "WITH_HIP_DYNLOAD" ),
+	#( "WITH_HIP" ),
+	#( "WITH_HIP_DYNLOAD" ),
 	# USD
 	( "WITH_USD" ),
 ]
@@ -1590,7 +1596,7 @@ libraries = {
 	"GafferCycles" : {
 		"envAppends" : {
 			"CPPPATH" : [ "$OSLHOME/include" ],
-			"LIBPATH" : [ "$CYCLES_ROOT/lib", "$OIDN_ROOT/lib", "$EMBREE_ROOT/lib" ],
+			"LIBPATH" : [ "$CYCLES_ROOT/lib", "$OIDN_ROOT/lib", "$EMBREE_ROOT/lib", "$JPEG_ROOT/lib" ],
 			"LIBS" : [
 				"IECoreScene$CORTEX_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX", "IECoreMaterialX",
 				"Gaffer", "GafferScene", "GafferDispatch", "GafferOSL",
@@ -1599,11 +1605,13 @@ libraries = {
 				"OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslcomp$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX",
 				"openvdb$VDB_LIB_SUFFIX", "Alembic", "osdCPU", "OpenColorIO$OCIO_LIB_SUFFIX", "embree4$EMBREE_LIB_SUFFIX", "openpgl",
 				"OpenImageDenoise$OIDN_LIB_SUFFIX", "OpenImageDenoise" + env.get("OIDN_LIB_SUFFIX", "") + "_core",
+				"jpeg-static",
 			],
 			"CXXFLAGS" : [
 				systemIncludeArgument + "$CYCLES_ROOT/include",
 				systemIncludeArgument + "$OIDN_ROOT/include",
 				systemIncludeArgument + "$EMBREE_ROOT/include",
+				systemIncludeArgument + "$JPEG_ROOT/include"
 			],
 			"CPPDEFINES" : cyclesDefines,
 			"FRAMEWORKS" : [ "Foundation", "Metal", "IOKit" ],

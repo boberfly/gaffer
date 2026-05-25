@@ -81,8 +81,14 @@ ccl::PointCloud *convertCommon( const IECoreScene::SpherePrimitive *sphere, ccl:
 	ccl::PointCloud *pointcloud = SceneAlgo::createNodeWithLock<ccl::PointCloud>( scene );
 
 	//pointcloud->set_point_style( ccl::POINT_CLOUD_POINT_SPHERE );
-	pointcloud->reserve( 1 );
-	pointcloud->add_point( ccl::make_float3( 0.0f, 0.0f, 0.0f ), sphere->radius(), 0);
+	pointcloud->resize( 1 );
+	pointcloud->get_points()[0] = ccl::make_float3( 0.0f, 0.0f, 0.0f );
+	pointcloud->get_radius()[0] = sphere->radius();
+	pointcloud->get_shader()[0] = 0;
+
+	pointcloud->tag_points_modified();
+	pointcloud->tag_radius_modified();
+	pointcloud->tag_shader_modified();
 
 	for( const auto &[name, variable] : sphere->variables )
 	{

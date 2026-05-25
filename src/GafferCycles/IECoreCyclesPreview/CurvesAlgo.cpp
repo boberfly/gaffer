@@ -73,25 +73,35 @@ ccl::Hair *convertCommon( const IECoreScene::CurvesPrimitive *curve, ccl::Scene 
 		numKeys += verticesPerCurve[i];
 	}
 
-	hair->reserve_curves( numCurves, numKeys );
+	hair->resize_curves( numCurves, numKeys );
 
 	const V3fVectorData *p = curve->variableData<V3fVectorData>( "P", PrimitiveVariable::Vertex );
-	const vector<Imath::V3f> &points = p->readable();
+
+	ccl::float3 *curveKeys = hair->get_curve_keys().data();
+	int *curveFirstKey = hair->get_curve_first_key().data();
+	float *curveRadius = hair->get_curve_radius().data();
+
+	for( const auto &v : p->readable() )
+	{
+		*curveKeys++ = ccl::make_float3( v.x, v.y, v.z );
+	}
+
+	std::ranges::fill( hair->get_curve_shader(), 0 );
+
+	size_t firstKey = 0;
+	for( size_t i = 0; i < numCurves; ++i )
+	{
+		curveFirstKey[i] = firstKey;
+		firstKey += verticesPerCurve[i];
+	}
 
 	if( const FloatVectorData *w = curve->variableData<FloatVectorData>( "width", PrimitiveVariable::Vertex ) )
 	{
 		const vector<float> &width = w->readable();
 
-		size_t key = 0;
-		for( size_t i = 0; i < numCurves; ++i )
+		for( size_t i = 0; i < hair->get_curve_radius().size(); ++i )
 		{
-			size_t firstKey = key;
-			for( int j = 0; j < verticesPerCurve[i]; ++j, ++key )
-			{
-				hair->add_curve_key( ccl::make_float3( points[key].x, points[key].y, points[key].z ), width[key] / 2.0f );
-			}
-
-			hair->add_curve( firstKey, 0 );
+			curveRadius[i] = width[i] / 2.0f;
 		}
 	}
 	else
@@ -103,18 +113,16 @@ ccl::Hair *convertCommon( const IECoreScene::CurvesPrimitive *curve, ccl::Scene 
 			constantWidth = cw->readable();
 		}
 
-		size_t key = 0;
-		for( size_t i = 0; i < numCurves; ++i )
+		for( size_t i = 0; i < hair->get_curve_radius().size(); ++i )
 		{
-			size_t firstKey = key;
-			for( int j = 0; j < verticesPerCurve[i]; ++j, ++key )
-			{
-				hair->add_curve_key( ccl::make_float3( points[key].x, points[key].y, points[key].z ), constantWidth / 2.0f );
-			}
-
-			hair->add_curve( firstKey, 0 );
+			curveRadius[i] = constantWidth / 2.0f;
 		}
 	}
+
+	hair->tag_curve_keys_modified();
+	hair->tag_curve_radius_modified();
+	hair->tag_curve_first_key_modified();
+	hair->tag_curve_shader_modified();
 
 	// Convert primitive variables.
 	PrimitiveVariableMap variablesToConvert = curve->variables;

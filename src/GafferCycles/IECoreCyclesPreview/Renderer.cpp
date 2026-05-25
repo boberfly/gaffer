@@ -1055,6 +1055,14 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 						return false;
 					}
 				}
+				else if( object->get_geometry()->is_light() && m_lightAttribute )
+				{
+					auto light = static_cast<ccl::Light *>( object->get_geometry() );
+					if( !ShaderNetworkAlgo::compatibleLightType( m_lightAttribute.get(), light ) )
+					{
+						return false;
+					}
+				}
 			}
 
 			object->set_visibility( m_visibility );
@@ -1080,10 +1088,11 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			}
 			else if( object->get_geometry()->is_light() )
 			{
-				auto light = static_cast<ccl::Light *>( object->get_geometry() );
+				ccl::Light *light = static_cast<ccl::Light *>( object->get_geometry() );
 				if( m_lightAttribute )
 				{
-					ShaderNetworkAlgo::convertLight( m_lightAttribute.get(), light );
+					light->set_is_enabled( !m_muteLight );
+					light = ShaderNetworkAlgo::convertLight( m_lightAttribute.get(), scene, light );
 					ccl::array<ccl::Node *> shaders;
 					shaders.push_back_slow( m_lightShader->shader() );
 					{
@@ -1092,8 +1101,6 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 						std::scoped_lock sceneLock( scene->mutex );
 						light->set_used_shaders( shaders );
 					}
-
-					light->set_is_enabled( !m_muteLight );
 				}
 				else
 				{
@@ -1224,6 +1231,11 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 		float getVolumeClipping() const
 		{
 			return m_volume.clipping ? m_volume.clipping.value() : 0.001f;
+		}
+
+		const IECoreScene::ShaderNetwork *getLightAttribute() const
+		{
+			return m_lightAttribute.get();
 		}
 
 	private :
@@ -1955,8 +1967,8 @@ class CyclesLight : public IECoreScenePreview::Renderer::ObjectInterface
 
 	public :
 
-		CyclesLight( ccl::Scene *scene, const std::string &name, NodeDeleter *nodeDeleter )
-			:	m_scene( scene ), m_light( SceneAlgo::createNodeWithLock<ccl::Light>( scene ), NodeDeleter::GeometryDeleter( nodeDeleter ) ), m_object( SceneAlgo::createNodeWithLock<ccl::Object>( scene ), NodeDeleter::ObjectDeleter( nodeDeleter ) )
+		CyclesLight( ccl::Scene *scene, const IECoreScene::ShaderNetwork *lightShader, const std::string &name, NodeDeleter *nodeDeleter )
+			:	m_scene( scene ), m_light( ShaderNetworkAlgo::convertLight( lightShader, scene ), NodeDeleter::GeometryDeleter( nodeDeleter ) ), m_object( SceneAlgo::createNodeWithLock<ccl::Object>( scene ), NodeDeleter::ObjectDeleter( nodeDeleter ) )
 		{
 			m_object->set_geometry( m_light.get() );
 			m_object->set_random_id( std::hash<string>()( name ) );
@@ -1988,7 +2000,7 @@ class CyclesLight : public IECoreScenePreview::Renderer::ObjectInterface
 			///   DomeLights correct - see ShaderNetworkAlgo.
 			/// - The light shader was created via `ShaderCache::get()`, and could therefore be shared
 			///   between several lights, so we're not at liberty to clobber the shader anyway.
-			if( m_light->get_light_type() == ccl::LIGHT_BACKGROUND && m_light->get_used_shaders().size() != 0 )
+			if( m_light->is_background_light() && m_light->get_used_shaders().size() != 0 )
 			{
 				ccl::Shader *shader = (ccl::Shader*)m_light->get_used_shaders()[0];
 				for( ccl::ShaderNode *node : shader->graph->nodes )
@@ -2663,7 +2675,12 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			const IECore::MessageHandler::Scope s( m_messageHandler.get() );
 			acquireSession();
 
-			ObjectInterfacePtr result = new CyclesLight( m_scene, name, m_nodeDeleter.get() );
+			const CyclesAttributes *cyclesAttributes = static_cast<const CyclesAttributes *>( attributes );
+			if( !cyclesAttributes->getLightAttribute() )
+			{
+				return nullptr;
+			}
+			ObjectInterfacePtr result = new CyclesLight( m_scene, cyclesAttributes->getLightAttribute(), name, m_nodeDeleter.get() );
 			result->attributes( attributes );
 			return result;
 		}
