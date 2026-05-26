@@ -2382,6 +2382,10 @@ def buildImageCommand( source, target, env ) :
 		]
 	else :
 		args.append( "--export-png={}".format( os.path.abspath( filename ) ) )
+	if env["PLATFORM"] == "win32" :
+		# Workaround a race condition with D-Bus which fails the
+		# build with multiple concurrent inkscapes
+		args.append("--gapplication-app-id=org.inkscape.Inkscape.instance{}".format( substitutions["id"] ) )
 	args.append( os.path.abspath( svgFilename ) )
 
 	subprocess.check_call( args )
@@ -2434,7 +2438,7 @@ def svgQuery( svgFile, id_ ) :
 
 		objects = {}
 
-		output = subprocess.check_output( [ env["INKSCAPE"], "--query-all", filepath ], universal_newlines=True )
+		output = subprocess.check_output( [ env["INKSCAPE"], "--gapplication-app-id=org.inkscape.Inkscape.instance0", "--query-all", filepath ], universal_newlines=True )
 		for line in output.split( "\n" ) :
 			tokens = line.split( "," )
 			# <id>,<x>,<y>,<width>,<height>
