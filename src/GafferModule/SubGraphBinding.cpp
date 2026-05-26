@@ -82,6 +82,12 @@ class BoxSerialiser : public NodeSerialiser
 
 };
 
+BoxPtr createWrapper( Node *parent, const Set *childNodes )
+{
+	IECorePython::ScopedGILRelease gilRelease;
+	return Box::create( parent, childNodes );
+}
+
 } // namespace
 
 // BoxIO
@@ -309,7 +315,7 @@ void GafferModule::bindSubGraph()
 
 	DependencyNodeClass<Box, BoxWrapper>()
 		.def( "exportForReference", &Box::exportForReference )
-		.def( "create", &Box::create )
+		.def( "create", &createWrapper )
 		.staticmethod( "create" )
 	;
 

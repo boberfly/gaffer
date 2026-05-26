@@ -40,6 +40,7 @@
 #include "GafferScene/CameraTweaks.h"
 #include "GafferScene/CopyAttributes.h"
 #include "GafferScene/CopyOptions.h"
+#include "GafferScene/CopyPrimitiveVariables.h"
 #include "GafferScene/Filter.h"
 #include "GafferScene/FilterProcessor.h"
 #include "GafferScene/LocaliseAttributes.h"
@@ -49,6 +50,7 @@
 #include "GafferScene/SetAlgo.h"
 #include "GafferScene/ShaderTweaks.h"
 #include "GafferScene/ShuffleAttributes.h"
+#include "GafferScene/ShufflePrimitiveVariables.h"
 
 #include "Gaffer/ArrayPlug.h"
 #include "Gaffer/Context.h"
@@ -62,6 +64,7 @@
 #include "IECoreScene/Camera.h"
 #include "IECoreScene/ClippingPlane.h"
 #include "IECoreScene/CoordinateSystem.h"
+#include "IECoreScene/Primitive.h"
 #include "IECoreScene/VisibleRenderable.h"
 
 #include "IECore/MessageHandler.h"
@@ -556,6 +559,7 @@ SceneAlgo::History::Ptr historyWalk( const CapturedProcess *process, InternedStr
 
 	SceneAlgo::History::Ptr result;
 	Plug *plug = const_cast<Plug *>( process->destinationPlug.get() );
+
 	while( plug )
 	{
 		ScenePlug *scene = plug->parent<ScenePlug>();
@@ -585,11 +589,11 @@ SceneAlgo::History::Ptr historyWalk( const CapturedProcess *process, InternedStr
 	return result;
 }
 
-void addGenericAttributePredecessors( const SceneAlgo::History::Predecessors &source, SceneAlgo::AttributeHistory *destination )
+void addGenericAttributePredecessors( const SceneAlgo::History::Predecessors &source, SceneAlgo::AttributeHistory *destination, const IECore::Canceller *canceller )
 {
 	for( auto &h : source )
 	{
-		if( auto ah = SceneAlgo::attributeHistory( h.get(), destination->attributeName ) )
+		if( auto ah = SceneAlgo::attributeHistory( h.get(), destination->attributeName, canceller ) )
 		{
 			destination->predecessors.push_back( ah );
 		}
@@ -607,7 +611,7 @@ void addGenericOptionPredecessors( const SceneAlgo::History::Predecessors &sourc
 	}
 }
 
-void addCopyAttributesPredecessors( const CopyAttributes *copyAttributes, const SceneAlgo::History::Predecessors &source, SceneAlgo::AttributeHistory *destination )
+void addCopyAttributesPredecessors( const CopyAttributes *copyAttributes, const SceneAlgo::History::Predecessors &source, SceneAlgo::AttributeHistory *destination, const IECore::Canceller *canceller )
 {
 	const ScenePlug *sourceScene = copyAttributes->inPlug();
 	if(
@@ -642,7 +646,7 @@ void addCopyAttributesPredecessors( const CopyAttributes *copyAttributes, const 
 	{
 		if( h->scene == sourceScene )
 		{
-			destination->predecessors.push_back( SceneAlgo::attributeHistory( h.get(), destination->attributeName ) );
+			destination->predecessors.push_back( SceneAlgo::attributeHistory( h.get(), destination->attributeName, canceller ) );
 		}
 	}
 }
@@ -668,14 +672,14 @@ void addCopyOptionsPredecessors( const CopyOptions *copyOptions, const SceneAlgo
 	}
 }
 
-void addShuffleAttributesPredecessors( const ShuffleAttributes *shuffleAttributes, const SceneAlgo::History::Predecessors &source, SceneAlgo::AttributeHistory *destination )
+void addShuffleAttributesPredecessors( const ShuffleAttributes *shuffleAttributes, const SceneAlgo::History::Predecessors &source, SceneAlgo::AttributeHistory *destination, const IECore::Canceller *canceller )
 {
 	// We have no way of introspecting the operation of a ShufflePlug, so we resort
 	// to shuffling	`name = name, value = name` pairs to figure out where the attribute
 	// has come from.
 
 	InternedString sourceAttributeName = destination->attributeName;
-	if( shuffleAttributes->filterPlug()->match( shuffleAttributes->inPlug() ) & PathMatcher::ExactMatch )
+	if( !shuffleAttributes->globalPlug()->getValue() && ( shuffleAttributes->filterPlug()->match( shuffleAttributes->inPlug() ) & PathMatcher::ExactMatch ) )
 	{
 		auto inputAttributes = shuffleAttributes->inPlug()->attributesPlug()->getValue();
 		map<InternedString, InternedString> shuffledNames;
@@ -687,50 +691,43 @@ void addShuffleAttributesPredecessors( const ShuffleAttributes *shuffleAttribute
 		sourceAttributeName = shuffledNames[destination->attributeName];
 	}
 
-	assert( source.size() == 1 );
-	destination->predecessors.push_back( SceneAlgo::attributeHistory( source[0].get(), sourceAttributeName ) );
+	if( source.size() )
+	{
+		assert( source.size() == 1 );
+		destination->predecessors.push_back( SceneAlgo::attributeHistory( source[0].get(), sourceAttributeName, canceller ) );
+	}
 }
 
-void addLocaliseAttributesPredecessors( const SceneAlgo::History::Predecessors &source, SceneAlgo::AttributeHistory *destination )
+void addLocaliseAttributesPredecessors( const SceneAlgo::History::Predecessors &source, SceneAlgo::AttributeHistory *destination, const IECore::Canceller *canceller )
 {
 	// No need to check if the node is filtered to this location.
 	// Filtered or unfiltered, it's all the same : the predecessor
-	// we want is the most local one. i.e. the one with the longest
+	// we want is the most local one. i.e. the one with a value and
+	// the longest path. If none have a value, then we take the longest
 	// path.
 
-	int longestPath = -1;
+	using Priority = std::tuple<bool, int>;
+	Priority highestPriority = { false, -1 };
 	SceneAlgo::AttributeHistory::Ptr predecessor;
 	for( auto &h : source )
 	{
+		auto p = attributeHistory( h.get(), destination->attributeName, canceller );
 		const auto &sourcePath = h->context->get<ScenePlug::ScenePath>( ScenePlug::scenePathContextName );
-		if( (int)sourcePath.size() <= longestPath )
-		{
-			continue;
-		}
-		auto p = attributeHistory( h.get(), destination->attributeName );
-		if( p && p->attributeValue )
+		const Priority priority = { (bool)p->attributeValue, sourcePath.size() };
+		if( priority > highestPriority )
 		{
 			predecessor = p;
-			longestPath = sourcePath.size();
+			highestPriority = priority;
 		}
 	}
 
-	if( !predecessor )
+	if( predecessor )
 	{
-		if( !source.size() )
-		{
-			return;
-		}
-		// We didn't find a source with an attribute to localise. Add the first
-		// source as a predecessor so the history is not truncated.
-		predecessor = attributeHistory( source[0].get(), destination->attributeName );
+		destination->predecessors.push_back( predecessor );
 	}
-
-	assert( predecessor );
-	destination->predecessors.push_back( predecessor );
 }
 
-void addAttributeTweaksPredecessors( const AttributeTweaks *attributeTweaks, const SceneAlgo::History::Predecessors &source, SceneAlgo::AttributeHistory *destination )
+void addAttributeTweaksPredecessors( const AttributeTweaks *attributeTweaks, const SceneAlgo::History::Predecessors &source, SceneAlgo::AttributeHistory *destination, const IECore::Canceller *canceller )
 {
 	if( attributeTweaks->localisePlug()->getValue() )
 	{
@@ -748,17 +745,17 @@ void addAttributeTweaksPredecessors( const AttributeTweaks *attributeTweaks, con
 				// irrelevant to the history.
 				if( source.size() )
 				{
-					destination->predecessors.push_back( attributeHistory( source[0].get(), destination->attributeName ) );
+					destination->predecessors.push_back( attributeHistory( source[0].get(), destination->attributeName, canceller ) );
 				}
 				return;
 			}
 		}
 	}
 
-	addLocaliseAttributesPredecessors( source, destination );
+	addLocaliseAttributesPredecessors( source, destination, canceller );
 }
 
-void addMergeScenesPredecessors( const MergeScenes *mergeScenes, const SceneAlgo::History::Predecessors &source, SceneAlgo::AttributeHistory *destination )
+void addMergeScenesPredecessors( const MergeScenes *mergeScenes, const SceneAlgo::History::Predecessors &source, SceneAlgo::AttributeHistory *destination, const IECore::Canceller *canceller )
 {
 	// MergeScenes only evaluates input locations that exist, and in an order
 	// whereby the last input with the attribute wins.
@@ -766,26 +763,17 @@ void addMergeScenesPredecessors( const MergeScenes *mergeScenes, const SceneAlgo
 	SceneAlgo::AttributeHistory::Ptr predecessor;
 	for( auto &h : source )
 	{
-		auto p = attributeHistory( h.get(), destination->attributeName );
-		if( p && p->attributeValue )
+		auto p = attributeHistory( h.get(), destination->attributeName, canceller );
+		if( !predecessor || p->attributeValue )
 		{
 			predecessor = p;
 		}
 	}
 
-	if( !predecessor )
+	if( predecessor )
 	{
-		if( !source.size() )
-		{
-			return;
-		}
-		// We didn't find a source with an attribute to merge. Add the first
-		// source as a predecessor so the history is not truncated.
-		predecessor = attributeHistory( source[0].get(), destination->attributeName );
+		destination->predecessors.push_back( predecessor );
 	}
-
-	assert( predecessor );
-	destination->predecessors.push_back( predecessor );
 }
 
 void addMergeScenesPredecessors( const MergeScenes *mergeScenes, const SceneAlgo::History::Predecessors &source, SceneAlgo::OptionHistory *destination )
@@ -797,9 +785,36 @@ void addMergeScenesPredecessors( const MergeScenes *mergeScenes, const SceneAlgo
 	for( auto &h : source )
 	{
 		auto p = optionHistory( h.get(), destination->optionName );
-		if( p && p->optionValue )
+		if( !predecessor || p->optionValue )
 		{
 			predecessor = p;
+		}
+	}
+
+	if( predecessor )
+	{
+		destination->predecessors.push_back( predecessor );
+	}
+}
+
+void addMergeScenesPredecessors( const MergeScenes *mergeScenes, const SceneAlgo::History::Predecessors &source, SceneAlgo::PrimitiveVariableHistory *destination )
+{
+	// MergeScenes only evaluates input locations that exist, and in an order
+	// whereby the last input with the object wins.
+
+	SceneAlgo::PrimitiveVariableHistory::Ptr predecessor;
+
+	for( auto &h : source )
+	{
+		if( !runTimeCast<const NullObject>( h->scene->objectPlug()->getValue().get() ) )
+		{
+			predecessor = primitiveVariableHistory( h.get(), destination->primitiveVariableName );
+
+			// The MergeScenes hashObject takes the first match, rather than the last
+			// match ( it uses a special traversal order to support this ). We need to
+			// match that
+
+			break;
 		}
 	}
 
@@ -809,13 +824,96 @@ void addMergeScenesPredecessors( const MergeScenes *mergeScenes, const SceneAlgo
 		{
 			return;
 		}
-		// We didn't find a source with an option to merge. Add the first
+		// We didn't find a source with a primitiveVariable to merge. Add the first
 		// source as a predecessor so the history is not truncated.
-		predecessor = optionHistory( source[0].get(), destination->optionName );
+		predecessor = primitiveVariableHistory( source[0].get(), destination->primitiveVariableName );
 	}
 
 	assert( predecessor );
 	destination->predecessors.push_back( predecessor );
+}
+
+void addGenericPrimitiveVariablePredecessors( const SceneAlgo::History::Predecessors &source, SceneAlgo::PrimitiveVariableHistory *destination )
+{
+	for( auto &h : source )
+	{
+		if( auto ah = SceneAlgo::primitiveVariableHistory( h.get(), destination->primitiveVariableName ) )
+		{
+			destination->predecessors.push_back( ah );
+		}
+	}
+}
+
+void addCopyPrimitiveVariablesPredecessors( const CopyPrimitiveVariables *copyPrimitiveVariables, const SceneAlgo::History::Predecessors &source, SceneAlgo::PrimitiveVariableHistory *destination )
+{
+	const ScenePlug *sourceScene = copyPrimitiveVariables->inPlug();
+	if(
+		( copyPrimitiveVariables->filterPlug()->match( copyPrimitiveVariables->inPlug() ) & PathMatcher::ExactMatch ) &&
+		StringAlgo::matchMultiple( destination->primitiveVariableName, copyPrimitiveVariables->primitiveVariablesPlug()->getValue() )
+	)
+	{
+		ConstObjectPtr sourceObject;
+		const std::string sourceLocation = copyPrimitiveVariables->sourceLocationPlug()->getValue();
+		if( sourceLocation.empty() )
+		{
+			if( copyPrimitiveVariables->sourcePlug()->exists() )
+			{
+				sourceObject = copyPrimitiveVariables->sourcePlug()->objectPlug()->getValue();
+			}
+		}
+		else
+		{
+			ScenePlug::ScenePath sourcePath; ScenePlug::stringToPath( sourceLocation, sourcePath );
+			if( copyPrimitiveVariables->sourcePlug()->exists( sourcePath ) )
+			{
+				sourceObject = copyPrimitiveVariables->sourcePlug()->object( sourcePath );
+			}
+		}
+
+		const Primitive *sourcePrimitive = IECore::runTimeCast< const Primitive >( sourceObject.get() );
+
+		if( sourcePrimitive && sourcePrimitive->variables.count( destination->primitiveVariableName ) )
+		{
+			sourceScene = copyPrimitiveVariables->sourcePlug();
+		}
+	}
+
+	for( auto &h : source )
+	{
+		if( h->scene == sourceScene )
+		{
+			destination->predecessors.push_back( SceneAlgo::primitiveVariableHistory( h.get(), destination->primitiveVariableName ) );
+		}
+	}
+}
+
+void addShufflePrimitiveVariablesPredecessors( const ShufflePrimitiveVariables *shufflePrimitiveVariables, const SceneAlgo::History::Predecessors &source, SceneAlgo::PrimitiveVariableHistory *destination )
+{
+	// We have no way of introspecting the operation of a ShufflePlug, so we resort
+	// to shuffling	`name = name, value = name` pairs to figure out where the primitive
+	// variable has come from.
+
+	InternedString sourcePrimitiveVariableName = destination->primitiveVariableName;
+	if( shufflePrimitiveVariables->filterPlug()->match( shufflePrimitiveVariables->inPlug() ) & PathMatcher::ExactMatch )
+	{
+		ConstPrimitivePtr primitive = IECore::runTimeCast<const Primitive>( shufflePrimitiveVariables->inPlug()->objectPlug()->getValue() );
+		if( primitive )
+		{
+			map<InternedString, InternedString> shuffledNames;
+			for( auto &v : primitive->variables )
+			{
+				shuffledNames.insert( { v.first, v.first } );
+			}
+			shuffledNames = shufflePrimitiveVariables->shufflesPlug()->shuffle( shuffledNames );
+			sourcePrimitiveVariableName = shuffledNames[destination->primitiveVariableName];
+		}
+	}
+
+	if( source.size() )
+	{
+		assert( source.size() == 1 );
+		destination->predecessors.push_back( SceneAlgo::primitiveVariableHistory( source[0].get(), sourcePrimitiveVariableName ) );
+	}
 }
 
 SceneProcessor *objectTweaksWalk( const SceneAlgo::History *h )
@@ -929,9 +1027,12 @@ SceneAlgo::History::Ptr SceneAlgo::history( const Gaffer::ValuePlug *scenePlugCh
 	return historyWalk( monitor->rootProcesses().front().get(), scenePlugChild->getName(), nullptr );
 }
 
-SceneAlgo::AttributeHistory::Ptr SceneAlgo::attributeHistory( const SceneAlgo::History *attributesHistory, const IECore::InternedString &attribute )
+SceneAlgo::AttributeHistory::Ptr SceneAlgo::attributeHistory( const History *attributesHistory, const IECore::InternedString &attribute, const IECore::Canceller *canceller )
 {
-	Context::Scope scopedContext( attributesHistory->context.get() );
+	IECore::Canceller::check( canceller );
+	Context::EditableScope scopedContext( attributesHistory->context.get() );
+	scopedContext.setCanceller( canceller );
+
 	ConstCompoundObjectPtr attributes = attributesHistory->scene->attributesPlug()->getValue();
 	ConstObjectPtr attributeValue = attributes->member<Object>( attribute );
 
@@ -952,39 +1053,44 @@ SceneAlgo::AttributeHistory::Ptr SceneAlgo::attributeHistory( const SceneAlgo::H
 	{
 		if( auto copyAttributes = runTimeCast<const CopyAttributes>( node ) )
 		{
-			addCopyAttributesPredecessors( copyAttributes, attributesHistory->predecessors, result.get() );
+			addCopyAttributesPredecessors( copyAttributes, attributesHistory->predecessors, result.get(), canceller );
 		}
 		else if( auto shuffleAttributes = runTimeCast<const ShuffleAttributes>( node ) )
 		{
-			addShuffleAttributesPredecessors( shuffleAttributes, attributesHistory->predecessors, result.get() );
+			addShuffleAttributesPredecessors( shuffleAttributes, attributesHistory->predecessors, result.get(), canceller );
 		}
 		else if( runTimeCast<const LocaliseAttributes>( node ) )
 		{
-			addLocaliseAttributesPredecessors( attributesHistory->predecessors, result.get() );
+			addLocaliseAttributesPredecessors( attributesHistory->predecessors, result.get(), canceller );
 		}
 		else if( auto mergeScenes = runTimeCast<const MergeScenes>( node ) )
 		{
-			addMergeScenesPredecessors( mergeScenes, attributesHistory->predecessors, result.get() );
+			addMergeScenesPredecessors( mergeScenes, attributesHistory->predecessors, result.get(), canceller );
 		}
 		else if( auto attributeTweaks = runTimeCast<const AttributeTweaks>( node ) )
 		{
-			addAttributeTweaksPredecessors( attributeTweaks, attributesHistory->predecessors, result.get() );
+			addAttributeTweaksPredecessors( attributeTweaks, attributesHistory->predecessors, result.get(), canceller );
 		}
 		else if( runTimeCast<const ShaderTweaks>( node ) )
 		{
-			addLocaliseAttributesPredecessors( attributesHistory->predecessors, result.get() );
+			addLocaliseAttributesPredecessors( attributesHistory->predecessors, result.get(), canceller );
 		}
 		else
 		{
-			addGenericAttributePredecessors( attributesHistory->predecessors, result.get() );
+			addGenericAttributePredecessors( attributesHistory->predecessors, result.get(), canceller );
 		}
 	}
 	else
 	{
-		addGenericAttributePredecessors( attributesHistory->predecessors, result.get() );
+		addGenericAttributePredecessors( attributesHistory->predecessors, result.get(), canceller );
 	}
 
 	return result;
+}
+
+SceneAlgo::AttributeHistory::Ptr SceneAlgo::attributeHistory( const SceneAlgo::History *attributesHistory, const IECore::InternedString &attribute )
+{
+	return attributeHistory( attributesHistory, attribute, nullptr );
 }
 
 SceneAlgo::OptionHistory::Ptr SceneAlgo::optionHistory( const SceneAlgo::History *globalsHistory, const IECore::InternedString &option )
@@ -1029,6 +1135,59 @@ SceneAlgo::OptionHistory::Ptr SceneAlgo::optionHistory( const SceneAlgo::History
 	return result;
 }
 
+SceneAlgo::PrimitiveVariableHistory::Ptr SceneAlgo::primitiveVariableHistory( const SceneAlgo::History *objectHistory, const IECore::InternedString &primitiveVariable )
+{
+	Context::Scope scopedContext( objectHistory->context.get() );
+	IECoreScene::ConstPrimitivePtr primitive = IECore::runTimeCast<const Primitive>( objectHistory->scene->objectPlug()->getValue() );
+
+	if( !primitive )
+	{
+		return nullptr;
+	}
+
+	auto varIt = primitive->variables.find( primitiveVariable );
+
+	SceneAlgo::PrimitiveVariableHistory::Ptr result = new PrimitiveVariableHistory(
+		objectHistory->scene, objectHistory->context,
+		primitiveVariable, varIt == primitive->variables.end() ? PrimitiveVariable() : varIt->second
+	);
+
+	// Filter the object history to include only predecessors which
+	// contribute specifically to our single primitive variable. In the absence of
+	// a SceneNode-level API for querying primitive variable sources, we resort to
+	// special case code for backtracking through certain node types.
+	/// \todo Consider an official API that allows the nodes themselves to
+	/// take responsibility for this backtracking.
+
+	auto node = runTimeCast<const SceneNode>( objectHistory->scene->node() );
+	if( node && node->enabledPlug()->getValue() && objectHistory->scene == node->outPlug() )
+	{
+		if( auto copyPrimitiveVariables = runTimeCast<const CopyPrimitiveVariables>( node ) )
+		{
+			addCopyPrimitiveVariablesPredecessors( copyPrimitiveVariables, objectHistory->predecessors, result.get() );
+		}
+		else
+		if( auto shufflePrimitiveVariables = runTimeCast<const ShufflePrimitiveVariables>( node ) )
+		{
+			addShufflePrimitiveVariablesPredecessors( shufflePrimitiveVariables, objectHistory->predecessors, result.get() );
+		}
+		else if( auto mergeScenes = runTimeCast<const MergeScenes>( node ) )
+		{
+			addMergeScenesPredecessors( mergeScenes, objectHistory->predecessors, result.get() );
+		}
+		else
+		{
+			addGenericPrimitiveVariablePredecessors( objectHistory->predecessors, result.get() );
+		}
+	}
+	else
+	{
+		addGenericPrimitiveVariablePredecessors( objectHistory->predecessors, result.get() );
+	}
+
+	return result;
+}
+
 ScenePlug *SceneAlgo::source( const ScenePlug *scene, const ScenePlug::ScenePath &path )
 {
 	History::ConstPtr h = history( scene->objectPlug(), path );
@@ -1066,8 +1225,8 @@ ShaderTweaks *SceneAlgo::shaderTweaks( const ScenePlug *scene, const ScenePlug::
 	while( inheritancePath.size() )
 	{
 		History::ConstPtr h = history( scene->attributesPlug(), inheritancePath );
-		auto ah = attributeHistory( h.get(), attributeName );
-		if( ah && ah->attributeValue )
+		auto ah = attributeHistory( h.get(), attributeName, Context::current()->canceller() );
+		if( ah->attributeValue )
 		{
 			return shaderTweaksWalk( ah.get() );
 		}

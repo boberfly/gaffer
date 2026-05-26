@@ -243,7 +243,19 @@ class Editor( GafferUI.Widget ) :
 
 	def __enter( self, widget ) :
 
+		# \todo The same method for finding the focus of a `QGraphicsView`
+		# is used in `GadgetWidget`. Extract both to a common place?
 		currentFocusWidget = QtWidgets.QApplication.focusWidget()
+
+		if (
+			isinstance( currentFocusWidget, QtWidgets.QGraphicsView ) and
+			isinstance( nextWidget := currentFocusWidget.scene().focusItem(), QtWidgets.QGraphicsProxyWidget )
+		) :
+			nextWidget = nextWidget.widget()
+			currentFocusWidget = None
+			while nextWidget is not None and nextWidget != currentFocusWidget :
+				currentFocusWidget = nextWidget
+				nextWidget = nextWidget.focusWidget()
 
 		# Don't disrupt in-progress text edits
 		if isinstance( currentFocusWidget, ( QtWidgets.QLineEdit, QtWidgets.QPlainTextEdit ) ) :

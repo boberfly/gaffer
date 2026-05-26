@@ -77,9 +77,38 @@ Renderer::~Renderer()
 
 }
 
-Renderer::ObjectInterfacePtr Renderer::camera( const std::string &name,  const std::vector<const IECoreScene::Camera *> &samples, const std::vector<float> &times, const AttributesInterface *attributes )
+Renderer::ObjectInterfacePtr Renderer::camera( const std::string &name, const IECoreScene::Camera *camera, const AttributesInterface *attributes )
 {
-	return camera( name, samples[0], attributes );
+	return this->camera( name, { camera }, { 0.0f }, attributes );
+}
+
+Renderer::ObjectInterfacePtr Renderer::light( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes )
+{
+	if( object )
+	{
+		return this->light( name, { object }, { 0.0f }, attributes );
+	}
+	else
+	{
+		return this->light( name, {}, {}, attributes );
+	}
+}
+
+Renderer::ObjectInterfacePtr Renderer::lightFilter( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes )
+{
+	if( object )
+	{
+		return this->lightFilter( name, { object }, { 0.0f }, attributes );
+	}
+	else
+	{
+		return this->lightFilter( name, {}, {}, attributes );
+	}
+}
+
+Renderer::ObjectInterfacePtr Renderer::object( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes )
+{
+	return this->object( name, { object }, { 0.0f }, attributes );
 }
 
 IECore::DataPtr Renderer::command( const IECore::InternedString name, const IECore::CompoundDataMap &parameters )
@@ -95,6 +124,11 @@ Renderer::AttributesInterface::~AttributesInterface()
 Renderer::ObjectInterface::~ObjectInterface()
 {
 
+}
+
+void Renderer::ObjectInterface::transform( const Imath::M44f &transform )
+{
+	this->transform( { transform }, { 0.0f } );
 }
 
 const std::vector<IECore::InternedString> &Renderer::types()

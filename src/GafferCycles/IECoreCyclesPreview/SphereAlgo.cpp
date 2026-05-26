@@ -74,8 +74,9 @@ void warnIfUnsupported( const IECoreScene::SpherePrimitive *sphere )
 	}
 }
 
-ccl::PointCloud *convertCommon( const IECoreScene::SpherePrimitive *sphere, ccl::Scene *scene )
+ccl::Geometry *convert( const IECoreScenePreview::Renderer::Samples<const IECoreScene::SpherePrimitive *> &samples, const IECoreScenePreview::Renderer::SampleTimes &times, size_t primarySampleIndex, ccl::Scene *scene )
 {
+	auto *sphere = samples[primarySampleIndex];
 	assert( sphere->typeId() == IECoreScene::SpherePrimitive::staticTypeId() );
 	warnIfUnsupported( sphere );
 	ccl::PointCloud *pointcloud = SceneAlgo::createNodeWithLock<ccl::PointCloud>( scene );
@@ -107,18 +108,6 @@ ccl::PointCloud *convertCommon( const IECoreScene::SpherePrimitive *sphere, ccl:
 	return pointcloud;
 }
 
-ccl::Geometry *convert( const IECoreScene::SpherePrimitive *sphere, ccl::Scene *scene )
-{
-	ccl::Geometry *result = convertCommon( sphere, scene );
-	return result;
-}
-
-ccl::Geometry *convert( const vector<const IECoreScene::SpherePrimitive *> &samples, const std::vector<float> &times, size_t primarySampleIndex, ccl::Scene *scene )
-{
-	ccl::Geometry *result = convertCommon( samples[primarySampleIndex], scene );
-	return result;
-}
-
-GeometryAlgo::ConverterDescription<SpherePrimitive> g_description( convert, convert );
+GeometryAlgo::ConverterDescription<SpherePrimitive> g_description( convert );
 
 } // namespace

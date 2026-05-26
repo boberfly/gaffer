@@ -57,9 +57,9 @@ class RendererAlgoTest( GafferSceneTest.SceneTestCase ) :
 
 		with Gaffer.Context() as c :
 			c["scene:path"] = IECore.InternedStringVectorData( [ "sphere" ] )
-			samples = GafferScene.Private.RendererAlgo.objectSamples( sphere["out"]["object"], [ 0.75, 1.25 ] )
+			sampledObject = GafferScene.Private.RendererAlgo.objectSamples( sphere["out"]["object"], [ 0.75, 1.25 ] )
 
-		self.assertEqual( [ s.radius() for s in samples ], [ 0.75, 1.25 ] )
+		self.assertEqual( [ s.radius() for s in sampledObject.samples ], [ 0.75, 1.25 ] )
 
 	def testNonInterpolableObjectSamples( self ) :
 
@@ -71,10 +71,11 @@ class RendererAlgoTest( GafferSceneTest.SceneTestCase ) :
 
 		with Gaffer.Context() as c :
 			c["scene:path"] = IECore.InternedStringVectorData( [ "procedural" ] )
-			samples = GafferScene.Private.RendererAlgo.objectSamples( procedural["out"]["object"], [ 0.75, 1.25 ] )
+			sampledObject = GafferScene.Private.RendererAlgo.objectSamples( procedural["out"]["object"], [ 0.75, 1.25 ] )
 
-		self.assertEqual( len( samples ), 1 )
-		self.assertEqual( samples[0].parameters()["frame"].value, 1.0 )
+		self.assertEqual( len( sampledObject.samples ), 1 )
+		self.assertEqual( sampledObject.samples[0].parameters()["frame"].value, 1.0 )
+		self.assertEqual( sampledObject.sampleTimes, [ 1.0 ] )
 
 	def testObjectSamplesForCameras( self ) :
 
@@ -85,9 +86,10 @@ class RendererAlgoTest( GafferSceneTest.SceneTestCase ) :
 
 		with Gaffer.Context() as c :
 			c["scene:path"] = IECore.InternedStringVectorData( [ "camera" ] )
-			samples = GafferScene.Private.RendererAlgo.objectSamples( camera["out"]["object"], [ 0.75, 1.25 ] )
+			sampledObject = GafferScene.Private.RendererAlgo.objectSamples( camera["out"]["object"], [ 0.75, 1.25 ] )
 
-		self.assertEqual( [ s.parameters()["focalLength"].value for s in samples ], [ 0.75, 1.25 ] )
+		self.assertEqual( [ s.parameters()["focalLength"].value for s in sampledObject.samples ], [ 0.75, 1.25 ] )
+		self.assertEqual( sampledObject.sampleTimes, [ 0.75, 1.25 ] )
 
 	def testOutputCameras( self ) :
 
@@ -121,7 +123,7 @@ class RendererAlgoTest( GafferSceneTest.SceneTestCase ) :
 		capturedCamera = renderer.capturedObject( "/camera" )
 
 		self.assertEqual( capturedCamera.capturedSamples(), [ expectedCamera( 1 ) ] )
-		self.assertEqual( capturedCamera.capturedSampleTimes(), [] )
+		self.assertEqual( capturedCamera.capturedSampleTimes(), [ 1 ] )
 
 		# Animated case
 
@@ -168,9 +170,10 @@ class RendererAlgoTest( GafferSceneTest.SceneTestCase ) :
 		coordinateSystem = GafferScene.CoordinateSystem()
 		with Gaffer.Context() as c :
 			c["scene:path"] = IECore.InternedStringVectorData( [ "coordinateSystem" ] )
-			samples = GafferScene.Private.RendererAlgo.objectSamples( coordinateSystem["out"]["object"], [ 0.75, 1.25 ] )
-			self.assertEqual( len( samples ), 1 )
-			self.assertEqual( samples[0], coordinateSystem["out"].object( "/coordinateSystem" ) )
+			sampledObject = GafferScene.Private.RendererAlgo.objectSamples( coordinateSystem["out"]["object"], [ 0.75, 1.25 ] )
+			self.assertEqual( len( sampledObject.samples ), 1 )
+			self.assertEqual( sampledObject.samples[0], coordinateSystem["out"].object( "/coordinateSystem" ) )
+			self.assertEqual( sampledObject.sampleTimes, [ 0.75 ] )
 
 	def testLightSolo( self ) :
 
@@ -189,24 +192,34 @@ class RendererAlgoTest( GafferSceneTest.SceneTestCase ) :
 		# --- lightGroupMuteChildSolo   undefined       in          False
 
 		lightSolo = GafferSceneTest.TestLight()
+		lightSolo.loadShader( "simpleLight" )
 		lightSolo["name"].setValue( "lightSolo" )
 		light = GafferSceneTest.TestLight()
+		light
 		light["name"].setValue( "light" )
 		lightSolo2 = GafferSceneTest.TestLight()
+		lightSolo2.loadShader( "simpleLight" )
 		lightSolo2["name"].setValue( "lightSolo2" )
 		lightMute = GafferSceneTest.TestLight()
+		lightMute.loadShader( "simpleLight" )
 		lightMute["name"].setValue( "lightMute" )
 		lightMuteChild = GafferSceneTest.TestLight()
+		lightMuteChild.loadShader( "simpleLight" )
 		lightMuteChild["name"].setValue( "lightMuteChild" )
 		lightMuteChildSolo = GafferSceneTest.TestLight()
+		lightMuteChildSolo.loadShader( "simpleLight" )
 		lightMuteChildSolo["name"].setValue( "lightMuteChildSolo" )
 		lightMuteSolo = GafferSceneTest.TestLight()
+		lightMuteSolo.loadShader( "simpleLight" )
 		lightMuteSolo["name"].setValue( "lightMuteSolo" )
 		lightMuteSoloChild = GafferSceneTest.TestLight()
+		lightMuteSoloChild.loadShader( "simpleLight" )
 		lightMuteSoloChild["name"].setValue( "lightMuteSoloChild" )
 		lightMuteSoloChildSolo = GafferSceneTest.TestLight()
+		lightMuteSoloChildSolo.loadShader( "simpleLight" )
 		lightMuteSoloChildSolo["name"].setValue( "lightMuteSoloChildSolo" )
 		lightGroupMuteChildSolo = GafferSceneTest.TestLight()
+		lightGroupMuteChildSolo.loadShader( "simpleLight" )
 		lightGroupMuteChildSolo["name"].setValue( "lightGroupMuteChildSolo" )
 
 		parent = GafferScene.Parent()
@@ -359,22 +372,31 @@ class RendererAlgoTest( GafferSceneTest.SceneTestCase ) :
 		# --- lightGroupMuteChild   undefined       True (inherited)
 
 		lightMute = GafferSceneTest.TestLight()
+		lightMute.loadShader( "simpleLight" )
 		lightMute["name"].setValue( "lightMute" )
 		light = GafferSceneTest.TestLight()
+		light.loadShader( "simpleLight" )
 		light["name"].setValue( "light" )
 		lightMute2 = GafferSceneTest.TestLight()
+		lightMute2.loadShader( "simpleLight" )
 		lightMute2["name"].setValue( "lightMute2" )
 		lightMute3 = GafferSceneTest.TestLight()
+		lightMute3
 		lightMute3["name"].setValue( "lightMute3" )
 		lightMute3Child = GafferSceneTest.TestLight()
+		lightMute3Child.loadShader( "simpleLight" )
 		lightMute3Child["name"].setValue( "lightMute3Child" )
 		light2 = GafferSceneTest.TestLight()
+		light2.loadShader( "simpleLight" )
 		light2["name"].setValue( "light2" )
 		light2ChildMute = GafferSceneTest.TestLight()
+		light2ChildMute.loadShader( "simpleLight" )
 		light2ChildMute["name"].setValue( "light2ChildMute" )
 		light2Child = GafferSceneTest.TestLight()
+		light2Child.loadShader( "simpleLight" )
 		light2Child["name"].setValue( "light2Child" )
 		lightGroupMuteChild = GafferSceneTest.TestLight()
+		lightGroupMuteChild.loadShader( "simpleLight" )
 		lightGroupMuteChild["name"].setValue( "lightGroupMuteChild" )
 
 		parent = GafferScene.Parent()
@@ -484,20 +506,22 @@ class RendererAlgoTest( GafferSceneTest.SceneTestCase ) :
 			c["scene:path"] = IECore.InternedStringVectorData( [ "sphere" ] )
 
 			h1 = IECore.MurmurHash()
-			samples1 = GafferScene.Private.RendererAlgo.objectSamples( sphere["out"]["object"], [ 1.0 ], h1 )
-			self.assertEqual( samples1[0].radius(), 1 )
+			sampledObject1 = GafferScene.Private.RendererAlgo.objectSamples( sphere["out"]["object"], [ 1.0 ], h1 )
+			self.assertEqual( sampledObject1.samples[0].radius(), 1 )
+			self.assertEqual( sampledObject1.sampleTimes, [ 1.0 ] )
 			self.assertNotEqual( h1, IECore.MurmurHash() )
 
 			sphere["radius"].setValue( 2 )
 			h2 = IECore.MurmurHash( h1 )
-			samples2 = GafferScene.Private.RendererAlgo.objectSamples( sphere["out"]["object"], [ 1.0 ], h2 )
-			self.assertEqual( samples2[0].radius(), 2 )
+			sampledObject2 = GafferScene.Private.RendererAlgo.objectSamples( sphere["out"]["object"], [ 1.0 ], h2 )
+			self.assertEqual( sampledObject2.samples[0].radius(), 2 )
+			self.assertEqual( sampledObject2.sampleTimes, [ 1.0 ] )
 			self.assertNotEqual( h2, IECore.MurmurHash() )
 			self.assertNotEqual( h2, h1 )
 
 			h3 = IECore.MurmurHash( h2 )
-			samples3 = GafferScene.Private.RendererAlgo.objectSamples( sphere["out"]["object"], [ 1.0 ], h3 )
-			self.assertIsNone( samples3 ) # Hash matched, so no samples generated
+			sampledObject3 = GafferScene.Private.RendererAlgo.objectSamples( sphere["out"]["object"], [ 1.0 ], h3 )
+			self.assertIsNone( sampledObject3 ) # Hash matched, so no samples generated
 			self.assertEqual( h3, h2 )
 
 	def testTransformSamplesHash( self ) :
@@ -509,20 +533,20 @@ class RendererAlgoTest( GafferSceneTest.SceneTestCase ) :
 			c["scene:path"] = IECore.InternedStringVectorData( [ "sphere" ] )
 
 			h1 = IECore.MurmurHash()
-			samples1 = GafferScene.Private.RendererAlgo.transformSamples( sphere["out"]["transform"], [ 1.0 ], h1 )
-			self.assertEqual( samples1[0].translation().x, 0 )
+			sampledTransform1 = GafferScene.Private.RendererAlgo.transformSamples( sphere["out"]["transform"], [ 1.0 ], h1 )
+			self.assertEqual( sampledTransform1.samples[0].translation().x, 0 )
 			self.assertNotEqual( h1, IECore.MurmurHash() )
 
 			sphere["transform"]["translate"]["x"].setValue( 2 )
 			h2 = IECore.MurmurHash( h1 )
-			samples2 = GafferScene.Private.RendererAlgo.transformSamples( sphere["out"]["transform"], [ 1.0 ], h2 )
-			self.assertEqual( samples2[0].translation().x, 2 )
+			sampledTransform2 = GafferScene.Private.RendererAlgo.transformSamples( sphere["out"]["transform"], [ 1.0 ], h2 )
+			self.assertEqual( sampledTransform2.samples[0].translation().x, 2 )
 			self.assertNotEqual( h2, IECore.MurmurHash() )
 			self.assertNotEqual( h2, h1 )
 
 			h3 = IECore.MurmurHash( h2 )
-			samples3 = GafferScene.Private.RendererAlgo.transformSamples( sphere["out"]["transform"], [ 1.0 ], h3 )
-			self.assertIsNone( samples3 ) # Hash matched, so no samples generated
+			sampledTransform3 = GafferScene.Private.RendererAlgo.transformSamples( sphere["out"]["transform"], [ 1.0 ], h3 )
+			self.assertIsNone( sampledTransform3 ) # Hash matched, so no samples generated
 			self.assertEqual( h3, h2 )
 
 	def testObjectSamplesCancellation( self ) :
@@ -556,9 +580,19 @@ class RendererAlgoTest( GafferSceneTest.SceneTestCase ) :
 
 		with context :
 
-			samples = GafferScene.Private.RendererAlgo.objectSamples( sphere["out"]["object"], [ 1.0 ], h )
-			self.assertEqual( [ s.radius() for s in samples ], [ 1.0 ] )
+			sampledObject = GafferScene.Private.RendererAlgo.objectSamples( sphere["out"]["object"], [ 1.0 ], h )
+			self.assertEqual( [ s.radius() for s in sampledObject.samples ], [ 1.0 ] )
+			self.assertEqual( sampledObject.sampleTimes, [ 1.0 ] )
 			self.assertNotEqual( h, IECore.MurmurHash() )
+
+	def testObjectSamplesWithoutObject( self ) :
+
+		group = GafferScene.Group()
+		with Gaffer.Context() as context :
+			context.set( "scene:path", GafferScene.ScenePlug.stringToPath( "/sphere" ) )
+			sampledObject = GafferScene.Private.RendererAlgo.objectSamples( group["out"]["object"], [ 0.75, 1.25 ] )
+		self.assertEqual( len( sampledObject.samples ), 0 )
+		self.assertEqual( len( sampledObject.sampleTimes ), 0 )
 
 	def testTransformSamplesCancellation( self ) :
 
@@ -590,8 +624,8 @@ class RendererAlgoTest( GafferSceneTest.SceneTestCase ) :
 
 		with context :
 
-			samples = GafferScene.Private.RendererAlgo.transformSamples( sphere["out"]["transform"], [ 1.0 ], h )
-			self.assertEqual( [ s.translation().x for s in samples ], [ 0.0 ] )
+			sampledTransform = GafferScene.Private.RendererAlgo.transformSamples( sphere["out"]["transform"], [ 1.0 ], h )
+			self.assertEqual( [ s.translation().x for s in sampledTransform.samples ], [ 0.0 ] )
 			self.assertNotEqual( h, IECore.MurmurHash() )
 
 	def testPurposes( self ) :
@@ -828,7 +862,7 @@ class RendererAlgoTest( GafferSceneTest.SceneTestCase ) :
 				transformTimes = [ Gaffer.Context.current().getFrame() ]
 
 			self.assertEqual( len( sphere.capturedTransforms() ), len( transformTimes ) )
-			self.assertEqual( sphere.capturedTransformTimes(), transformTimes if len( transformTimes ) > 1 else [] )
+			self.assertEqual( sphere.capturedTransformTimes(), transformTimes )
 			for index, time in enumerate( transformTimes ) :
 				with Gaffer.Context() as context :
 					context.setFrame( time )
@@ -842,7 +876,7 @@ class RendererAlgoTest( GafferSceneTest.SceneTestCase ) :
 				objectTimes = [ Gaffer.Context.current().getFrame() ]
 
 			self.assertEqual( len( sphere.capturedSamples() ), len( objectTimes ) )
-			self.assertEqual( sphere.capturedSampleTimes(), objectTimes if len( objectTimes ) > 1 else [] )
+			self.assertEqual( sphere.capturedSampleTimes(), objectTimes )
 			for index, time in enumerate( objectTimes ) :
 				with Gaffer.Context() as context :
 					context.setFrame( time )

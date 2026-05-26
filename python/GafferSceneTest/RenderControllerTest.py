@@ -219,10 +219,12 @@ class RenderControllerTest( GafferSceneTest.SceneTestCase ) :
 		attributes["attributes"]["doubleSided"]["value"].setValue( False )
 
 		lightA = GafferSceneTest.TestLight()
+		lightA.loadShader( "simpleLight" )
 		lightA["name"].setValue( "lightA" )
 		lightA["sets"].setValue( "A" )
 
 		lightB = GafferSceneTest.TestLight()
+		lightB.loadShader( "simpleLight" )
 		lightB["name"].setValue( "lightB" )
 		lightB["sets"].setValue( "B" )
 
@@ -294,6 +296,7 @@ class RenderControllerTest( GafferSceneTest.SceneTestCase ) :
 		# Make a bunch of lights
 
 		light = GafferSceneTest.TestLight()
+		light.loadShader( "simpleLight" )
 
 		lightPlane = GafferScene.Plane()
 		lightPlane["name"].setValue( "lights" )
@@ -308,6 +311,7 @@ class RenderControllerTest( GafferSceneTest.SceneTestCase ) :
 		# will trigger linking of all the others.
 
 		nonDefaultLight = GafferSceneTest.TestLight()
+		nonDefaultLight.loadShader( "simpleLight" )
 		nonDefaultLight["defaultLight"].setValue( False )
 
 		# Group everything into one scene
@@ -330,6 +334,56 @@ class RenderControllerTest( GafferSceneTest.SceneTestCase ) :
 
 		links = renderer.capturedObject( "/group/spheres/instances/sphere/0" ).capturedLinks( "lights" )
 		self.assertEqual( len( links ), numLights )
+
+	def testDeformingLight( self ) :
+
+		# Make a deforming mesh light by hand.
+
+		frame = GafferTest.FrameNode()
+
+		sphere = GafferScene.Sphere()
+		sphere["radius"].setInput( frame["output"] )
+		sphere["type"].setValue( sphere.Type.Primitive )
+
+		lightSet = GafferScene.Set()
+		lightSet["in"].setInput( sphere["out"] )
+		lightSet["name"].setValue( '__lights' )
+		lightSet["paths"].setValue( IECore.StringVectorData( [ '/sphere' ] ) )
+
+		# Turn on deformation blur.
+
+		options = GafferScene.StandardOptions()
+		options["in"].setInput( lightSet["out"] )
+		options["options"]["render:deformationBlur"]["enabled"].setValue( True )
+		options["options"]["render:deformationBlur"]["value"].setValue( True )
+
+		# Render, and check we get the samples we want.
+
+		renderer = GafferScene.Private.IECoreScenePreview.CapturingRenderer()
+		controller = GafferScene.RenderController( options["out"], Gaffer.Context(), renderer )
+		controller.update()
+
+		self.assertEqual( [ s.radius() for s in renderer.capturedObject( "/sphere" ).capturedSamples() ], [ 0.75, 1.25 ] )
+		self.assertEqual( renderer.capturedObject( "/sphere" ).capturedSampleTimes(), [ 0.75, 1.25 ] )
+
+	def testDeletingObject( self ) :
+
+		sphere = GafferScene.Sphere()
+
+		sphereFilter = GafferScene.PathFilter()
+		sphereFilter["paths"].setValue( IECore.StringVectorData( [ "/sphere" ] ) )
+
+		deleteObject = GafferScene.DeleteObject()
+		deleteObject["in"].setInput( sphere["out"] )
+
+		renderer = GafferScene.Private.IECoreScenePreview.CapturingRenderer()
+		controller = GafferScene.RenderController( deleteObject["out"], Gaffer.Context(), renderer )
+		controller.update()
+		self.assertIsNotNone( renderer.capturedObject( "/sphere" ) )
+
+		deleteObject["filter"].setInput( sphereFilter["out"] )
+		controller.update()
+		self.assertIsNone( renderer.capturedObject( "/sphere" ) )
 
 	@GafferTest.TestRunner.PerformanceTestMethod()
 	def testCapsuleDeformPerformance( self ) :
@@ -479,11 +533,13 @@ class RenderControllerTest( GafferSceneTest.SceneTestCase ) :
 		# result in light links being emitted to the renderer.
 
 		defaultLight = GafferSceneTest.TestLight()
+		defaultLight.loadShader( "simpleLight" )
 		defaultLight["name"].setValue( "defaultLight" )
 		defaultLightAttributes = GafferScene.StandardAttributes()
 		defaultLightAttributes["in"].setInput( defaultLight["out"] )
 
 		nonDefaultLight = GafferSceneTest.TestLight()
+		nonDefaultLight.loadShader( "simpleLight" )
 		nonDefaultLight["name"].setValue( "nonDefaultLight" )
 		nonDefaultLight["defaultLight"].setValue( False )
 
@@ -645,6 +701,7 @@ class RenderControllerTest( GafferSceneTest.SceneTestCase ) :
 		camera = GafferScene.Camera()
 		sphere = GafferScene.Sphere()
 		light = GafferSceneTest.TestLight()
+		light.loadShader( "simpleLight" )
 
 		lightAttr = GafferScene.StandardAttributes()
 		lightAttr["in"].setInput( sphere["out"] )
@@ -705,7 +762,7 @@ class RenderControllerTest( GafferSceneTest.SceneTestCase ) :
 		controller.setMinimumExpansionDepth( 2 )
 		controller.update()
 
-		def assertMotionSamples( expectedSamples, deform ) :
+		def assertMotionSamples( expectedSamples, expectedSampleTimes, deform) :
 
 			capturedSphere = renderer.capturedObject( "/group/sphere" )
 			self.assertIsNotNone( capturedSphere )
@@ -721,64 +778,61 @@ class RenderControllerTest( GafferSceneTest.SceneTestCase ) :
 			for (i,j) in zip( samples, expectedSamples ):
 				self.assertAlmostEqual( i, j, places = 6 )
 
-			if len( expectedSamples ) > 1 :
-				self.assertEqual( len( times ), len( expectedSamples ) )
-				for (i,j) in zip( times, expectedSamples ):
-					self.assertAlmostEqual( i, j, places = 6 )
-			else :
-				self.assertEqual( times, [] )
+			self.assertEqual( len( times ), len( expectedSampleTimes ) )
+			for (i,j) in zip( times, expectedSampleTimes ):
+				self.assertAlmostEqual( i, j, places = 6 )
 
 		# INITIAL TRANSFORM TESTS
 
-		assertMotionSamples( [ 0 ], False )
+		assertMotionSamples( [ 0 ], [ 1 ], False )
 		sphere["transform"]["translate"]["x"].setValue( 2 )
 		controller.update()
-		assertMotionSamples( [ 2 ], False )
+		assertMotionSamples( [ 2 ], [ 1 ], False )
 
 		# Hook up animated value, but blur not turned on yet
 		sphere["transform"]["translate"]["x"].setInput( frame["output"] )
 		controller.update()
-		assertMotionSamples( [ 1 ], False )
+		assertMotionSamples( [ 1 ], [ 1 ], False )
 
 		# Test blur.
 		options["options"]["render:transformBlur"]["enabled"].setValue( True )
 		options["options"]["render:transformBlur"]["value"].setValue( True )
 		controller.update()
-		assertMotionSamples( [ 0.75, 1.25 ], False )
+		assertMotionSamples( [ 0.75, 1.25 ], [ 0.75, 1.25 ], False )
 
 		# Test blur on but no movement
 		sphere["transform"]["translate"]["x"].setInput( None )
 		controller.update()
-		assertMotionSamples( [ 2 ], False )
+		assertMotionSamples( [ 2 ], [ 1 ], False )
 
 		# We get a single sample out even if the transform hash is changing but the transform isn't
 		sphere["transform"]["translate"]["x"].setInput( dummyFrame["output"] )
 		controller.update()
-		assertMotionSamples( [ 3 ], False )
+		assertMotionSamples( [ 3 ], [ 1 ], False )
 
 		# INITIAL DEFORMATION TESTS
 		# Test non-blurred updates.
 
-		assertMotionSamples( [ 1 ], True )
+		assertMotionSamples( [ 1 ], [ 1 ], True )
 		sphere["radius"].setValue( 2 )
 		controller.update()
-		assertMotionSamples( [ 2 ], True )
+		assertMotionSamples( [ 2 ], [ 1 ], True )
 
 		# Hook up animated value, but blur not turned on yet
 		sphere["radius"].setInput( frame["output"] )
 		controller.update()
-		assertMotionSamples( [ 1 ], True )
+		assertMotionSamples( [ 1 ], [ 1 ], True )
 
 		# Test deformation blur.
 		options["options"]["render:deformationBlur"]["enabled"].setValue( True )
 		options["options"]["render:deformationBlur"]["value"].setValue( True )
 		controller.update()
-		assertMotionSamples( [ 0.75, 1.25 ], True )
+		assertMotionSamples( [ 0.75, 1.25 ], [ 0.75, 1.25 ], True )
 
 		# Test deformation blur on but no deformation
 		sphere["radius"].setInput( None )
 		controller.update()
-		assertMotionSamples( [ 2 ], True )
+		assertMotionSamples( [ 2 ], [ 0.75 ], True )
 
 
 		# Test shutter
@@ -787,8 +841,8 @@ class RenderControllerTest( GafferSceneTest.SceneTestCase ) :
 		options["options"]["render:shutter"]["enabled"].setValue( True )
 		options["options"]["render:shutter"]["value"].setValue( imath.V2f( -0.7, 0.4 ) )
 		controller.update()
-		assertMotionSamples( [ 0.3, 1.4 ], False )
-		assertMotionSamples( [ 0.3, 1.4 ], True )
+		assertMotionSamples( [ 0.3, 1.4 ], [ 0.3, 1.4 ], False )
+		assertMotionSamples( [ 0.3, 1.4 ], [ 0.3, 1.4 ], True )
 
 		# Test with camera shutter
 		camera = GafferScene.Camera()
@@ -799,61 +853,61 @@ class RenderControllerTest( GafferSceneTest.SceneTestCase ) :
 		options["options"]["render:camera"]["enabled"].setValue( True )
 		options["options"]["render:camera"]["value"].setValue( "/group/camera" )
 		controller.update()
-		assertMotionSamples( [ 0.3, 1.4 ], False )
-		assertMotionSamples( [ 0.3, 1.4 ], True )
+		assertMotionSamples( [ 0.3, 1.4 ], [ 0.3, 1.4 ], False )
+		assertMotionSamples( [ 0.3, 1.4 ], [ 0.3, 1.4 ], True )
 		camera['renderSettingOverrides']['shutter']["enabled"].setValue( True )
 		camera['renderSettingOverrides']['shutter']["value"].setValue( imath.V2f( -0.5, 0.5 ) )
 		controller.update()
-		assertMotionSamples( [ 0.5, 1.5 ], False )
-		assertMotionSamples( [ 0.5, 1.5 ], True )
+		assertMotionSamples( [ 0.5, 1.5 ], [ 0.5, 1.5 ], False )
+		assertMotionSamples( [ 0.5, 1.5 ], [ 0.5, 1.5 ], True )
 		self.assertEqual( renderer.capturedObject( "/group/camera" ).capturedSamples()[0].getShutter(), imath.V2f( 0.5, 1.5 ) )
 
 		# Test attribute controls
 		camera['renderSettingOverrides']['shutter']["enabled"].setValue( False )
 		options["options"]["render:shutter"]["value"].setValue( imath.V2f( -0.4, 0.4 ) )
 		controller.update()
-		assertMotionSamples( [ 0.6, 1.4 ], False )
-		assertMotionSamples( [ 0.6, 1.4 ], True )
+		assertMotionSamples( [ 0.6, 1.4 ], [ 0.6, 1.4 ], False )
+		assertMotionSamples( [ 0.6, 1.4 ], [ 0.6, 1.4 ], True )
 
 		groupAttributes["attributes"]["gaffer:transformBlur"]["enabled"].setValue( True )
 		groupAttributes["attributes"]["gaffer:transformBlur"]["value"].setValue( False )
 		controller.update()
-		assertMotionSamples( [ 1 ], False )
+		assertMotionSamples( [ 1 ], [ 1 ], False )
 		sphereAttributes["attributes"]["gaffer:transformBlur"]["enabled"].setValue( True )
 		controller.update()
-		assertMotionSamples( [ 0.6, 1.4 ], False )
+		assertMotionSamples( [ 0.6, 1.4 ], [ 0.6, 1.4 ], False )
 
 		groupAttributes["attributes"]["gaffer:deformationBlur"]["enabled"].setValue( True )
 		groupAttributes["attributes"]["gaffer:deformationBlur"]["value"].setValue( False )
 		controller.update()
-		assertMotionSamples( [ 1 ], True )
+		assertMotionSamples( [ 1 ], [ 1 ], True )
 		sphereAttributes["attributes"]["gaffer:deformationBlur"]["enabled"].setValue( True )
 		controller.update()
-		assertMotionSamples( [ 0.6, 1.4 ], True )
+		assertMotionSamples( [ 0.6, 1.4 ], [ 0.6, 1.4 ], True )
 
 		groupAttributes["attributes"]["gaffer:transformBlurSegments"]["enabled"].setValue( True )
 		groupAttributes["attributes"]["gaffer:transformBlurSegments"]["value"].setValue( 4 )
 		groupAttributes["attributes"]["gaffer:deformationBlurSegments"]["enabled"].setValue( True )
 		groupAttributes["attributes"]["gaffer:deformationBlurSegments"]["value"].setValue( 2 )
 		controller.update()
-		assertMotionSamples( [ 0.6, 0.8, 1.0, 1.2, 1.4 ], False )
-		assertMotionSamples( [ 0.6, 1.0, 1.4 ], True )
+		assertMotionSamples( [ 0.6, 0.8, 1.0, 1.2, 1.4 ], [ 0.6, 0.8, 1.0, 1.2, 1.4 ], False )
+		assertMotionSamples( [ 0.6, 1.0, 1.4 ], [ 0.6, 1.0, 1.4 ], True )
 
 		sphereAttributes["attributes"]["gaffer:transformBlurSegments"]["enabled"].setValue( True )
 		sphereAttributes["attributes"]["gaffer:transformBlurSegments"]["value"].setValue( 2 )
 		sphereAttributes["attributes"]["gaffer:deformationBlurSegments"]["enabled"].setValue( True )
 		sphereAttributes["attributes"]["gaffer:deformationBlurSegments"]["value"].setValue( 4 )
 		controller.update()
-		assertMotionSamples( [ 0.6, 1.0, 1.4 ], False )
-		assertMotionSamples( [ 0.6, 0.8, 1.0, 1.2, 1.4 ], True )
+		assertMotionSamples( [ 0.6, 1.0, 1.4 ], [ 0.6, 1.0, 1.4 ], False )
+		assertMotionSamples( [ 0.6, 0.8, 1.0, 1.2, 1.4 ], [ 0.6, 0.8, 1.0, 1.2, 1.4 ], True )
 
 		groupAttributes["attributes"]["gaffer:transformBlur"]["value"].setValue( True )
 		groupAttributes["attributes"]["gaffer:deformationBlur"]["value"].setValue( True )
 		sphereAttributes["attributes"]["gaffer:transformBlur"]["value"].setValue( False )
 		sphereAttributes["attributes"]["gaffer:deformationBlur"]["value"].setValue( False )
 		controller.update()
-		assertMotionSamples( [ 1.0 ], False )
-		assertMotionSamples( [ 1.0 ], True )
+		assertMotionSamples( [ 1.0 ], [ 1.0 ], False )
+		assertMotionSamples( [ 1.0 ], [ 1.0 ], True )
 
 		# Apply transformation to group instead of sphere, giving the same results
 		sphere["transform"]["translate"]["x"].setInput( None )
@@ -864,7 +918,7 @@ class RenderControllerTest( GafferSceneTest.SceneTestCase ) :
 		sphereAttributes["attributes"]["gaffer:transformBlur"]["value"].setValue( False )
 		sphereAttributes["attributes"]["gaffer:transformBlurSegments"]["enabled"].setValue( False )
 		controller.update()
-		assertMotionSamples( [ 0.6, 0.8, 1.0, 1.2, 1.4 ], False )
+		assertMotionSamples( [ 0.6, 0.8, 1.0, 1.2, 1.4 ], [ 0.6, 0.8, 1.0, 1.2, 1.4 ], False )
 
 		# Override transform segments on sphere
 		sphereAttributes["attributes"]["gaffer:transformBlur"]["value"].setValue( True )
@@ -872,12 +926,12 @@ class RenderControllerTest( GafferSceneTest.SceneTestCase ) :
 		sphereAttributes["attributes"]["gaffer:transformBlurSegments"]["value"].setValue( 1 )
 		controller.update()
 		# Very counter-intuitively, this does nothing, because the sphere is not moving
-		assertMotionSamples( [ 0.6, 0.8, 1.0, 1.2, 1.4 ], False )
+		assertMotionSamples( [ 0.6, 0.8, 1.0, 1.2, 1.4 ], [ 0.6, 0.8, 1.0, 1.2, 1.4 ], False )
 
 		# But then if the sphere moves, the sample count does take affect
 		sphere["transform"]["translate"]["y"].setInput( frame["output"] )
 		controller.update()
-		assertMotionSamples( [ 0.6, 1.4 ], False )
+		assertMotionSamples( [ 0.6, 1.4 ], [ 0.6, 1.4 ], False )
 
 	def testCoordinateSystem( self ) :
 
@@ -1091,22 +1145,31 @@ class RenderControllerTest( GafferSceneTest.SceneTestCase ) :
 		# --- lightGroupMuteChild	undefined			True (inherited)
 
 		lightMute = GafferSceneTest.TestLight()
+		lightMute.loadShader( "simpleLight" )
 		lightMute["name"].setValue( "lightMute" )
 		light = GafferSceneTest.TestLight()
+		light.loadShader( "simpleLight" )
 		light["name"].setValue( "light" )
 		lightMute2 = GafferSceneTest.TestLight()
+		lightMute2.loadShader( "simpleLight" )
 		lightMute2["name"].setValue( "lightMute2" )
 		lightMute3 = GafferSceneTest.TestLight()
+		lightMute3.loadShader( "simpleLight" )
 		lightMute3["name"].setValue( "lightMute3" )
 		lightMute3Child = GafferSceneTest.TestLight()
+		lightMute3Child.loadShader( "simpleLight" )
 		lightMute3Child["name"].setValue( "lightMute3Child" )
 		light2 = GafferSceneTest.TestLight()
+		light2.loadShader( "simpleLight" )
 		light2["name"].setValue( "light2" )
 		light2ChildMute = GafferSceneTest.TestLight()
+		light2ChildMute.loadShader( "simpleLight" )
 		light2ChildMute["name"].setValue( "light2ChildMute" )
 		light2Child = GafferSceneTest.TestLight()
+		light2Child.loadShader( "simpleLight" )
 		light2Child["name"].setValue( "light2Child" )
 		lightGroupMuteChild = GafferSceneTest.TestLight()
+		lightGroupMuteChild.loadShader( "simpleLight" )
 		lightGroupMuteChild["name"].setValue( "lightGroupMuteChild" )
 
 		parent = GafferScene.Parent()
@@ -1266,24 +1329,34 @@ class RenderControllerTest( GafferSceneTest.SceneTestCase ) :
 		# --- lightGroupMuteChildSolo   undefined       in          True
 
 		lightSolo = GafferSceneTest.TestLight()
+		lightSolo.loadShader( "simpleLight" )
 		lightSolo["name"].setValue( "lightSolo" )
 		light = GafferSceneTest.TestLight()
+		light.loadShader( "simpleLight" )
 		light["name"].setValue( "light" )
 		lightSolo2 = GafferSceneTest.TestLight()
+		lightSolo2.loadShader( "simpleLight" )
 		lightSolo2["name"].setValue( "lightSolo2" )
 		lightMute = GafferSceneTest.TestLight()
+		lightMute.loadShader( "simpleLight" )
 		lightMute["name"].setValue( "lightMute" )
 		lightMuteChild = GafferSceneTest.TestLight()
+		lightMuteChild.loadShader( "simpleLight" )
 		lightMuteChild["name"].setValue( "lightMuteChild" )
 		lightMuteChildSolo = GafferSceneTest.TestLight()
+		lightMuteChildSolo.loadShader( "simpleLight" )
 		lightMuteChildSolo["name"].setValue( "lightMuteChildSolo" )
 		lightMuteSolo = GafferSceneTest.TestLight()
+		lightMuteSolo.loadShader( "simpleLight" )
 		lightMuteSolo["name"].setValue( "lightMuteSolo" )
 		lightMuteSoloChild = GafferSceneTest.TestLight()
+		lightMuteSoloChild.loadShader( "simpleLight" )
 		lightMuteSoloChild["name"].setValue( "lightMuteSoloChild" )
 		lightMuteSoloChildSolo = GafferSceneTest.TestLight()
+		lightMuteSoloChildSolo.loadShader( "simpleLight" )
 		lightMuteSoloChildSolo["name"].setValue( "lightMuteSoloChildSolo" )
 		lightGroupMuteChildSolo = GafferSceneTest.TestLight()
+		lightGroupMuteChildSolo.loadShader( "simpleLight" )
 		lightGroupMuteChildSolo["name"].setValue( "lightGroupMuteChildSolo" )
 
 		parent = GafferScene.Parent()

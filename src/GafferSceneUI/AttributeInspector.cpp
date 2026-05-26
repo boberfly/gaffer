@@ -164,7 +164,7 @@ AttributeHistoryCache g_attributeHistoryCache(
 		assert( canceller == Context::current()->canceller() );
 		cost = 1;
 		SceneAlgo::History::ConstPtr attributesHistory = g_historyCache.get( key, canceller );
-		return SceneAlgo::attributeHistory( attributesHistory.get(), key.attribute );
+		return SceneAlgo::attributeHistory( attributesHistory.get(), key.attribute, canceller );
 	},
 	// Max cost
 	1000,
@@ -332,7 +332,7 @@ Gaffer::ValuePlugPtr AttributeInspector::source( const GafferScene::SceneAlgo::H
 
 	else if( auto attributeTweaks = runTimeCast<AttributeTweaks>( sceneNode ) )
 	{
-		if( !( attributeTweaks->filterPlug()->match( attributeTweaks->inPlug() ) & PathMatcher::ExactMatch ) )
+		if( attributeTweaks->globalPlug()->getValue() || !( attributeTweaks->filterPlug()->match( attributeTweaks->inPlug() ) & PathMatcher::ExactMatch ) )
 		{
 			return nullptr;
 		}

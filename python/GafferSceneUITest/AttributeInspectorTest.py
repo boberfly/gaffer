@@ -51,6 +51,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 	def testName( self ) :
 
 		light = GafferSceneTest.TestLight()
+		light.loadShader( "simpleLight" )
 
 		inspector = GafferSceneUI.Private.AttributeInspector( light["out"], None, "gl:visualiser:scale" )
 		self.assertEqual( inspector.name(), "gl:visualiser:scale" )
@@ -110,6 +111,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 	def testValue( self ) :
 
 		light = GafferSceneTest.TestLight()
+		light.loadShader( "simpleLight" )
 		light["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 		light["visualiserAttributes"]["scale"]["value"].setValue( 2.0 )
 
@@ -123,6 +125,8 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 		s = Gaffer.ScriptNode()
 
 		s["light"] = GafferSceneTest.TestLight()
+		s["light"].loadShader( "simpleLight" )
+
 		s["group"] = GafferScene.Group()
 		s["group"]["in"][0].setInput( s["light"]["out"] )
 
@@ -183,6 +187,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 		s = Gaffer.ScriptNode()
 
 		s["light"] = GafferSceneTest.TestLight()
+		s["light"].loadShader( "simpleLight" )
 		s["light"]["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 
 		s["group"] = GafferScene.Group()
@@ -258,6 +263,10 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 		# If there's an edit downstream of the EditScope we're asked to use,
 		# then we're allowed to be editable still
 
+		# This is true even if the downstream edit is enabled and read-only
+		Gaffer.MetadataAlgo.setReadOnly( s["editScope2"], True )
+		lightEditScope2Edit["enabled"].setValue( True )
+
 		inspection = self.__inspect( s["editScope2"]["out"], "/group/light", "gl:visualiser:scale", s["editScope1"] )
 		self.assertTrue( inspection.editable() )
 		self.assertEqual( inspection.nonEditableReason(), "" )
@@ -269,11 +278,34 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 				s["editScope1"], "/group/light", "gl:visualiser:scale", createIfNecessary = False
 			)
 		)
-		self.assertEqual( inspection.editWarning(), "" )
+		self.assertEqual( inspection.editWarning(), "Attribute has edits downstream in editScope2." )
+
+
+		# Having now created the edit, we should be able to acquire it again ( this uses a slightly
+		# different code path since now it will be found as a source ).
+
+		lightEditScope1Edit["enabled"].setValue( True )
+
+		inspection = self.__inspect( s["editScope2"]["out"], "/group/light", "gl:visualiser:scale", s["editScope1"] )
+		self.assertTrue( inspection.editable() )
+		self.assertEqual( inspection.nonEditableReason(), "" )
+		lightEditScope1Edit = inspection.acquireEdit()
+		self.assertIsNotNone( lightEditScope1Edit )
+		self.assertEqual(
+			lightEditScope1Edit,
+			GafferScene.EditScopeAlgo.acquireAttributeEdit(
+				s["editScope1"], "/group/light", "gl:visualiser:scale", createIfNecessary = False
+			)
+		)
+		self.assertEqual( inspection.editWarning(), "Attribute has edits downstream in editScope2." )
+
+		# Unlock the edit scope again for the rest of the tests
+		Gaffer.MetadataAlgo.setReadOnly( s["editScope2"], False )
 
 		# If there is a source node inside an edit scope, make sure we use that
 
 		s["editScope1"]["light2"] = GafferSceneTest.TestLight()
+		s["editScope1"]["light2"].loadShader( "simpleLight" )
 		s["editScope1"]["light2"]["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 		s["editScope1"]["light2"]["visualiserAttributes"]["scale"]["value"].setValue( 0.5 )
 		s["editScope1"]["light2"]["name"].setValue( "light2" )
@@ -456,6 +488,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 		s = Gaffer.ScriptNode()
 
 		s["light"] = GafferSceneTest.TestLight()
+		s["light"].loadShader( "simpleLight" )
 		s["light"]["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 
 		s["lightFilter"] = GafferScene.PathFilter()
@@ -499,6 +532,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 
 		s = Gaffer.ScriptNode()
 		s["light"] = GafferSceneTest.TestLight()
+		s["light"].loadShader( "simpleLight" )
 		s["light"]["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 
 		s["lightFilter"] = GafferScene.PathFilter()
@@ -535,6 +569,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 		s = Gaffer.ScriptNode()
 
 		s["light"] = GafferSceneTest.TestLight()
+		s["light"].loadShader( "simpleLight" )
 		s["light"]["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 
 		s["editScope1"] = Gaffer.EditScope( "EditScope1" )
@@ -567,6 +602,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 		s = Gaffer.ScriptNode()
 
 		s["light"] = GafferSceneTest.TestLight()
+		s["light"].loadShader( "simpleLight" )
 		s["light"]["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 
 		s["editScope"] = Gaffer.EditScope()
@@ -596,6 +632,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 		s = Gaffer.ScriptNode()
 
 		s["light"] = GafferSceneTest.TestLight()
+		s["light"].loadShader( "simpleLight" )
 		s["light"]["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 
 		s["lightFilter"] = GafferScene.PathFilter()
@@ -637,6 +674,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 		s = Gaffer.ScriptNode()
 		s["box"] = Gaffer.Box()
 		s["box"]["light"] = GafferSceneTest.TestLight()
+		s["box"]["light"].loadShader( "simpleLight" )
 		s["box"]["light"]["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 		Gaffer.PlugAlgo.promote( s["box"]["light"]["out"] )
 
@@ -651,6 +689,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 	def testDirtiedSignal( self ) :
 
 		light = GafferSceneTest.TestLight()
+		light.loadShader( "simpleLight" )
 		light["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 
 		globalAttributes = GafferScene.Attributes()
@@ -698,17 +737,20 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 	def testNonExistentLocation( self ) :
 
 		light = GafferSceneTest.TestLight()
+		light.loadShader( "simpleLight" )
 		light["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 		self.assertIsNone( self.__inspect( light["out"], "/nothingHere", "gl:visualiser:scale" ) )
 
 	def testNonExistentAttribute( self ) :
 
 		light = GafferSceneTest.TestLight()
+		light.loadShader( "simpleLight" )
 		self.assertIsNone( self.__inspect( light["out"], "/light", "bad:attribute" ) )
 
 	def testReadOnlyMetadataSignalling( self ) :
 
 		light = GafferSceneTest.TestLight()
+		light.loadShader( "simpleLight" )
 		light["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 
 		editScope = Gaffer.EditScope()
@@ -780,6 +822,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 
 		s = Gaffer.ScriptNode()
 		s["light"] = GafferSceneTest.TestLight()
+		s["light"].loadShader( "simpleLight" )
 
 		s["group"] = GafferScene.Group()
 		s["group"]["in"][0].setInput( s["light"]["out"] )
@@ -810,6 +853,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 		s = Gaffer.ScriptNode()
 
 		s["light"] = GafferSceneTest.TestLight()
+		s["light"].loadShader( "simpleLight" )
 
 		s["editScope"] = Gaffer.EditScope()
 		s["editScope"].setup( s["light"]["out"] )
@@ -849,6 +893,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 	def testDontEditParentOfInspectedLocation( self ) :
 
 		light = GafferSceneTest.TestLight()
+		light.loadShader( "simpleLight" )
 
 		childGroup = GafferScene.Group()
 		childGroup["in"][0].setInput( light["out"] )
@@ -914,6 +959,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 		s = Gaffer.ScriptNode()
 
 		s["light"] = GafferSceneTest.TestLight()
+		s["light"].loadShader( "simpleLight" )
 		s["light"]["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 
 		s["group"] = GafferScene.Group()
@@ -939,6 +985,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 		s = Gaffer.ScriptNode()
 
 		s["light"] = GafferSceneTest.TestLight()
+		s["light"].loadShader( "simpleLight" )
 		s["light"]["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 
 		s["group"] = GafferScene.Group()
@@ -1175,6 +1222,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 		s = Gaffer.ScriptNode()
 
 		s["light"] = GafferSceneTest.TestLight()
+		s["light"].loadShader( "simpleLight" )
 		s["light"]["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 		s["light"]["visualiserAttributes"]["scale"]["value"].setValue( 10 )
 
@@ -1201,6 +1249,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 		s = Gaffer.ScriptNode()
 
 		s["light"] = GafferSceneTest.TestLight()
+		s["light"].loadShader( "simpleLight" )
 		s["light"]["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 		s["light"]["visualiserAttributes"]["scale"]["value"].setValue( 10 )
 
@@ -1238,6 +1287,7 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 		s = Gaffer.ScriptNode()
 
 		s["light"] = GafferSceneTest.TestLight()
+		s["light"].loadShader( "simpleLight" )
 
 		s["group"] = GafferScene.Group()
 		s["group"]["in"][0].setInput( s["light"]["out"] )
@@ -1301,6 +1351,8 @@ class AttributeInspectorTest( GafferUITest.TestCase ) :
 		s = Gaffer.ScriptNode()
 
 		s["light"] = GafferSceneTest.TestLight()
+		s["light"].loadShader( "simpleLight" )
+
 		s["light"]["visualiserAttributes"]["scale"]["enabled"].setValue( True )
 		s["light"]["visualiserAttributes"]["scale"]["value"].setValue( 10 )
 

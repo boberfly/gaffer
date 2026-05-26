@@ -95,6 +95,8 @@ Leave `Box` node (subgraph)          | {kbd}`↑`
 Search for nodes                     | {kbd}`Ctrl` + {kbd}`F`
 Frame to numeric bookmark            | {kbd}`1` … {kbd}`9`
 Frame to focus node                  | <kbd>&#96;</kbd>
+Go back in history                   | {kbd}`[`
+Go forward in history                | {kbd}`]`
 
 ### Node creation ###
 

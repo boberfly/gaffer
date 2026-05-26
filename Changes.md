@@ -4,12 +4,17 @@
 Features
 --------
 
-- Cycles : Updated to version 5.0.0.
+- Cycles : Updated to version 5.1.0.
+- CurvesPrimitive : Added `Pinned` wrap mode in addition to the existing `Periodic` and `NonPeriodic` modes. This conveniently interpolates CatmullRom
+and BSpline curves to their endpoints automatically, without manual management of duplicate endpoints or "phantom vertices".
 - CurvesInterpolation : Added node for modifying CurvesPrimitive `basis` and `wrap`. This includes the ability to convert curves with `Pinned` wrap to `NonPeriodic`, adding the appropriate "phantom" points to maintain curve shape.
+- CurvesTangents : Added node for computing tangents on CurvesPrimitives (#6166).
 
 Improvements
 ------------
 
+- AttributeTweaks, AttributeVisualiser, ShaderAssignment, ShaderTweaks, ShuffleAttributes : Added `global` plug, to allow global attributes to be processed instead of using `filter` to process per-location attributes.
+- ShaderTweaks : Added tweaking of integrators, background shaders, atmosphere shaders and render pass shaders.
 - ArnoldShader : The `standard_volume` shader is now assigned via an `ai:volume` attribute instead of `ai:surface`. This matches volume assignments imported from USD, and means that Gaffer now exports materials to USD using the same convention.
 - InteractiveRender : Added `useVisibleSet` plug. When on, only the scene locations contained in the Visible Set will be rendered.
 - Application :
@@ -21,9 +26,13 @@ Improvements
 - CyclesOptions : Added `cycles:integrator:volume_ray_marching` option.
 - LightEditor : Added column for `cycles:visibility:camera` attribute.
 - OpenColorIO : Added ACES Studio 2.0 config. The default config is still ACES 1.3, due to RenderMan not supporting ACES 2.0.
-- CurvesPrimitive : Added `Pinned` wrap mode in addition to the existing `Periodic` and `NonPeriodic` modes. This conveniently interpolates CatmullRom
-and BSpline curves to their endpoints automatically, without manual management of duplicate endpoints or "phantom vertices".
 - SceneReader, SceneWriter : Added support for pinned UsdGeomBasisCurves.
+- OSLCode : The OSL shader is now compiled on demand, rather than every time the node is edited. This avoids many redundant attempts at recompilation when loading nodes with many parameters.
+- ArnoldMeshLight, RenderManMeshLight : Added support for deformation motion blur (#6869). In the case of RenderMan, this only affects the camera-visible mesh, since RenderMan doesn't yet support deformation for the light itself.
+- TweakPlug : Added `SetExpressionInclude` and `SetExpressionExclude` modes for tweaking set expressions.
+- Graph Editor :
+  - Added location bar for navigation through Boxes and References. Text and button interactions can be used to navigate the node hierarchy.
+  - Added forward and back buttons to step through the history.
 
 Fixes
 -----
@@ -36,8 +45,16 @@ Fixes
 - DeleteCurves : Fixed deletion of periodic curves.
 - ResamplePrimitiveVariables : Fixed resampling between Vertex and Varying for linear curves.
 - Cycles :
-  - Reduced memory usage when rendering a single segment of deformation blur on CPU devices.
+  - Reduced memory usage when rendering a single segment of deformation blur.
   - Fixed PointsPrimitive motion blur when rendering with even numbers of segments.
+  - Fixed translation of Uniform `N` primitive variables, these are now resampled to FaceVarying.
+  - Fixed crashes when rendering primitives with missing `P` primitive variables (#6267).
+- USDShader : Fixed value of `type` plug after loading a USDLux light.
+- CyclesLight, ArnoldLight, LightFilter : Fixed potential hang when loading shaders (GIL management bug in `loadShader()` binding).
+- StandardNodeGadget : Fixed crash caused by the node emitting `errorSignal()` while the gadget is undergoing construction.
+- Shader : Fixed hash for output plugs.
+- LightEditor : Fixed context used to compute the solo column header icon, this now uses the correct context with respect to the focus node.
+- NodeGadget : Fixed potential hang calling `create()` from Python.
 
 API
 ---
@@ -49,6 +66,13 @@ API
 - Widget :
   - Improved automatic parenting via the `with parent` syntax. Children are now guaranteed to be fully constructed before they are parented.
   - Turned `toolTip`, `parenting` and `displayTransform` keyword-only constructor arguments.
+- Light : Simplified implementation of derived classes, which are now merely responsible for passing a Shader node to the base class constructor.
+- MeshLight : Added based class to simplify the implementation of renderer-specific mesh light nodes.
+- PathColumn : `headerData()` is now passed the root Path.
+- SetExpressionAlgo : Added new namespace with functions for evaluating and editing set expressions.
+- GraphComponentPath : Added `setFromComponent()`
+- BreadCrumbsWidget : Added widget for interacting with paths using a combination of button widgets and text entry.
+- NodeGadget : Added `instanceCreatedSignal()`. This allows extensions to customise gadgets after their creation.
 
 Breaking Changes
 ----------------
@@ -79,37 +103,130 @@ Breaking Changes
 - GLWidget : Removed built-in support for hosting in Maya and Houdini. Implement host integration via `GLWidget._registerQGLWidgetCreator()` instead.
 - StandardLightVisualiser : Made `surfaceTexture()` private. The new `registerSurfaceTexture()` method can be used to register a method to return surface texture data.
 - ExtensionAlgo : Changed base class for extension nodes from SubGraph to DependencyNode.
+- TestLight, TestShader : Stopped loading a default shader in the constructor. As with all equivalent nodes, `loadShader()` must now be called after construction.
+- OSLLight :
+  - Removed `shaderName` plug.
+  - Removed ability to load from `.gfr` files prior to version 0.45.0.0. If necessary, resave from Gaffer 1.6.
+- OSLShader : Removed ability to load from `.gfr` files prior to version 0.45.0.0. If necessary, resave from Gaffer 1.6.
+- Light : Removed public constructor. Lights may now only be constructed via derived classes, which are now responsible for providing a Shader node to the base class.
+- OSLCode : Removed `shaderCompiledSignal()`.
+- PathColumn : Changed `headerData()` signature.
 
 Build
 -----
 
 - Boost : Updated to version 1.85.0.
-- Cortex : Updated to version 10.7.0.0a9.
-- Cycles : Updated to version 5.0.0.
+- Cortex : Updated to version 10.7.0.0a10.
+- Cycles : Updated to version 5.1.0.
 - Embree : Updated to version 4.4.0.
 - Imath : Updated to version 3.1.12.
 - Jemalloc : Removed when building on macOS.
 - LLVM : Updated to version 17.0.6.
+- MaterialX : Updated to version 1.39.4.
+- Nanobind : Added version 2.12.0.
 - OpenColorIO :
   - Updated to version 2.4.2.
   - Added ACES 2.0 configs.
 - OpenEXR : Updated to version 3.3.6.
 - OpenShadingLanguage : Updated to version 1.14.8.0.
 - OpenSubdiv : Updated to version 3.6.1.
+- OpenVDB : Updated to version 12.1.1.
 - PySide : Updated to version 6.5.8.
 - Python : Updated to version 3.11.14.
 - Qt : Updated to version 6.5.8.
+- Robin-map : Added version 1.4.1.
+- SSE2NEON : Added version 1.9.1 when building on macOS.
 - TBB : Updated to version 2021.13.0.
-- USD : Updated to version 26.03.
+- USD : Updated to version 26.05.
 
-1.6.x.x (relative to 1.6.16.0)
+1.6.x.x (relative to 1.6.19.0)
 =======
+
+
+
+1.6.19.0 (relative to 1.6.18.0)
+========
+
+Improvements
+------------
+
+- Interface : Added the ability to hide USDLight nodes from the Tab Menu by setting the `GAFFERUSD_HIDE_LIGHT_UI` environment variable to `1`. This will also hide the USD lights category in the LightEditor.
+- ShaderTweaks, ShaderQuery : Added `RenderMan Volume` preset for the `shader` plug.
+
+Fixes
+-----
+
+- SceneInspector : Fixed crash caused by a particular configuration of ShuffleAttributes or ShufflePrimitiveVariables nodes (#6923).
+- Scene Editors : Fixed an issue where an EditScope with downstream edits could sometimes be incorrectly flagged as non-editable.
+- Box : Fixed hangs creating a Box. This was caused by a GIL management bug in the Python bindings.
+- Button, SelectionMenu, TabbedContainer : Fixed issues with stylesheet propagation in custom builds of Qt 6.
+- RenderMan :
+  - Fixed rendering of `ri:volume` shader assignments loaded from USD files.
+  - Fixed export of matrix primitive variables.
+- RenderManShader : Fixed loading of `PxrVolume` shaders, which are now assigned correctly as `ri:volume` attributes rather than `ri:surface`. They still rendered correctly before, but now export correctly to USD as well.
+- Dispatcher : Fixed handling of TaskLists without `preTasks`. These are now correctly omitted from the dispatch graph.
+
+1.6.18.0 (relative to 1.6.17.0)
+========
+
+Improvements
+------------
+
+- USDLight : Added icon indicating which renderer a renderer-specific parameter applies to, and removed the renderer text from the plug label.
+- ShaderTweaks, ShaderQuery : Added `RenderMan Light Filter` preset for the `shader` plug.
+- LightEditor :
+  - Added columns for RenderMan-specific parameters on USD lights.
+  - Added columns for RenderMan light filters.
+
+Fixes
+-----
+
+- RenderMan : Fixed interactive edits to volume transforms.
+- Scene Editors :
+  - Fixed performance regression introduced in 1.6.15.0. This could significantly affect refresh times for certain scenes.
+  - Improved cancellation responsiveness (where edits made to the node graph require that all background computation is stopped).
+
+API
+---
+
+- LabelPlugValueWidget :
+  - Added support for icons and icon toolTips on plug names using `labelPlugValueWidget:icon` and `labelPlugValueWidget:iconToolTip` metadata, respectively.
+  - Added `setFixedWidth()` method.
+
+1.6.17.0 (relative to 1.6.16.0)
+========
+
+Improvements
+------------
+
+- ShaderTweaks : Added support for `{shaderType=someShaderType}` qualifiers in parameter names, allowing tweaking of a parameter on all shaders of a given type (#6838).
+- Scene Editors : The effects of the `render:inclusions`, `render:exclusions` and `render:additionalLights` options are now represented in the Scene Editors. As these options result in the RenderSetAdaptor pruning scene locations at render time, the Hierarchy View, Attribute Editor and Light Editor now display the same pruned scene hierarchy provided to the renderer.
+- SetEditor, PrimitiveInspector, UVInspector : Added inspection of scene edits performed by render adaptors registered to `client = "SceneEditor"`.
+- SceneInspector : Added double-click editing of primitive variable data when the source is a PrimitiveVariables or PrimitiveVariableTweaks node.
 
 Fixes
 -----
 
 - Plug : Fixed bug which meant nodes would fail to update if a newly created plug was renamed before being parented to the node.
+- PopupWindow : Fixed reference cycle that could trigger crashes in certain circumstances, including the usage of custom render pass name widgets in the RenderPassEditor.
 - Metadata : Fixed handling of exceptions thrown from value functions implemented in Python. These are now correctly translated into C++ exceptions.
+- Cycles, OSLObject, OSLImage, Expression : Fixed crashes when using OSL on macOS.
+- Dispatcher : Removed `dispatcher:scriptFileName` from labels for isolated tasks.
+- NodeMenu : Fixed slow operation when many OSLCode shaders have been generated.
+- SceneInspector : Added missing "source type" cell background colours for the following properties :
+  - Bound
+  - Object Type, Primitive Topology and Primitive Variables
+  - Camera and ExternalProcedural parameters
+  - Globals
+- SceneInspector : Primitive variable history now correctly shows the effects of ShufflePrimitiveVariables and CopyPrimitiveVariables.
+- MotionPath : Fixed hashing bug preventing motion path curves from updating when their source transforms were modified.
+- Viewer : Added prevention and recovery for situations where framing large objects causes the camera matrix to become corrupted with nans (#6715).
+- OSLObject : Simplified internal network to make inspector history more accurate.
+
+API
+---
+
+- SceneAlgo : Added `primitiveVariableHistory()` function.
 
 1.6.16.0 (relative to 1.6.15.0)
 ========

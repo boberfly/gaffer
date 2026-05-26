@@ -39,15 +39,10 @@
 #include "IECoreScene/MeshPrimitive.h"
 #include "IECoreScene/MeshAlgo.h"
 
-#include "IECore/Interpolator.h"
-#include "IECore/SimpleTypedData.h"
-
 // Cycles
 #include "kernel/types.h"
 #include "scene/geometry.h"
 #include "scene/mesh.h"
-#include "subd/dice.h"
-#include "util/param.h"
 #include "util/types.h"
 #include "util/version.h"
 
@@ -67,14 +62,18 @@ namespace
 // - Cycles meshes store vertex normals as ("N", ATTR_STD_VERTEX_NORMAL)
 // - If we don't specify vertex normals, they are computed for us
 //   and added to the mesh by Cycles itself by `Mesh::add_vertex_normals()`
-// - Face normals are computed on demand in the Cycles kernel.
+// - Face normals are always computed on demand in the Cycles kernel, so we
+//   resample custom uniform normals to face-varying.
 // - Which normal is actually used for shading is determined on a
 //  triangle-by-triangle basis using the `smooth` flag passed
 //  to `Mesh::add_triangle()`.
-// - Cycles does not support facevarying normals.
+// - Cycles as of 5.1 now supports face-varying normals as
+//  ("N", ATTR_STD_CORNER_NORMAL)
 //
 // Also see `GeometryAlgo::convertPrimitiveVariable()` where we handle the
-// tagging of normal attributes with ATTR_STD_VERTEX_NORMAL.
+// tagging of normal attributes with ATTR_STD_VERTEX_NORMAL or
+// ATTR_STD_CORNER_NORMAL. This also handles octahedral packing of normals
+// via the `ccl::packed_normal()` utility function.
 bool hasSmoothNormals( const IECoreScene::MeshPrimitive *mesh )
 {
 	auto it = mesh->variables.find( "N" );
@@ -94,9 +93,16 @@ bool hasSmoothNormals( const IECoreScene::MeshPrimitive *mesh )
 	}
 }
 
-ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *scene )
+ccl::Mesh *convertPrimary( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *scene )
 {
 	assert( mesh->typeId() == IECoreScene::MeshPrimitive::staticTypeId() );
+
+	const V3fVectorData *p = mesh->variableData<V3fVectorData>( "P", PrimitiveVariable::Vertex );
+	if( !p )
+	{
+		msg( Msg::Warning, "IECoreCyles::MeshAlgo", "MeshPrimitive does not have \"P\" primitive variable of interpolation type Vertex." );
+		return nullptr;
+	}
 
 	// Triangulate if necessary
 
@@ -110,17 +116,16 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *sc
 
 	// Convert topology and points
 
+	const size_t numFaces = mesh->numFaces();
+	const vector<Imath::V3f> &points = p->readable();
+	const vector<int> &vertexIds = mesh->vertexIds()->readable();
+	const size_t numVerts = points.size();
+
 	ccl::Mesh *cmesh = SceneAlgo::createNodeWithLock<ccl::Mesh>( scene );
 
 	if( mesh->interpolation() == "catmullClark" )
 	{
 		cmesh->set_subdivision_type( ccl::Mesh::SUBDIVISION_CATMULL_CLARK );
-
-		const size_t numFaces = mesh->numFaces();
-		const V3fVectorData *p = mesh->variableData<V3fVectorData>( "P", PrimitiveVariable::Vertex );
-		const vector<Imath::V3f> &points = p->readable();
-		const vector<int> &vertexIds = mesh->vertexIds()->readable();
-		const size_t numVerts = points.size();
 
 		const std::vector<int> &vertsPerFace = mesh->verticesPerFace()->readable();
 		size_t ncorners = 0;
@@ -201,12 +206,6 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *sc
 	}
 	else
 	{
-		const V3fVectorData *p = mesh->variableData<V3fVectorData>( "P", PrimitiveVariable::Vertex );
-		const vector<Imath::V3f> &points = p->readable();
-		const std::vector<int> &vertexIds = mesh->vertexIds()->readable();
-
-		const size_t numVerts = points.size();
-		const size_t numFaces = mesh->numFaces();
 		cmesh->resize_mesh( numVerts, numFaces );
 
 		ccl::float3 *verts = cmesh->get_verts().data();
@@ -235,6 +234,14 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *sc
 			// Converted above already
 			continue;
 		}
+		if( name == "N" && variable.interpolation == PrimitiveVariable::Uniform )
+		{
+			// Resample "N" to FaceVarying as Cycles doesn't accept custom uniform normals.
+			PrimitiveVariable resampledN = variable;
+			IECoreScene::MeshAlgo::resamplePrimitiveVariable( mesh, resampledN, PrimitiveVariable::FaceVarying );
+			GeometryAlgo::convertPrimitiveVariable( name, resampledN, attributes, ccl::ATTR_ELEMENT_CORNER );
+			continue;
+		}
 		switch( variable.interpolation )
 		{
 			case PrimitiveVariable::Constant :
@@ -259,19 +266,17 @@ ccl::Mesh *convertCommon( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *sc
 	return cmesh;
 }
 
-ccl::Geometry *convert( const IECoreScene::MeshPrimitive *mesh, ccl::Scene *scene )
+ccl::Geometry *convert( const IECoreScenePreview::Renderer::Samples<const IECoreScene::MeshPrimitive *> &samples, const IECoreScenePreview::Renderer::SampleTimes &times, size_t primarySampleIndex, ccl::Scene *scene )
 {
-	ccl::Mesh *cmesh = convertCommon( mesh, scene );
-	return cmesh;
+	if( ccl::Mesh *result = convertPrimary( samples[primarySampleIndex], scene ) )
+	{
+		GeometryAlgo::convertMotion( IECoreScenePreview::Renderer::staticSamplesCast<const IECoreScene::Primitive *>( samples ), primarySampleIndex, *result );
+		return result;
+	}
+
+	return nullptr;
 }
 
-ccl::Geometry *convert( const std::vector<const IECoreScene::MeshPrimitive *> &meshes, const std::vector<float> &times, size_t primarySampleIndex, ccl::Scene *scene )
-{
-	ccl::Mesh *result = convertCommon( meshes[primarySampleIndex], scene );
-	GeometryAlgo::convertMotion( vector<const IECoreScene::Primitive *>( meshes.begin(), meshes.end() ), primarySampleIndex, *result );
-	return result;
-}
-
-GeometryAlgo::ConverterDescription<MeshPrimitive> g_description( convert, convert );
+GeometryAlgo::ConverterDescription<MeshPrimitive> g_description( convert );
 
 } // namespace

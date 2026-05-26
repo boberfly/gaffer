@@ -33,17 +33,17 @@ class "GafferCyclesLightAPI" (
 
 	bool inputs:cycles:use_mis = true (
 		displayGroup = "Refine"
-		displayName = "MIS (Cycles)"
+		displayName = "MIS"
 	)
 
 	bool inputs:cycles:use_caustics = false (
 		displayGroup = "Refine"
-		displayName = "Shadow Caustics (Cycles)"
+		displayName = "Shadow Caustics"
 	)
 
 	int inputs:cycles:max_bounces = 1024 (
 		displayGroup = "Refine"
-		displayName = "Max Bounces (Cycles)"
+		displayName = "Max Bounces"
 	)
 
 }
@@ -60,7 +60,7 @@ class "GafferCyclesDiskLightAPI" (
 
 	float inputs:cycles:spread = 180.0 (
 		displayGroup = "Geometry"
-		displayName = "Spread (Cycles)"
+		displayName = "Spread"
 	)
 
 }
@@ -77,7 +77,7 @@ class "GafferCyclesQuadLightAPI" (
 
 	float inputs:cycles:spread = 180.0 (
 		displayGroup = "Geometry"
-		displayName = "Spread (Cycles)"
+		displayName = "Spread"
 	)
 
 }
@@ -94,7 +94,7 @@ class "GafferCyclesBackgroundLightAPI" (
 
 	int inputs:cycles:map_resolution = 1024 (
 		displayGroup = "Sampling"
-		displayName = "Map Resolution (Cycles)"
+		displayName = "Map Resolution"
 	)
 
 }

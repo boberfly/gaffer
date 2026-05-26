@@ -464,8 +464,8 @@ class PlugLayout( GafferUI.Widget ) :
 				# to the label.
 				## \todo Shift all the label size fixing out of PlugWidget and just fix the
 				# widget here if we're in a vertical orientation.
-				QWIDGETSIZE_MAX = 16777215 # qt #define not exposed by PyQt or PySide
-				result.labelPlugValueWidget().label()._qtWidget().setFixedWidth( QWIDGETSIZE_MAX )
+				result.labelPlugValueWidget().label()._qtWidget().setSizePolicy( QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed )
+				result.labelPlugValueWidget()._qtWidget().layout().setSizeConstraint( QtWidgets.QLayout.SetMinAndMaxSize )
 
 		# Store the metadata value that controlled the type created, so we can compare to it
 		# in the future to determine if we can reuse the widget.

@@ -94,7 +94,7 @@ Object::Object( const std::string &name, const ConstGeometryPrototypePtr &geomet
 		riley::UserId(),
 		/* group = */ riley::GeometryPrototypeId::InvalidId(),
 		m_geometryPrototype->id(),
-		m_attributes->surfaceMaterial()->id(),
+		m_attributes->material()->id(),
 		g_emptyCoordinateSystems,
 		IdentityTransform(),
 		mergedAttributes( m_attributes->instanceAttributes(), m_extraAttributes )
@@ -120,25 +120,7 @@ Object::~Object()
 	}
 }
 
-void Object::transform( const Imath::M44f &transform )
-{
-	StaticTransform staticTransform( transform );
-	const riley::GeometryInstanceResult result = m_session->riley->ModifyGeometryInstance(
-		/* group = */ riley::GeometryPrototypeId::InvalidId(),
-		m_geometryInstance,
-		/* material = */ nullptr,
-		/* coordsys = */ nullptr,
-		&staticTransform,
-		/* attributes = */ nullptr
-	);
-
-	if( result != riley::GeometryInstanceResult::k_Success )
-	{
-		IECore::msg( IECore::Msg::Warning, "RenderManObject::transform", "Unexpected edit failure" );
-	}
-}
-
-void Object::transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times )
+void Object::transform( const IECoreScenePreview::Renderer::TransformSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times )
 {
 	AnimatedTransform animatedTransform( samples, times );
 	const riley::GeometryInstanceResult result = m_session->riley->ModifyGeometryInstance(
@@ -169,7 +151,7 @@ bool Object::attributes( const IECoreScenePreview::Renderer::AttributesInterface
 	const riley::GeometryInstanceResult result = m_session->riley->ModifyGeometryInstance(
 		/* group = */ riley::GeometryPrototypeId::InvalidId(),
 		m_geometryInstance,
-		&typedAttributes->surfaceMaterial()->id(),
+		&typedAttributes->material()->id(),
 		/* coordsys = */ nullptr,
 		/* xform = */ nullptr,
 		&allAttributes

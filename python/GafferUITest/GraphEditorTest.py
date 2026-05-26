@@ -108,13 +108,13 @@ class GraphEditorTest( GafferUITest.TestCase ) :
 		self.assertEqual( self.__signalUpdatedTitle, "Graph Editor : a" )
 
 		g.graphGadget().setRoot( b2 )
-		self.assertEqual( self.__signalUpdatedTitle, "Graph Editor : a / b" )
+		self.assertEqual( self.__signalUpdatedTitle, "Graph Editor : b" )
 
 		b1.setName( "c" )
-		self.assertEqual( self.__signalUpdatedTitle, "Graph Editor : c / b" )
+		self.assertEqual( self.__signalUpdatedTitle, "Graph Editor : b" )
 
 		b2.setName( "d" )
-		self.assertEqual( self.__signalUpdatedTitle, "Graph Editor : c / d" )
+		self.assertEqual( self.__signalUpdatedTitle, "Graph Editor : d" )
 
 		g.setTitle( "This is a test!" )
 		self.assertEqual( self.__signalUpdatedTitle, "This is a test!" )

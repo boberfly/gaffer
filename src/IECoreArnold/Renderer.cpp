@@ -252,7 +252,7 @@ void hashShaderOutputParameter( const IECoreScene::ShaderNetwork *network, const
 // Arnold does not support non-uniform sampling. It just takes a start and end
 // time, and assumes the samples are distributed evenly between them. Throw an
 // exception if given data we can't render.
-void ensureUniformTimeSamples( const std::vector<float> &times )
+void ensureUniformTimeSamples( const IECoreScenePreview::Renderer::SampleTimes &times )
 {
 	if( times.size() == 0 )
 	{
@@ -417,12 +417,10 @@ class ArnoldRendererBase : public IECoreScenePreview::Renderer
 
 		Renderer::AttributesInterfacePtr attributes( const IECore::CompoundObject *attributes ) override;
 
-		ObjectInterfacePtr camera( const std::string &name, const IECoreScene::Camera *camera, const AttributesInterface *attributes ) override;
-		ObjectInterfacePtr camera( const std::string &name, const std::vector<const IECoreScene::Camera *> &samples, const std::vector<float> &times, const AttributesInterface *attributes ) override;
-		ObjectInterfacePtr light( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override;
-		ObjectInterfacePtr lightFilter( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override;
-		Renderer::ObjectInterfacePtr object( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override;
-		ObjectInterfacePtr object( const std::string &name, const std::vector<const IECore::Object *> &samples, const std::vector<float> &times, const AttributesInterface *attributes ) override;
+		ObjectInterfacePtr camera( const std::string &name, const CameraSamples &samples, const SampleTimes &times, const AttributesInterface *attributes ) override;
+		ObjectInterfacePtr light( const std::string &name, const ObjectSamples &objectSamples, const SampleTimes &times, const AttributesInterface *attributes ) override;
+		ObjectInterfacePtr lightFilter( const std::string &name, const ObjectSamples &objectSamples, const SampleTimes &times, const AttributesInterface *attributes ) override;
+		ObjectInterfacePtr object( const std::string &name, const ObjectSamples &samples, const SampleTimes &times, const AttributesInterface *attributes ) override;
 
 	protected :
 
@@ -2419,70 +2417,27 @@ class InstanceCache : public IECore::RefCounted
 		{
 		}
 
-		// Can be called concurrently with other get() calls.
-		Instance get( const IECore::Object *object, const IECoreScenePreview::Renderer::AttributesInterface *attributes, const std::string &nodeName )
+		Instance get( const IECoreScenePreview::Renderer::ObjectSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times, const IECoreScenePreview::Renderer::AttributesInterface *attributes, const std::string &nodeName )
 		{
+			if( samples.empty() )
+			{
+				return Instance( SharedAtNodePtr() );
+			}
+
 			const ArnoldAttributes *arnoldAttributes = static_cast<const ArnoldAttributes *>( attributes );
 
-			if( !arnoldAttributes || !arnoldAttributes->canInstanceGeometry( object ) )
-			{
-				return Instance( convert( object, arnoldAttributes, nodeName, /* messageContext = */ nodeName ) );
-			}
-
-			IECore::MurmurHash h = object->hash();
-			arnoldAttributes->hashGeometry( object, h );
-
-			SharedAtNodePtr node;
-			Cache::const_accessor readAccessor;
-			if( m_cache.find( readAccessor, h ) )
-			{
-				node = readAccessor->second;
-				readAccessor.release();
-			}
-			else
-			{
-				Cache::accessor writeAccessor;
-				if( m_cache.insert( writeAccessor, h ) )
-				{
-					try
-					{
-						writeAccessor->second = convert( object, arnoldAttributes, "instance:" + h.toString(), /* messageContext = */ nodeName );
-					}
-					catch( const IECore::Cancelled & )
-					{
-						// Procedural expansion was cancelled. Erase `nullptr`
-						// result from the cache so that we redo the expansion
-						// if given the same procedural another time.
-						m_cache.erase( writeAccessor );
-						throw;
-					}
-				}
-				node = writeAccessor->second;
-				writeAccessor.release();
-			}
-
-			return Instance( node, m_nodeDeleter, m_universe, nodeName, m_parentNode );
-		}
-
-		Instance get( const std::vector<const IECore::Object *> &samples, const std::vector<float> &times, const IECoreScenePreview::Renderer::AttributesInterface *attributes, const std::string &nodeName )
-		{
-			const ArnoldAttributes *arnoldAttributes = static_cast<const ArnoldAttributes *>( attributes );
-
-			if( !arnoldAttributes->canInstanceGeometry( samples.front() ) )
+			if( !arnoldAttributes->canInstanceGeometry( samples.front().get() ) )
 			{
 				return Instance( convert( samples, times, arnoldAttributes, nodeName, /* messageContext = */ nodeName ) );
 			}
 
 			IECore::MurmurHash h;
-			for( std::vector<const IECore::Object *>::const_iterator it = samples.begin(), eIt = samples.end(); it != eIt; ++it )
+			for( const auto &sample : samples )
 			{
-				(*it)->hash( h );
+				sample->hash( h );
 			}
-			for( std::vector<float>::const_iterator it = times.begin(), eIt = times.end(); it != eIt; ++it )
-			{
-				h.append( *it );
-			}
-			arnoldAttributes->hashGeometry( samples.front(), h );
+			h.append( times.data(), times.size() );
+			arnoldAttributes->hashGeometry( samples.front().get(), h );
 
 			SharedAtNodePtr node;
 			Cache::const_accessor readAccessor;
@@ -2502,7 +2457,11 @@ class InstanceCache : public IECore::RefCounted
 					}
 					catch( const IECore::Cancelled & )
 					{
+						// Procedural expansion was cancelled. Erase `nullptr`
+						// result from the cache so that we redo the expansion
+						// if given the same procedural another time.
 						m_cache.erase( writeAccessor );
+						throw;
 					}
 				}
 				node = writeAccessor->second;
@@ -2545,41 +2504,11 @@ class InstanceCache : public IECore::RefCounted
 
 	private :
 
-		SharedAtNodePtr convert( const IECore::Object *object, const ArnoldAttributes *attributes, const std::string &nodeName, const std::string &messageContext )
-		{
-			if( !object )
-			{
-				return SharedAtNodePtr();
-			}
-
-			AtNode *node = nullptr;
-			if( const IECoreScenePreview::Procedural *procedural = IECore::runTimeCast<const IECoreScenePreview::Procedural>( object ) )
-			{
-				node = convertProcedural( procedural, attributes, m_universe, nodeName, m_parentNode );
-			}
-			else
-			{
-				node = NodeAlgo::convert( object, m_universe, nodeName, m_parentNode, messageContext );
-			}
-
-			if( !node )
-			{
-				return SharedAtNodePtr();
-			}
-
-			if( attributes )
-			{
-				attributes->applyGeometry( object, node );
-			}
-
-			return SharedAtNodePtr( node, m_nodeDeleter );
-		}
-
-		SharedAtNodePtr convert( const std::vector<const IECore::Object *> &samples, const std::vector<float> &times, const ArnoldAttributes *attributes, const std::string &nodeName, const std::string &messageContext )
+		SharedAtNodePtr convert( const IECoreScenePreview::Renderer::ObjectSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times, const ArnoldAttributes *attributes, const std::string &nodeName, const std::string &messageContext )
 		{
 			ensureUniformTimeSamples( times );
 			AtNode *node = nullptr;
-			if( const IECoreScenePreview::Procedural *procedural = IECore::runTimeCast<const IECoreScenePreview::Procedural>( samples.front() ) )
+			if( const IECoreScenePreview::Procedural *procedural = IECore::runTimeCast<const IECoreScenePreview::Procedural>( samples.front().get() ) )
 			{
 				node = convertProcedural( procedural, attributes, m_universe, nodeName, m_parentNode );
 			}
@@ -2595,7 +2524,7 @@ class InstanceCache : public IECore::RefCounted
 
 			if( attributes )
 			{
-				attributes->applyGeometry( samples.front(), node );
+				attributes->applyGeometry( samples.front().get(), node );
 			}
 
 			return SharedAtNodePtr( node, m_nodeDeleter );
@@ -2637,17 +2566,7 @@ class ArnoldObjectBase : public IECoreScenePreview::Renderer::ObjectInterface
 		{
 		}
 
-		void transform( const Imath::M44f &transform ) override
-		{
-			AtNode *node = m_instance.node();
-			if( !node )
-			{
-				return;
-			}
-			applyTransform( node, transform );
-		}
-
-		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override
+		void transform( const IECoreScenePreview::Renderer::TransformSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times ) override
 		{
 			AtNode *node = m_instance.node();
 			if( !node )
@@ -2717,18 +2636,13 @@ class ArnoldObjectBase : public IECoreScenePreview::Renderer::ObjectInterface
 
 	protected :
 
-		void applyTransform( AtNode *node, const Imath::M44f &transform, const AtString matrixParameterName = g_matrixArnoldString )
-		{
-			AiNodeSetMatrix( node, matrixParameterName, reinterpret_cast<const AtMatrix&>( transform.x ) );
-		}
-
-		void applyTransform( AtNode *node, const std::vector<Imath::M44f> &samples, const std::vector<float> &times, const AtString matrixParameterName = g_matrixArnoldString )
+		void applyTransform( AtNode *node, const IECoreScenePreview::Renderer::TransformSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times, const AtString matrixParameterName = g_matrixArnoldString )
 		{
 			const AtParamEntry *parameter = AiNodeEntryLookUpParameter( AiNodeGetNodeEntry( node ), matrixParameterName );
-			if( AiParamGetType( parameter ) != AI_TYPE_ARRAY )
+			if( AiParamGetType( parameter ) != AI_TYPE_ARRAY || samples.size() == 1 )
 			{
-				// Parameter doesn't support motion blur
-				applyTransform( node, samples[0], matrixParameterName );
+				// Parameter doesn't support motion blur, or we only have one sample
+				AiNodeSetMatrix( node, matrixParameterName, reinterpret_cast<const AtMatrix&>( samples[0].x ) );
 				return;
 			}
 
@@ -2785,16 +2699,7 @@ class ArnoldLightFilter : public ArnoldObjectBase
 		{
 		}
 
-		void transform( const Imath::M44f &transform ) override
-		{
-			ArnoldObjectBase::transform( transform );
-			m_transformMatrices.clear();
-			m_transformTimes.clear();
-			m_transformMatrices.push_back( transform );
-			applyLightFilterTransform();
-		}
-
-		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override
+		void transform( const IECoreScenePreview::Renderer::TransformSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times ) override
 		{
 			ArnoldObjectBase::transform( samples, times );
 			m_transformMatrices = samples;
@@ -2866,20 +2771,12 @@ class ArnoldLightFilter : public ArnoldObjectBase
 				return;
 			}
 			AtNode *root = m_lightFilterShader->root();
-			if( m_transformTimes.empty() )
-			{
-				assert( m_transformMatrices.size() == 1 );
-				applyTransform( root, m_transformMatrices[0], g_geometryMatrixArnoldString );
-			}
-			else
-			{
-				applyTransform( root, m_transformMatrices, m_transformTimes, g_geometryMatrixArnoldString );
-			}
+			applyTransform( root, m_transformMatrices, m_transformTimes, g_geometryMatrixArnoldString );
 		}
 
 		std::string m_name;
-		vector<Imath::M44f> m_transformMatrices;
-		vector<float> m_transformTimes;
+		IECoreScenePreview::Renderer::TransformSamples m_transformMatrices;
+		IECoreScenePreview::Renderer::SampleTimes m_transformTimes;
 		NodeDeleter m_nodeDeleter;
 		AtUniverse *m_universe;
 		const AtNode *m_parentNode;
@@ -2914,16 +2811,7 @@ class ArnoldLight : public ArnoldObjectBase
 		{
 		}
 
-		void transform( const Imath::M44f &transform ) override
-		{
-			ArnoldObjectBase::transform( transform );
-			m_transformMatrices.clear();
-			m_transformTimes.clear();
-			m_transformMatrices.push_back( transform );
-			applyLightTransform();
-		}
-
-		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override
+		void transform( const IECoreScenePreview::Renderer::TransformSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times ) override
 		{
 			ArnoldObjectBase::transform( samples, times );
 			m_transformMatrices = samples;
@@ -3074,15 +2962,7 @@ class ArnoldLight : public ArnoldObjectBase
 				return;
 			}
 			AtNode *root = m_lightShader->root();
-			if( m_transformTimes.empty() )
-			{
-				assert( m_transformMatrices.size() == 1 );
-				applyTransform( root, m_transformMatrices[0] );
-			}
-			else
-			{
-				applyTransform( root, m_transformMatrices, m_transformTimes );
-			}
+			applyTransform( root, m_transformMatrices, m_transformTimes );
 		}
 
 		void updateLightFilterLinks()
@@ -3125,8 +3005,8 @@ class ArnoldLight : public ArnoldObjectBase
 		// we need to store the transform and name ourselves so we have
 		// them later when we need them.
 		std::string m_name;
-		vector<Imath::M44f> m_transformMatrices;
-		vector<float> m_transformTimes;
+		IECoreScenePreview::Renderer::TransformSamples m_transformMatrices;
+		IECoreScenePreview::Renderer::SampleTimes m_transformTimes;
 		NodeDeleter m_nodeDeleter;
 		AtUniverse *m_universe;
 		const AtNode *m_parentNode;
@@ -3286,22 +3166,16 @@ class ProceduralRenderer final : public ArnoldRendererBase
 			return ArnoldRendererBase::attributes( fullAttributes.get() );
 		}
 
-		ObjectInterfacePtr camera( const std::string &name, const IECoreScene::Camera *camera, const AttributesInterface *attributes ) override
+		ObjectInterfacePtr camera( const std::string &name, const CameraSamples &samples, const SampleTimes &times, const AttributesInterface *attributes ) override
 		{
 			IECore::msg( IECore::Msg::Warning, "ArnoldRenderer", "Procedurals can not call camera()" );
 			return nullptr;
 		}
 
-		ObjectInterfacePtr camera( const std::string &name, const std::vector<const IECoreScene::Camera *> &samples, const std::vector<float> &times, const AttributesInterface *attributes ) override
-		{
-			IECore::msg( IECore::Msg::Warning, "ArnoldRenderer", "Procedurals can not call camera()" );
-			return nullptr;
-		}
-
-		ObjectInterfacePtr light( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
+		ObjectInterfacePtr light( const std::string &name, const ObjectSamples &samples, const SampleTimes &times, const AttributesInterface *attributes ) override
 		{
 			ArnoldLightPtr result = static_pointer_cast<ArnoldLight>(
-				ArnoldRendererBase::light( name, object, attributes )
+				ArnoldRendererBase::light( name, samples, times, attributes )
 			);
 
 			auto &nodesCreatedLocal = m_nodesCreated.local();
@@ -3310,10 +3184,10 @@ class ProceduralRenderer final : public ArnoldRendererBase
 			return result;
 		}
 
-		ObjectInterfacePtr lightFilter( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
+		ObjectInterfacePtr lightFilter( const std::string &name, const ObjectSamples &objectSamples, const SampleTimes &times, const AttributesInterface *attributes ) override
 		{
 			ArnoldLightFilterPtr result = static_pointer_cast<ArnoldLightFilter>(
-				ArnoldRendererBase::lightFilter( name, object, attributes )
+				ArnoldRendererBase::lightFilter( name, objectSamples, times, attributes )
 			);
 
 			auto &nodesCreatedLocal = m_nodesCreated.local();
@@ -3322,17 +3196,7 @@ class ProceduralRenderer final : public ArnoldRendererBase
 			return result;
 		}
 
-		Renderer::ObjectInterfacePtr object( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
-		{
-			ArnoldObjectPtr result = static_pointer_cast<ArnoldObject>(
-				ArnoldRendererBase::object( name, object, attributes )
-			);
-
-			result->instance().nodesCreated( m_nodesCreated.local() );
-			return result;
-		}
-
-		ObjectInterfacePtr object( const std::string &name, const std::vector<const IECore::Object *> &samples, const std::vector<float> &times, const AttributesInterface *attributes ) override
+		ObjectInterfacePtr object( const std::string &name, const ObjectSamples &samples, const SampleTimes &times, const AttributesInterface *attributes ) override
 		{
 			ArnoldObjectPtr result = static_pointer_cast<ArnoldObject>(
 				ArnoldRendererBase::object( name, samples, times, attributes )
@@ -4352,7 +4216,7 @@ class ArnoldGlobals
 					IECoreScene::ConstCameraPtr defaultCortexCamera = new IECoreScene::Camera();
 					m_cameras["ieCoreArnold:defaultCamera"] = defaultCortexCamera;
 					m_defaultCamera = SharedAtNodePtr(
-						NodeAlgo::convert( defaultCortexCamera.get(), m_universeBlock->universe(), "ieCoreArnold:defaultCamera", nullptr, "ieCoreArnold:defaultCamera" ),
+						NodeAlgo::convert( { defaultCortexCamera }, 0.0f, 0.0f, m_universeBlock->universe(), "ieCoreArnold:defaultCamera", nullptr, "ieCoreArnold:defaultCamera" ),
 						nodeDeleter( m_renderType )
 					);
 				}
@@ -4734,11 +4598,11 @@ ArnoldRendererBase::AttributesInterfacePtr ArnoldRendererBase::attributes( const
 	return new ArnoldAttributes( attributes, m_shaderCache.get() );
 }
 
-ArnoldRendererBase::ObjectInterfacePtr ArnoldRendererBase::camera( const std::string &name, const IECoreScene::Camera *camera, const AttributesInterface *attributes )
+ArnoldRendererBase::ObjectInterfacePtr ArnoldRendererBase::camera( const std::string &name, const CameraSamples &samples, const SampleTimes &times, const AttributesInterface *attributes )
 {
 	const IECore::MessageHandler::Scope s( m_messageHandler.get() );
 
-	Instance instance = m_instanceCache->get( camera, attributes, name );
+	Instance instance = m_instanceCache->get( ObjectSamples( samples.begin(), samples.end() ), times, attributes, name );
 
 	ObjectInterfacePtr result = new ArnoldObject( instance );
 	if( attributes )
@@ -4748,52 +4612,28 @@ ArnoldRendererBase::ObjectInterfacePtr ArnoldRendererBase::camera( const std::st
 	return result;
 }
 
-ArnoldRendererBase::ObjectInterfacePtr ArnoldRendererBase::camera( const std::string &name, const std::vector<const IECoreScene::Camera *> &samples, const std::vector<float> &times, const AttributesInterface *attributes )
+ArnoldRendererBase::ObjectInterfacePtr ArnoldRendererBase::light( const std::string &name, const ObjectSamples &samples, const SampleTimes &times, const AttributesInterface *attributes )
 {
 	const IECore::MessageHandler::Scope s( m_messageHandler.get() );
 
-	Instance instance = m_instanceCache->get( vector<const IECore::Object *>( samples.begin(), samples.end() ), times, attributes, name );
-
-	ObjectInterfacePtr result = new ArnoldObject( instance );
-	if( attributes )
-	{
-		result->attributes( attributes );
-	}
-	return result;
-}
-
-ArnoldRendererBase::ObjectInterfacePtr ArnoldRendererBase::light( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes )
-{
-	const IECore::MessageHandler::Scope s( m_messageHandler.get() );
-
-	Instance instance = m_instanceCache->get( object, attributes, name );
+	Instance instance = m_instanceCache->get( samples, times, attributes, name );
 	ObjectInterfacePtr result = new ArnoldLight( name, instance, m_nodeDeleter, m_universe, m_parentNode );
 	result->attributes( attributes );
 	return result;
 }
 
-ArnoldRendererBase::ObjectInterfacePtr ArnoldRendererBase::lightFilter( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes )
+ArnoldRendererBase::ObjectInterfacePtr ArnoldRendererBase::lightFilter( const std::string &name, const ObjectSamples &samples, const SampleTimes &times, const AttributesInterface *attributes )
 {
 	const IECore::MessageHandler::Scope s( m_messageHandler.get() );
 
-	Instance instance = m_instanceCache->get( object, attributes, name );
+	Instance instance = m_instanceCache->get( samples, times,  attributes, name );
 	ObjectInterfacePtr result = new ArnoldLightFilter( name, instance, m_nodeDeleter, m_universe, m_parentNode );
 	result->attributes( attributes );
 
 	return result;
 }
 
-ArnoldRendererBase::ObjectInterfacePtr ArnoldRendererBase::object( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes )
-{
-	const IECore::MessageHandler::Scope s( m_messageHandler.get() );
-
-	Instance instance = m_instanceCache->get( object, attributes, name );
-	ObjectInterfacePtr result = new ArnoldObject( instance );
-	result->attributes( attributes );
-	return result;
-}
-
-ArnoldRendererBase::ObjectInterfacePtr ArnoldRendererBase::object( const std::string &name, const std::vector<const IECore::Object *> &samples, const std::vector<float> &times, const AttributesInterface *attributes )
+ArnoldRendererBase::ObjectInterfacePtr ArnoldRendererBase::object( const std::string &name, const ObjectSamples &samples, const SampleTimes &times, const AttributesInterface *attributes )
 {
 	const IECore::MessageHandler::Scope s( m_messageHandler.get() );
 
@@ -4850,15 +4690,7 @@ class ArnoldRenderer final : public ArnoldRendererBase
 			m_globals->output( name, output );
 		}
 
-		ObjectInterfacePtr camera( const std::string &name, const IECoreScene::Camera *camera, const AttributesInterface *attributes ) override
-		{
-			const IECore::MessageHandler::Scope s( m_messageHandler.get() );
-
-			m_globals->camera( name, camera );
-			return ArnoldRendererBase::camera( name, camera, attributes );
-		}
-
-		ObjectInterfacePtr camera( const std::string &name, const std::vector<const IECoreScene::Camera *> &samples, const std::vector<float> &times, const AttributesInterface *attributes ) override
+		ObjectInterfacePtr camera( const std::string &name, const CameraSamples &samples, const SampleTimes &times, const AttributesInterface *attributes ) override
 		{
 			const IECore::MessageHandler::Scope s( m_messageHandler.get() );
 			m_globals->camera( name, samples[0] );

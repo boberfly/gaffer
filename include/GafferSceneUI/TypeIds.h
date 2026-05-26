@@ -70,6 +70,7 @@ enum TypeId
 	UniformPLocatorTypeId = 121026,  // Private to `VisualiserTool`
 	InspectorPathTypeId = 121027,
 	TransformInspectorTypeId = 121028,
+	PrimitiveVariableInspectorTypeId = 121029,
 
 	LastTypeId = 121199
 };

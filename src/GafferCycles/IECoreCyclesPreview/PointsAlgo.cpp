@@ -58,9 +58,17 @@ using namespace IECoreCycles;
 namespace
 {
 
-ccl::PointCloud *convertCommon( const IECoreScene::PointsPrimitive *points, ccl::Scene *scene )
+ccl::PointCloud *convertPrimary( const IECoreScene::PointsPrimitive *points, ccl::Scene *scene )
 {
 	assert( points->typeId() == IECoreScene::PointsPrimitive::staticTypeId() );
+
+	const V3fVectorData *p = points->variableData<V3fVectorData>( "P", PrimitiveVariable::Vertex );
+	if( !p )
+	{
+		msg( Msg::Warning, "IECoreCyles::PointsAlgo", "PointsPrimitive does not have \"P\" primitive variable of interpolation type Vertex." );
+		return nullptr;
+	}
+
 	ccl::PointCloud *pointcloud = SceneAlgo::createNodeWithLock<ccl::PointCloud>( scene );
 
 	PrimitiveVariableMap variablesToConvert = points->variables;
@@ -68,7 +76,6 @@ ccl::PointCloud *convertCommon( const IECoreScene::PointsPrimitive *points, ccl:
 	size_t numPoints = points->getNumPoints();
 	pointcloud->resize( numPoints );
 
-	const V3fVectorData *p = points->variableData<V3fVectorData>( "P", PrimitiveVariable::Vertex );
 	const vector<Imath::V3f> &pos = p->readable();
 
 	ccl::float3 *cpoints = pointcloud->get_points().data();
@@ -142,19 +149,17 @@ ccl::PointCloud *convertCommon( const IECoreScene::PointsPrimitive *points, ccl:
 	return pointcloud;
 }
 
-ccl::Geometry *convert( const IECoreScene::PointsPrimitive *points, ccl::Scene *scene )
+ccl::Geometry *convert( const IECoreScenePreview::Renderer::Samples<const IECoreScene::PointsPrimitive *> &samples, const IECoreScenePreview::Renderer::SampleTimes &times, size_t primarySampleIndex, ccl::Scene *scene )
 {
-	ccl::PointCloud *pointCloud = convertCommon( points, scene );
-	return pointCloud;
+	if( ccl::PointCloud *result = convertPrimary( samples[primarySampleIndex], scene ) )
+	{
+		GeometryAlgo::convertMotion( IECoreScenePreview::Renderer::staticSamplesCast<const IECoreScene::Primitive *>( samples ), primarySampleIndex, *result );
+		return result;
+	}
+
+	return nullptr;
 }
 
-ccl::Geometry *convert( const vector<const IECoreScene::PointsPrimitive *> &points, const std::vector<float> &times, size_t primarySampleIndex, ccl::Scene *scene )
-{
-	ccl::PointCloud *result = convertCommon( points[primarySampleIndex], scene );
-	GeometryAlgo::convertMotion( vector<const IECoreScene::Primitive *>( points.begin(), points.end() ), primarySampleIndex, *result );
-	return result;
-}
-
-GeometryAlgo::ConverterDescription<PointsPrimitive> g_description( convert, convert );
+GeometryAlgo::ConverterDescription<PointsPrimitive> g_description( convert );
 
 } // namespace

@@ -406,6 +406,7 @@ void USDShader::loadShader( const std::string &shaderName, bool keepExistingValu
 	// because it includes the attributes from auto-apply schemas that are used
 	// for renderer-specific light extensions.
 
+	std::string shaderType = "surface";
 	const TfToken shaderNameToken( shaderName );
 
 	UsdSchemaRegistry &schemaRegistry = UsdSchemaRegistry::GetInstance();
@@ -432,6 +433,7 @@ void USDShader::loadShader( const std::string &shaderName, bool keepExistingValu
 		const TfType schemaType = schemaRegistry.GetTypeFromName( shaderNameToken );
 		if( schemaType.IsA<UsdLuxBoundableLightBase>() || schemaType.IsA<UsdLuxNonboundableLightBase>() )
 		{
+			shaderType = "light";
 			primDefinitions.push_back( schemaRegistry.FindAppliedAPIPrimDefinition( TfToken( "ShadowAPI" ) ) );
 			primDefinitions.push_back( schemaRegistry.FindAppliedAPIPrimDefinition( TfToken( "ShapingAPI" ) ) );
 		}
@@ -451,14 +453,7 @@ void USDShader::loadShader( const std::string &shaderName, bool keepExistingValu
 	// Set name and type and delete old parameters if necessary.
 
 	namePlug()->setValue( shaderName );
-	if( shader )
-	{
-		typePlug()->setValue( remapShaderType( shader->GetSourceType(), shader->GetContext() ) );
-	}
-	else
-	{
-		typePlug()->setValue( "surface" );
-	}
+	typePlug()->setValue( shaderType );
 
 	Plug *parametersPlug = this->parametersPlug()->source();
 	Plug *outPlug = this->outPlug();

@@ -38,7 +38,6 @@
 
 #include "IECoreScene/PrimitiveVariable.h"
 
-#include "IECore/ObjectInterpolator.h"
 #include "IECore/SimpleTypedData.h"
 
 IECORE_PUSH_DEFAULT_VISIBILITY
@@ -63,35 +62,12 @@ using namespace IECoreScene;
 // Internal utilities
 //////////////////////////////////////////////////////////////////////////
 
-namespace std
-{
-
-/// \todo Move to IECore/TypeIds.h
-template<>
-struct hash<IECore::TypeId>
-{
-	size_t operator()( IECore::TypeId typeId ) const
-	{
-		return hash<size_t>()( typeId );
-	}
-};
-
-} // namespace std
-
 namespace
 {
 
 using namespace IECoreCycles;
 
-struct Converters
-{
-
-	GeometryAlgo::Converter converter;
-	GeometryAlgo::MotionConverter motionConverter;
-
-};
-
-using Registry = std::unordered_map<IECore::TypeId, Converters>;
+using Registry = std::unordered_map<IECore::TypeId, IECoreCycles::GeometryAlgo::Converter>;
 
 Registry &registry()
 {
@@ -150,6 +126,13 @@ ccl::Attribute *convertTypedPrimitiveVariable( const std::string &name, const Pr
 		data = static_cast<const T *>( primitiveVariable.data.get() );
 	}
 
+	// Special case for normals as they need to be octahedrally encoded.
+	const bool isNormal = typeDesc == ccl::TypeNormal;
+	if( isNormal )
+	{
+		attributeElement = attributeElement == ccl::ATTR_ELEMENT_CORNER ? ccl::ATTR_ELEMENT_CORNER_NORMAL : ccl::ATTR_ELEMENT_VERTEX_NORMAL;
+	}
+
 	// Create attribute. Cycles will allocate a buffer based on `attributeElement` and the information
 	// `attributes.geometry` contains.
 
@@ -175,13 +158,26 @@ ccl::Attribute *convertTypedPrimitiveVariable( const std::string &name, const Pr
 
 	// Copy data into buffer.
 
-	if constexpr( std::is_same_v<T, V3fVectorData> && isNormal )
+	if( isNormal )
 	{
-		// Special case for normals as they need to be octahedrally encoded.
-		ccl::packed_normal *pn = attribute->data_normal_for_write();
-		for( const auto &v : data->readable() )
+		if constexpr( std::is_same_v<T, V3fVectorData> )
 		{
-			*pn++ = ccl::packed_normal( ccl::make_float3( v.x, v.y, v.z ) );
+			ccl::packed_normal *pn = attribute->data_normal_for_write();
+			for( const auto &v : data->readable() )
+			{
+				*pn++ = ccl::packed_normal( ccl::make_float3( v.x, v.y, v.z ) );
+			}
+		}
+		else
+		{
+			msg(
+				Msg::Warning, "IECoreCyles::GeometryAlgo::convertPrimitiveVariable",
+				fmt::format(
+					"Primitive variable \"{}\" has unsupported type \"{}\" (expected V3fVectorData).",
+					name, primitiveVariable.data->typeName()
+				)
+			);
+			return nullptr;
 		}
 	}
 	else if constexpr( std::is_same_v<T, V3fVectorData> || std::is_same_v<T, Color3fVectorData> )
@@ -228,56 +224,18 @@ namespace IECoreCycles
 namespace GeometryAlgo
 {
 
-ccl::Geometry *convert( const IECore::Object *object, ccl::Scene *scene )
-{
-	const Registry &r = registry();
-	Registry::const_iterator it = r.find( object->typeId() );
-	if( it == r.end() )
-	{
-		return nullptr;
-	}
-	return it->second.converter( object, scene );
-}
-
-ccl::Geometry *convert( const std::vector<const IECore::Object *> &samples, const std::vector<float> &times, ccl::Session *session )
+ccl::Geometry *convert( const IECoreScenePreview::Renderer::ObjectSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times, ccl::Scene *scene )
 {
 	if( samples.empty() )
 	{
 		return nullptr;
 	}
 
-	if( samples.size() % 2 == 0 && session->device->info.type != ccl::DeviceType::DEVICE_CPU )
-	{
-		// Cycles requires an odd number of motion samples for some reason, although
-		// experimentally this only seems to be the case when using GPU devices.
-		// Make memory-wasting redundant samples to work around this. Samples are
-		// expected to be spaced evenly in time, so we have to insert a redundant sample
-		// in every gap.
-		vector<ConstObjectPtr> interpolatedSamples;
-		interpolatedSamples.reserve( samples.size() - 1 );
-		vector<const IECore::Object *> processedSamples;
-		vector<float> processedTimes;
-		processedSamples.reserve( samples.size() + interpolatedSamples.size() );
-		processedTimes.reserve( times.size() + interpolatedSamples.size() );
-		for( size_t i = 0; i < samples.size(); ++i )
-		{
-			processedSamples.push_back( samples[i] );
-			processedTimes.push_back( times[i] );
-			if( i + 1 < samples.size() )
-			{
-				interpolatedSamples.push_back( linearObjectInterpolation( samples[i], samples[i+1], 0.5f ) );
-				processedSamples.push_back( interpolatedSamples.back().get() );
-				processedTimes.push_back( Imath::lerp( times[i], times[i+1], 0.5f ) );
-			}
-		}
-		return convert( processedSamples, processedTimes, session );
-	}
-
-	const IECore::Object *firstSample = samples.front();
+	const IECore::Object *firstSample = samples.front().get();
 	const IECore::TypeId firstSampleTypeId = firstSample->typeId();
-	for( std::vector<const IECore::Object *>::const_iterator it = samples.begin()+1, eIt = samples.end(); it != eIt; ++it )
+	for( const auto &sample : samples )
 	{
-		if( (*it)->typeId() != firstSampleTypeId )
+		if( sample->typeId() != firstSampleTypeId )
 		{
 			throw IECore::Exception( "Inconsistent object types." );
 		}
@@ -289,22 +247,15 @@ ccl::Geometry *convert( const std::vector<const IECore::Object *> &samples, cons
 	{
 		return nullptr;
 	}
-	if( it->second.motionConverter )
-	{
-		// Cycles expects the middle sample (rounding down for even numbers of
-		// samples) to be specified as the main sample, and the other samples to
-		// be provided via ATTR_STD_MOTION_VERTEX_POSITION.
-		return it->second.motionConverter( samples, times, (samples.size() - 1) / 2, session->scene.get() );
-	}
-	else
-	{
-		return it->second.converter( samples.front(), session->scene.get() );
-	}
+	// Cycles expects the middle sample (rounding down for even numbers of
+	// samples) to be specified as the main sample, and the other samples to
+	// be provided via ATTR_STD_MOTION_VERTEX_POSITION.
+	return it->second( samples, times, (samples.size() - 1) / 2, scene );
 }
 
-void registerConverter( IECore::TypeId fromType, Converter converter, MotionConverter motionConverter )
+void registerConverter( IECore::TypeId fromType, Converter converter )
 {
-	registry()[fromType] = { converter, motionConverter };
+	registry()[fromType] = converter;
 }
 
 void convertPrimitiveVariable( const std::string &name, const IECoreScene::PrimitiveVariable &primitiveVariable, ccl::AttributeSet &attributes, ccl::AttributeElement attributeElement )
@@ -462,7 +413,7 @@ void convertPrimitiveVariable( const std::string &name, const IECoreScene::Primi
 	}
 }
 
-void convertMotion( const std::vector<const IECoreScene::Primitive *> &samples, size_t primarySampleIndex, ccl::Geometry &geometry )
+void convertMotion( const IECoreScenePreview::Renderer::Samples<const IECoreScene::Primitive *> &samples, size_t primarySampleIndex, ccl::Geometry &geometry )
 {
 	if( samples.size() < 2 )
 	{

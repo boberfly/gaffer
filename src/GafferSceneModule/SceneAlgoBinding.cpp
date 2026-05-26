@@ -46,6 +46,7 @@
 #include "GafferImage/ImagePlug.h"
 
 #include "IECoreScene/Camera.h"
+#include "IECoreScene/PrimitiveVariable.h"
 
 #include "IECorePython/ExceptionAlgo.h"
 #include "IECorePython/RefCountedBinding.h"
@@ -275,10 +276,10 @@ void attributeHistorySetAttributeValue( SceneAlgo::AttributeHistory &h, ConstObj
 	h.attributeValue = v;
 }
 
-SceneAlgo::AttributeHistory::Ptr attributeHistoryWrapper( const SceneAlgo::History &attributesHistory, const InternedString &attributeName )
+SceneAlgo::AttributeHistory::Ptr attributeHistoryWrapper( const SceneAlgo::History &attributesHistory, const InternedString &attributeName, const IECore::Canceller *canceller )
 {
 	IECorePython::ScopedGILRelease r;
-	return SceneAlgo::attributeHistory( &attributesHistory, attributeName );
+	return SceneAlgo::attributeHistory( &attributesHistory, attributeName, canceller );
 }
 
 std::string optionHistoryGetOptionName( const SceneAlgo::OptionHistory &h )
@@ -307,6 +308,34 @@ SceneAlgo::OptionHistory::Ptr optionHistoryWrapper( const SceneAlgo::History &gl
 {
 	IECorePython::ScopedGILRelease r;
 	return SceneAlgo::optionHistory( &globalsHistory, optionName );
+}
+
+std::string primitiveVariableHistoryGetPrimitiveVariableName( const SceneAlgo::PrimitiveVariableHistory &h )
+{
+	return h.primitiveVariableName.string();
+}
+
+void primitiveVariableHistorySetPrimitiveVariableName( SceneAlgo::PrimitiveVariableHistory &h, IECore::InternedString n )
+{
+	h.primitiveVariableName = n;
+}
+
+IECoreScene::PrimitiveVariable primitiveVariableHistoryGetPrimitiveVariableValue( const SceneAlgo::PrimitiveVariableHistory &h )
+{
+	// Returning a copy because `primitiveVariableValue` is const, and owned by Gaffer's cache.
+	// Allowing modification in Python would be catastrophic and hard to debug.
+	return IECoreScene::PrimitiveVariable( h.primitiveVariableValue, true );
+}
+
+void primitiveVariableHistorySetPrimitiveVariableValue( SceneAlgo::PrimitiveVariableHistory &h, const IECoreScene::PrimitiveVariable &v )
+{
+	h.primitiveVariableValue = v;
+}
+
+SceneAlgo::PrimitiveVariableHistory::Ptr primitiveVariableHistoryWrapper( const SceneAlgo::History &primitiveVariablesHistory, const InternedString &primitiveVariableName )
+{
+	IECorePython::ScopedGILRelease r;
+	return SceneAlgo::primitiveVariableHistory( &primitiveVariablesHistory, primitiveVariableName );
 }
 
 ScenePlugPtr sourceWrapper( const ScenePlug &scene, const ScenePlug::ScenePath &path )
@@ -474,7 +503,7 @@ void bindSceneAlgo()
 		.add_property( "attributeValue", &attributeHistoryGetAttributeValue, &attributeHistorySetAttributeValue )
 	;
 
-	def( "attributeHistory", &attributeHistoryWrapper );
+	def( "attributeHistory", &attributeHistoryWrapper, ( arg( "attributesHistory"), arg( "attribute" ), arg( "canceller" ) = object() ) );
 
 	IECorePython::RefCountedClass<SceneAlgo::OptionHistory, SceneAlgo::History>( "OptionHistory" )
 		.add_property( "optionName", &optionHistoryGetOptionName, &optionHistorySetOptionName )
@@ -482,6 +511,13 @@ void bindSceneAlgo()
 	;
 
 	def( "optionHistory", &optionHistoryWrapper );
+
+	IECorePython::RefCountedClass<SceneAlgo::PrimitiveVariableHistory, SceneAlgo::History>( "PrimitiveVariableHistory" )
+		.add_property( "primitiveVariableName", &primitiveVariableHistoryGetPrimitiveVariableName, &primitiveVariableHistorySetPrimitiveVariableName )
+		.add_property( "primitiveVariableValue", &primitiveVariableHistoryGetPrimitiveVariableValue, &primitiveVariableHistorySetPrimitiveVariableValue )
+	;
+
+	def( "primitiveVariableHistory", &primitiveVariableHistoryWrapper );
 
 	def( "source", &sourceWrapper );
 	def( "objectTweaks", &objectTweaksWrapper );

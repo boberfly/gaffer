@@ -57,24 +57,26 @@ using namespace Gaffer;
 using namespace GafferScene;
 using namespace GafferSceneUI::Private;
 
-using ConstPredecessors = std::vector<const SceneAlgo::History *>;
-
-static InternedString g_contextVariablesPropertyName( "history:contextVariables" );
-static InternedString g_varyingContextVariablesPropertyName( "history:varyingContextVariables" );
-static InternedString g_valuePropertyName( "history:value" );
-static InternedString g_fallbackValuePropertyName( "history:fallbackValue" );
-static InternedString g_operationPropertyName( "history:operation" );
-static InternedString g_sourcePropertyName( "history:source" );
-static InternedString g_editWarningPropertyName( "history:editWarning" );
-static InternedString g_nodePropertyName( "history:node" );
-static InternedString g_contextPropertyName( "history:context" );
-
 //////////////////////////////////////////////////////////////////////////
 // Internal utilities
 //////////////////////////////////////////////////////////////////////////
 
 namespace
 {
+
+using ConstPredecessors = std::vector<const SceneAlgo::History *>;
+
+const InternedString g_contextVariablesPropertyName( "history:contextVariables" );
+const InternedString g_varyingContextVariablesPropertyName( "history:varyingContextVariables" );
+const InternedString g_valuePropertyName( "history:value" );
+const InternedString g_fallbackValuePropertyName( "history:fallbackValue" );
+const InternedString g_operationPropertyName( "history:operation" );
+const InternedString g_sourcePropertyName( "history:source" );
+const InternedString g_editWarningPropertyName( "history:editWarning" );
+const InternedString g_nodePropertyName( "history:node" );
+const InternedString g_contextPropertyName( "history:context" );
+
+const std::thread::id g_mainThreadId = std::this_thread::get_id();
 
 /// \todo Why would this walk past all the output plugs except the last one? I
 /// suspect this wasn't the intention.
@@ -299,6 +301,11 @@ const std::string &Inspector::name() const
 
 Inspector::ResultPtr Inspector::inspect() const
 {
+	if( std::this_thread::get_id() != g_mainThreadId && !Context::current()->canceller() )
+	{
+		IECore::msg( IECore::Msg::Warning, "Inspector::inspect", fmt::format( "No canceller for background inspection of {}", m_targets[0]->fullName() ) );
+	}
+
 	SceneAlgo::History::ConstPtr history = this->history();
 	if( !history )
 	{
@@ -314,7 +321,7 @@ Inspector::ResultPtr Inspector::inspect() const
 			IECore::msg( IECore::Msg::Level::Error, "Inspector", "Fallback value without a description" );
 		}
 	}
-	inspectHistoryWalk( history.get(), result.get() );
+	inspectHistoryWalk( history.get(), result.get(), Context::current()->canceller() );
 
 	if( !result->m_value && !result->m_fallbackValue && !result->editable() )
 	{
@@ -389,8 +396,9 @@ Inspector::InspectorSignal &Inspector::dirtiedSignal()
 	return *m_dirtiedSignal;
 }
 
-void Inspector::inspectHistoryWalk( const GafferScene::SceneAlgo::History *history, Result *result ) const
+void Inspector::inspectHistoryWalk( const GafferScene::SceneAlgo::History *history, Result *result, const IECore::Canceller *canceller ) const
 {
+	IECore::Canceller::check( canceller );
 	Node *node = history->scene->node();
 
 	// If we might have a use for it, see if there's a source for the inspected
@@ -405,7 +413,8 @@ void Inspector::inspectHistoryWalk( const GafferScene::SceneAlgo::History *histo
 	{
 		if( auto dependencyNode = runTimeCast<DependencyNode>( node ) )
 		{
-			Context::Scope scope( history->context.get() );
+			Context::EditableScope scope( history->context.get() );
+			scope.setCanceller( canceller );
 			const BoolPlug *enabledPlug = dependencyNode->enabledPlug();
 			if( !enabledPlug || enabledPlug->getValue() )
 			{
@@ -453,7 +462,7 @@ void Inspector::inspectHistoryWalk( const GafferScene::SceneAlgo::History *histo
 		// Initialise editors from source if we can.
 		if( source && source->ancestor<EditScope>() == result->m_editScope )
 		{
-			const std::string nonEditableReason = ::nonEditableReason( result->m_source.get() );
+			const std::string nonEditableReason = ::nonEditableReason( source.get() );
 			if( nonEditableReason.empty() )
 			{
 				result->m_editors = {
@@ -485,7 +494,8 @@ void Inspector::inspectHistoryWalk( const GafferScene::SceneAlgo::History *histo
 				// in the `outPlug()` context, to avoid making edits to locations
 				// other than the one emerging from the EditScope.
 				result->m_editScopeInHistory = true;
-				Context::Scope scope( history->context.get() );
+				Context::EditableScope scope( history->context.get() );
+				scope.setCanceller( canceller );
 				AcquireEditFunctionOrFailure func;
 				if( editScope->enabledPlug()->getValue() )
 				{
@@ -539,7 +549,7 @@ void Inspector::inspectHistoryWalk( const GafferScene::SceneAlgo::History *histo
 		{
 			return;
 		}
-		inspectHistoryWalk( predecessor.get(), result );
+		inspectHistoryWalk( predecessor.get(), result, canceller );
 	}
 }
 

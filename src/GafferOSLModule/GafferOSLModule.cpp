@@ -182,12 +182,6 @@ IECore::CompoundDataPtr shadeUVTextureWrapper( const IECoreScene::ShaderNetwork 
 	return ShadingEngineAlgo::shadeUVTexture( &shaderNetwork, resolution, output );
 }
 
-void loadShader( OSLLight &l, const std::string &shaderName )
-{
-	IECorePython::ScopedGILRelease gilRelease;
-	l.loadShader( shaderName );
-}
-
 bool evaluateActivatorExpressionWrapper( OSLShader &shader, const std::string &expression )
 {
 	IECorePython::ScopedGILRelease gilRelease;
@@ -272,10 +266,7 @@ BOOST_PYTHON_MODULE( _GafferOSL )
 	{
 		scope s = GafferBindings::DependencyNodeClass<OSLCode>()
 			.def( "source", &oslCodeSource, ( arg_( "shaderName" ) = "" ) )
-			.def( "shaderCompiledSignal", &OSLCode::shaderCompiledSignal, return_internal_reference<1>() )
 		;
-
-		SignalClass<OSLCode::ShaderCompiledSignal>( "ShaderCompiledSignal" );
 
 		// Use a default serialiser for OSLCode, so that we don't get a
 		// loadShader call like every other kind of shader.
@@ -283,9 +274,7 @@ BOOST_PYTHON_MODULE( _GafferOSL )
 	}
 
 	{
-		scope s = GafferBindings::DependencyNodeClass<OSLLight>()
-			.def( "loadShader", &loadShader )
-		;
+		scope s = GafferBindings::DependencyNodeClass<OSLLight>();
 
 		enum_<OSLLight::Shape>( "Shape" )
 			.value( "Disk", OSLLight::Disk )

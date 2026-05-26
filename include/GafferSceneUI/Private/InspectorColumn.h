@@ -67,10 +67,12 @@ class GAFFERSCENEUI_API InspectorColumn : public GafferUI::PathColumn
 		GafferSceneUI::Private::ConstInspectorPtr inspector( const Gaffer::Path &path, const IECore::Canceller *canceller = nullptr ) const;
 		GafferSceneUI::Private::Inspector::ResultPtr inspect( const Gaffer::Path &path, const IECore::Canceller *canceller = nullptr ) const;
 		Gaffer::PathPtr historyPath( const Gaffer::Path &path, const IECore::Canceller *canceller = nullptr ) const;
+		/// > Caution : The returned context does not have `canceller` applied. Be sure to apply it using `EditableScope`
+		/// > if cancellation is required.
 		Gaffer::ConstContextPtr inspectorContext( const Gaffer::Path &path, const IECore::Canceller *canceller = nullptr ) const;
 
 		CellData cellData( const Gaffer::Path &path, const IECore::Canceller *canceller ) const override;
-		CellData headerData( const IECore::Canceller *canceller ) const override;
+		CellData headerData( const Gaffer::Path &rootPath, const IECore::Canceller *canceller ) const override;
 
 		/// Exposes the value-formatting part of `cellData()` so that it may
 		/// be reused by `_HistoryWindow`.

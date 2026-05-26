@@ -1478,65 +1478,33 @@ class GeometryCache
 
 	public :
 
-		GeometryCache( ccl::Session *session, NodeDeleter *nodeDeleter )
-			: m_session( session ), m_nodeDeleter( nodeDeleter )
+		GeometryCache( ccl::Scene *scene, NodeDeleter *nodeDeleter )
+			: m_scene( scene ), m_nodeDeleter( nodeDeleter )
 		{
-		}
-
-		// Can be called concurrently with other get() calls.
-		SharedGeometryPtr get( const IECore::Object *object, const IECoreScenePreview::Renderer::AttributesInterface *attributes, const std::string &nodeName )
-		{
-			const CyclesAttributes *cyclesAttributes = static_cast<const CyclesAttributes *>( attributes );
-
-			if( !cyclesAttributes->canInstanceGeometry( object ) )
-			{
-				return convert( object, cyclesAttributes, nodeName );
-			}
-
-			IECore::MurmurHash h = object->hash();
-			cyclesAttributes->hashGeometry( object, h );
-
-			Geometry::const_accessor readAccessor;
-			if( m_geometry.find( readAccessor, h ) )
-			{
-				return readAccessor->second;
-			}
-			else
-			{
-				Geometry::accessor writeAccessor;
-				if( m_geometry.insert( writeAccessor, h ) )
-				{
-					writeAccessor->second = convert( object, cyclesAttributes, nodeName );
-				}
-				return writeAccessor->second;
-			}
 		}
 
 		// Can be called concurrently with other get() calls.
 		SharedGeometryPtr get(
-			const std::vector<const IECore::Object *> &samples,
-			const std::vector<float> &times,
+			const IECoreScenePreview::Renderer::ObjectSamples &samples,
+			const IECoreScenePreview::Renderer::SampleTimes &times,
 			const IECoreScenePreview::Renderer::AttributesInterface *attributes,
 			const std::string &nodeName
 		)
 		{
 			const CyclesAttributes *cyclesAttributes = static_cast<const CyclesAttributes *>( attributes );
 
-			if( !cyclesAttributes->canInstanceGeometry( samples.front() ) )
+			if( !cyclesAttributes->canInstanceGeometry( samples.front().get() ) )
 			{
 				return convert( samples, times, cyclesAttributes, nodeName );
 			}
 
 			IECore::MurmurHash h;
-			for( std::vector<const IECore::Object *>::const_iterator it = samples.begin(), eIt = samples.end(); it != eIt; ++it )
+			for( const auto &sample : samples )
 			{
-				(*it)->hash( h );
+				sample->hash( h );
 			}
-			for( std::vector<float>::const_iterator it = times.begin(), eIt = times.end(); it != eIt; ++it )
-			{
-				h.append( *it );
-			}
-			cyclesAttributes->hashGeometry( samples.front(), h );
+			h.append( times.data(), times.size() );
+			cyclesAttributes->hashGeometry( samples.front().get(), h );
 
 			Geometry::const_accessor readAccessor;
 			if( m_geometry.find( readAccessor, h ) )
@@ -1576,48 +1544,29 @@ class GeometryCache
 
 	private :
 
-		SharedGeometryPtr convert( const IECore::Object *object, const CyclesAttributes *attributes, const std::string &nodeName )
-		{
-			auto geometry = SharedGeometryPtr( GeometryAlgo::convert( object, m_session->scene.get() ), NodeDeleter::GeometryDeleter( m_nodeDeleter ) );
-			if( geometry )
-			{
-				geometry->name = ccl::ustring( nodeName.c_str() );
-			}
-			if( auto vdb = IECore::runTimeCast<const IECoreVDB::VDBObject>( object ) )
-			{
-				// It's a pity we can't do this in VolumeAlgo in the first place. It is here instead because
-				// the precision is provided by the attributes, and we don't want to pass attributes
-				// to `GeometryAlgo`.
-				assert( geometry->is_volume() );
-				GeometryAlgo::convertVoxelGrids( vdb, static_cast<ccl::Volume*>( geometry.get() ), m_session->scene.get(), attributes->getVolumePrecision(), attributes->getVolumeClipping() );
-			}
-
-			return geometry;
-		}
-
 		SharedGeometryPtr convert(
-			const std::vector<const IECore::Object *> &samples,
-			const std::vector<float> &times,
+			const IECoreScenePreview::Renderer::ObjectSamples &samples,
+			const IECoreScenePreview::Renderer::SampleTimes &times,
 			const CyclesAttributes *attributes,
 			const std::string &nodeName
 		)
 		{
-			auto geometry = SharedGeometryPtr( GeometryAlgo::convert( samples, times, m_session ), NodeDeleter::GeometryDeleter( m_nodeDeleter ) );
+			auto geometry = SharedGeometryPtr( GeometryAlgo::convert( samples, times, m_scene ), NodeDeleter::GeometryDeleter( m_nodeDeleter ) );
 			if( geometry )
 			{
 				geometry->name = ccl::ustring( nodeName.c_str() );
 			}
 
-			if( auto vdb = IECore::runTimeCast<const IECoreVDB::VDBObject>( samples.front() ) )
+			if( auto vdb = IECore::runTimeCast<const IECoreVDB::VDBObject>( samples.front().get() ) )
 			{
 				assert( geometry->is_volume() );
-				GeometryAlgo::convertVoxelGrids( vdb, static_cast<ccl::Volume*>( geometry.get() ), m_session->scene.get(), attributes->getVolumePrecision(), attributes->getVolumeClipping() );
+				GeometryAlgo::convertVoxelGrids( vdb, static_cast<ccl::Volume*>( geometry.get() ), m_scene, attributes->getVolumePrecision(), attributes->getVolumeClipping() );
 			}
 
 			return geometry;
 		}
 
-		ccl::Session *m_session;
+		ccl::Scene *m_scene;
 		NodeDeleter *m_nodeDeleter;
 		using Geometry = tbb::concurrent_hash_map<IECore::MurmurHash, SharedGeometryPtr>;
 		Geometry m_geometry;
@@ -1768,34 +1717,7 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 			SceneAlgo::tagUpdateWithLock( m_object.get(), m_scene );
 		}
 
-		void transform( const Imath::M44f &transform ) override
-		{
-			m_object->set_tfm( SocketAlgo::setTransform( transform ) );
-			if( m_object->get_geometry()->is_mesh() )
-			{
-				auto mesh = static_cast<ccl::Mesh *>( m_object->get_geometry() );
-				if( mesh->get_num_subd_faces() )
-				{
-					mesh->set_subd_objecttoworld( m_object->get_tfm() );
-				}
-			}
-
-			ccl::array<ccl::Transform> motion;
-			if( m_object->get_geometry()->get_use_motion_blur() )
-			{
-				motion.resize( m_object->get_geometry()->get_motion_steps(), ccl::transform_empty() );
-				for( size_t i = 0; i < motion.size(); ++i )
-				{
-					motion[i] = m_object->get_tfm();
-				}
-			}
-
-			m_object->set_motion( motion );
-
-			SceneAlgo::tagUpdateWithLock( m_object.get(), m_scene );
-		}
-
-		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override
+		void transform( const IECoreScenePreview::Renderer::TransformSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times ) override
 		{
 			ccl::array<ccl::Transform> motion;
 			ccl::Geometry *geo = m_object->get_geometry();
@@ -1990,7 +1912,7 @@ class CyclesLight : public IECoreScenePreview::Renderer::ObjectInterface
 		{
 		}
 
-		void transform( const Imath::M44f &transform ) override
+		void transform( const IECoreScenePreview::Renderer::TransformSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times ) override
 		{
 			// Set environment map rotation
 			/// \todo There are a few problems here :
@@ -2008,7 +1930,7 @@ class CyclesLight : public IECoreScenePreview::Renderer::ObjectInterface
 					if( node->type == ccl::EnvironmentTextureNode::get_node_type() )
 					{
 						ccl::EnvironmentTextureNode *env = (ccl::EnvironmentTextureNode *)node;
-						Imath::Eulerf euler( transform, Imath::Eulerf::Order::XZY );
+						Imath::Eulerf euler( samples[0], Imath::Eulerf::Order::XZY );
 						env->tex_mapping.rotation = ccl::make_float3( -euler.x, -euler.y, -euler.z );
 						shader->tag_update( m_scene );
 						break;
@@ -2016,14 +1938,8 @@ class CyclesLight : public IECoreScenePreview::Renderer::ObjectInterface
 				}
 			}
 
-			m_object->set_tfm( SocketAlgo::setTransform( transform ) );
+			m_object->set_tfm( SocketAlgo::setTransform( samples[0] ) );
 			SceneAlgo::tagUpdateWithLock( m_object.get(), m_scene );
-		}
-
-		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override
-		{
-			// Cycles doesn't support motion samples on lights (yet)
-			transform( samples[0] );
 		}
 
 		bool attributes( const IECoreScenePreview::Renderer::AttributesInterface *attributes ) override
@@ -2220,12 +2136,7 @@ class CyclesCamera : public IECoreScenePreview::Renderer::ObjectInterface
 		{
 		}
 
-		void transform( const Imath::M44f &transform ) override
-		{
-			m_transformSamples = { transform };
-		}
-
-		void transform( const std::vector<Imath::M44f> &samples, const std::vector<float> &times ) override
+		void transform( const IECoreScenePreview::Renderer::TransformSamples &samples, const IECoreScenePreview::Renderer::SampleTimes &times ) override
 		{
 			m_transformSamples = samples;
 		}
@@ -2319,7 +2230,7 @@ class CyclesCamera : public IECoreScenePreview::Renderer::ObjectInterface
 	private :
 
 		IECoreScene::ConstCameraPtr m_camera;
-		std::vector<Imath::M44f> m_transformSamples;
+		IECoreScenePreview::Renderer::TransformSamples m_transformSamples;
 
 };
 
@@ -2655,13 +2566,13 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			return m_attributesCache->get( attributes );
 		}
 
-		ObjectInterfacePtr camera( const std::string &name, const IECoreScene::Camera *camera, const AttributesInterface *attributes ) override
+		ObjectInterfacePtr camera( const std::string &name, const CameraSamples &samples, const SampleTimes &times, const AttributesInterface *attributes ) override
 		{
 			const IECore::MessageHandler::Scope s( m_messageHandler.get() );
 			// No need to acquire session because we don't need it to make a camera.
 			// This is important for certain clients (SceneGadget and RenderController)
 			// because they make a camera before calling `option()` to set the device.
-			CyclesCameraPtr result = new CyclesCamera( camera );
+			CyclesCameraPtr result = new CyclesCamera( samples[0] );
 			m_cameras[name] = result;
 			if( attributes )
 			{
@@ -2670,7 +2581,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			return result;
 		}
 
-		ObjectInterfacePtr light( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
+		ObjectInterfacePtr light( const std::string &name, const ObjectSamples &samples, const SampleTimes &times, const AttributesInterface *attributes ) override
 		{
 			const IECore::MessageHandler::Scope s( m_messageHandler.get() );
 			acquireSession();
@@ -2685,7 +2596,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			return result;
 		}
 
-		ObjectInterfacePtr lightFilter( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
+		ObjectInterfacePtr lightFilter( const std::string &name, const ObjectSamples &samples, const SampleTimes &times, const AttributesInterface *attributes ) override
 		{
 			const IECore::MessageHandler::Scope s( m_messageHandler.get() );
 			acquireSession();
@@ -2694,23 +2605,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			return nullptr;
 		}
 
-		ObjectInterfacePtr object( const std::string &name, const IECore::Object *object, const AttributesInterface *attributes ) override
-		{
-			const IECore::MessageHandler::Scope s( m_messageHandler.get() );
-			acquireSession();
-
-			SharedGeometryPtr geometry = m_geometryCache->get( object, attributes, name );
-			if( !geometry )
-			{
-				return nullptr;
-			}
-
-			ObjectInterfacePtr result = new CyclesObject( m_scene, geometry, name, frame(), &m_lightLinker, m_nodeDeleter.get() );
-			result->attributes( attributes );
-			return result;
-		}
-
-		ObjectInterfacePtr object( const std::string &name, const std::vector<const IECore::Object *> &samples, const std::vector<float> &times, const AttributesInterface *attributes ) override
+		ObjectInterfacePtr object( const std::string &name, const ObjectSamples &samples, const SampleTimes &times, const AttributesInterface *attributes ) override
 		{
 			const IECore::MessageHandler::Scope s( m_messageHandler.get() );
 			acquireSession();
@@ -2938,7 +2833,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			}
 
 			m_shaderCache = std::make_unique<ShaderCache>( m_scene );
-			m_geometryCache = std::make_unique<GeometryCache>( m_session.get(), m_nodeDeleter.get() );
+			m_geometryCache = std::make_unique<GeometryCache>( m_scene, m_nodeDeleter.get() );
 			m_attributesCache = std::make_unique<AttributesCache>( m_shaderCache.get() );
 		}
 

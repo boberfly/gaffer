@@ -52,8 +52,11 @@
 #include "IECore/TypeTraits.h"
 #include "IECore/DataAlgo.h"
 
+#include "boost/algorithm/string/predicate.hpp"
+
 #include "fmt/format.h"
 
+#include <regex>
 #include <unordered_map>
 
 using namespace std;
@@ -179,7 +182,7 @@ void checkForCycle( const ShaderNetwork &network, const IECore::InternedString &
 	}
 }
 
-bool applyTweakInternal( ShaderNetwork *shaderNetwork, unordered_map<InternedString, IECoreScene::ShaderPtr> &modifiedShaders, const TweakPlug *tweakPlug, const ShaderNetwork *inputNetwork, const std::string &tweakLabel, const ShaderNetwork::Parameter &parameter, const IECoreScene::Shader *shader, TweakPlug::MissingMode missingMode, bool &removedConnections )
+bool applyTweakInternal( ShaderNetwork *shaderNetwork, unordered_map<InternedString, IECoreScene::ShaderPtr> &modifiedShaders, const TweakPlug *tweakPlug, const ShaderNetwork *inputNetwork, const std::string &tweakLabel, const ShaderNetwork::Parameter &parameter, const std::optional<std::string> &shaderTypeFilter, const IECoreScene::Shader *shader, TweakPlug::MissingMode missingMode, bool &removedConnections )
 {
 	if( !shader )
 	{
@@ -199,6 +202,11 @@ bool applyTweakInternal( ShaderNetwork *shaderNetwork, unordered_map<InternedStr
 		{
 			return false;
 		}
+	}
+
+	if( shaderTypeFilter && shader->getName() != *shaderTypeFilter )
+	{
+		return false;
 	}
 
 	const TweakPlug::Mode mode = static_cast<TweakPlug::Mode>( tweakPlug->modePlug()->getValue() );
@@ -384,6 +392,13 @@ bool applyTweakInternal( ShaderNetwork *shaderNetwork, unordered_map<InternedStr
 	}
 }
 
+IECore::InternedString regexSubMatchToInterned( const std::ssub_match &subMatch )
+{
+	return IECore::InternedString( &( *subMatch.first ), subMatch.length() );
+}
+
+const std::string g_optionPrefix( "option:" );
+
 }  // namespace
 
 GAFFER_NODE_DEFINE_TYPE( ShaderTweaks );
@@ -456,37 +471,39 @@ bool ShaderTweaks::affectsProcessedAttributes( const Gaffer::Plug *input ) const
 	;
 }
 
-void ShaderTweaks::hashProcessedAttributes( const ScenePath &path, const Gaffer::Context *context, IECore::MurmurHash &h ) const
+void ShaderTweaks::hashProcessedAttributes( const Gaffer::Context *context, IECore::MurmurHash &h ) const
 {
 	if( tweaksPlug()->children().empty() )
 	{
-		h = inPlug()->attributesPlug()->hash();
+		return;
 	}
-	else
+
+	AttributeProcessor::hashProcessedAttributes( context, h );
+
+	shaderPlug()->hash( h );
+	tweaksPlug()->hash( h );
+	ignoreMissingPlug()->hash( h );
+	localisePlug()->hash( h );
+
+	for( auto &tweak : TweakPlug::Range( *tweaksPlug() ) )
 	{
-		AttributeProcessor::hashProcessedAttributes( path, context, h );
-		shaderPlug()->hash( h );
-		tweaksPlug()->hash( h );
-		ignoreMissingPlug()->hash( h );
-		localisePlug()->hash( h );
-
-		for( auto &tweak : TweakPlug::Range( *tweaksPlug() ) )
+		const auto shaderOutput = ::shaderOutput( tweak.get() );
+		if( shaderOutput.first )
 		{
-			const auto shaderOutput = ::shaderOutput( tweak.get() );
-			if( shaderOutput.first )
-			{
-				shaderOutput.first->attributesHash( shaderOutput.second, h );
-			}
+			shaderOutput.first->attributesHash( shaderOutput.second, h );
 		}
+	}
 
-		if( localisePlug()->getValue() )
+	if( localisePlug()->getValue() )
+	{
+		if( auto path = context->getIfExists<ScenePlug::ScenePath>( ScenePlug::scenePathContextName ) )
 		{
-			h.append( inPlug()->fullAttributesHash( path, /* withGlobalAttributes = */ true ) );
+			h.append( inPlug()->fullAttributesHash( *path, /* withGlobalAttributes = */ true ) );
 		}
 	}
 }
 
-IECore::ConstCompoundObjectPtr ShaderTweaks::computeProcessedAttributes( const ScenePath &path, const Gaffer::Context *context, const IECore::CompoundObject *inputAttributes ) const
+IECore::ConstCompoundObjectPtr ShaderTweaks::computeProcessedAttributes( const Gaffer::Context *context, const IECore::CompoundObject *inputAttributes ) const
 {
 	const string shader = shaderPlug()->getValue();
 	if( shader.empty() )
@@ -515,8 +532,11 @@ IECore::ConstCompoundObjectPtr ShaderTweaks::computeProcessedAttributes( const S
 	ConstCompoundObjectPtr fullAttributes;
 	if( localisePlug()->getValue() )
 	{
-		fullAttributes = inPlug()->fullAttributes( path, /* withGlobalAttributes = */ true );
-		source = &fullAttributes->members();
+		if( auto path = context->getIfExists<ScenePlug::ScenePath>( ScenePlug::scenePathContextName ) )
+		{
+			fullAttributes = inPlug()->fullAttributes( *path, /* withGlobalAttributes = */ true );
+			source = &fullAttributes->members();
+		}
 	}
 
 	for( const auto &attribute : *source )
@@ -537,6 +557,37 @@ IECore::ConstCompoundObjectPtr ShaderTweaks::computeProcessedAttributes( const S
 		{
 			out[attribute.first] = tweakedNetwork;
 		}
+	}
+
+	return result;
+}
+
+IECore::ConstCompoundObjectPtr ShaderTweaks::computeGlobals( const Gaffer::Context *context, const ScenePlug *parent ) const
+{
+	// This will have tweaks to `attribute:*` globals applied already.
+	ConstCompoundObjectPtr inputGlobals = AttributeProcessor::computeGlobals( context, parent );
+
+	// Now we want to add tweaks to `option:*` globals as well.
+
+	IECore::CompoundObjectPtr result = new CompoundObject;
+	IECore::CompoundObjectPtr optionsToProcess = new CompoundObject;
+
+	for( const auto &[name, value] : inputGlobals->members() )
+	{
+		if( boost::starts_with( name.string(), g_optionPrefix ) )
+		{
+			optionsToProcess->members()[name.string().substr( g_optionPrefix.size())] = value;
+		}
+		else
+		{
+			result->members()[name] = value;
+		}
+	}
+
+	IECore::ConstCompoundObjectPtr processedOptions = computeProcessedAttributes( context, optionsToProcess.get() );
+	for( const auto &[name, value] : processedOptions->members() )
+	{
+		result->members()[g_optionPrefix+name.string()] = value;
 	}
 
 	return result;
@@ -591,24 +642,55 @@ bool ShaderTweaks::applyTweaks( IECoreScene::ShaderNetwork *shaderNetwork, Tweak
 
 		}
 
+		const static std::regex shaderTypeRegex( R"(([^{}]*)(\{shaderType=(.*)\})?\.(.*))" );
+
 		ShaderNetwork::Parameter parameter;
-		const size_t dotPos = name.find_last_of( '.' );
-		if( dotPos == string::npos )
+		std::optional<std::string> shaderTypeFilter;
+
+		std::smatch regexMatch;
+
+		// In order to be a valid expression for finding a shader parameter, it should match the regex, and have
+		// either a shader handle, or shaderType qualifier
+		if( std::regex_match( name, regexMatch, shaderTypeRegex ) && ( regexMatch[1].length() || regexMatch[2].length() ) )
 		{
-			parameter.shader = shaderNetwork->getOutput().shader;
-			parameter.name = name;
+			if( regexMatch[2].length() )
+			{
+				// Subgroup 3 is just the actual shader type
+				shaderTypeFilter = regexSubMatchToInterned( regexMatch[3] );
+			}
+
+			if( regexMatch[1].length() )
+			{
+				parameter.shader = regexSubMatchToInterned( regexMatch[1] );
+			}
+			else
+			{
+				// It's allowed to omit the handle when using a shaderType filter,
+				// in which case we want to match everything with the shaderType
+				parameter.shader = "*";
+			}
+			parameter.name = regexSubMatchToInterned( regexMatch[4] );
 		}
 		else
 		{
-			parameter.shader = InternedString( name.c_str(), dotPos );
-			parameter.name = InternedString( name.c_str() + dotPos + 1 );
+			// If we weren't able to parse it, the name should be a simple parameter name, which we
+			// find on the output shader. If there are any special tokens in the name at this point,
+			// something has gone wrong.
+			const static std::regex hasSyntax( R"([{}.])" );
+			if( std::regex_search( name, hasSyntax ) )
+			{
+				throw IECore::Exception( fmt::format( "Could not parse shader parameter: \"{}\"", name  ) );
+			}
+
+			parameter.shader = shaderNetwork->getOutput().shader;
+			parameter.name = name;
 		}
 
 		if( !IECore::StringAlgo::hasWildcards( parameter.shader.string() ) )
 		{
 			appliedTweaks |= applyTweakInternal(
 				shaderNetwork, modifiedShaders, tweakPlug.get(), inputNetwork,
-				name, parameter, nullptr,
+				name, parameter, shaderTypeFilter, nullptr,
 				missingMode, removedConnections
 			);
 		}
@@ -620,7 +702,7 @@ bool ShaderTweaks::applyTweaks( IECoreScene::ShaderNetwork *shaderNetwork, Tweak
 				{
 					appliedTweaks |= applyTweakInternal(
 						shaderNetwork, modifiedShaders, tweakPlug.get(), inputNetwork,
-						name, { s.first, parameter.name }, s.second.get(),
+						name, { s.first, parameter.name }, shaderTypeFilter, s.second.get(),
 						TweakPlug::MissingMode::Ignore, removedConnections
 					);
 				}

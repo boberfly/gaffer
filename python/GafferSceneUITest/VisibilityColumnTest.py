@@ -36,6 +36,8 @@
 
 import unittest
 
+import IECore
+
 import Gaffer
 import GafferUITest
 import GafferScene
@@ -55,6 +57,27 @@ class VisibilityColumnTest( GafferUITest.TestCase ) :
 		cellData = column.cellData( GafferScene.ScenePath( script["reader"]["out"], script.context(), "/GAFFERBOT" ), None )
 		self.assertEqual( cellData.icon, "locationVisibleTransparent.png" )
 		self.assertEqual( cellData.value, None )
+
+	def testCancellation( self ) :
+
+		plane = GafferScene.Plane()
+
+		standardAttributes = GafferScene.StandardAttributes()
+		standardAttributes["in"].setInput( plane["out"] )
+		standardAttributes["attributes"]["scene:visible"]["enabled"].setValue( True )
+
+		group = GafferScene.Group()
+		group["in"][0].setInput( standardAttributes["out"] )
+
+		column = GafferSceneUI.Private.VisibilityColumn( group["out"], None )
+		path = GafferScene.ScenePath( group["out"], Gaffer.Context(), "/group/plane" )
+		column.inspect( path )
+
+		canceller = IECore.Canceller()
+		canceller.cancel()
+
+		with self.assertRaises( IECore.Cancelled ) :
+			column.cellData( path, canceller )
 
 if __name__ == "__main__":
 	unittest.main()
