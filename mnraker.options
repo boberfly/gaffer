@@ -42,6 +42,7 @@ qtRoot = os.environ.get( "REZ_QT6_ROOT", os.environ.get( "REZ_QT5_ROOT", "" ) ).
 openpglRoot = os.environ.get( "REZ_OPENPGL_ROOT", "" ).replace("\\", "/")
 zstandardRoot = os.environ.get( "REZ_ZSTANDARD_ROOT", "" ).replace("\\", "/")
 bloscRoot = os.environ.get( "REZ_BLOSC_ROOT", "" ).replace("\\", "/")
+sse2neonRoot = os.environ.get( "REZ_SSE2NEON_ROOT", "" ).replace("\\", "/")
 
 imathSuffix = ''
 openimageioSuffix = os.environ['REZ_OPENIMAGEIO_SUFFIX_NAME']
@@ -132,6 +133,12 @@ BOOST_LIB_SUFFIX=boostSuffix
 BOOST_PYTHON_LIB_SUFFIX = boostPythonSuffix + boostSuffix
 IMATH_LIB_SUFFIX=imathSuffix
 
+sse2neonIncludePath = ""
+if arch == 'aarch64':
+    sse2neonIncludePath = sse2neonRoot + "/include"
+
+MACHINE=arch
+
 LOCATE_DEPENDENCY_CPPPATH=[
     pythonIncludePath,
 	tbbRoot + "/include",
@@ -187,6 +194,7 @@ LOCATE_DEPENDENCY_SYSTEMPATH=[
 	openexrRoot + "/include/OpenEXR",
 	zlibRoot + "/include",
     embreeRoot + "/include",
+    sse2neonIncludePath,
 ]
 LOCATE_DEPENDENCY_PYTHONPATH=[
 	os.environ.get("PYTHONPATH", "").replace("\\", "/"),

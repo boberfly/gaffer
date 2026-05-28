@@ -43,6 +43,7 @@ import sys
 import glob
 import inspect
 import locale
+import platform
 import shutil
 import subprocess
 import tempfile
@@ -117,6 +118,12 @@ options.Add(
 	"CXXSTD",
 	"The C++ standard to build against. A minimum of C++17 is required.",
 	"c++17",
+)
+
+options.Add(
+	"MACHINE",
+	"The CPU machine architecture to build for.",
+	{"x86_64" : "x86_64", "aarch64": "aarch64", "AMD64" : "x86_64", "arm64" : "aarch64", "ARM64": "aarch64"}.get(platform.machine, "x86_64"),
 )
 
 options.Add(
@@ -1083,7 +1090,7 @@ cyclesDefines = [
 	# HIP
 	( "WITH_HIP" ),
 	( "WITH_HIP_DYNLOAD" ),
-]
+] + [( "WITH_SSE2NEON" )] if env["MACHINE"] == "aarch64" else []
 
 
 ###############################################################################################
