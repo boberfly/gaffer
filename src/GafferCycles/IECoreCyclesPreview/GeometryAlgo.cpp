@@ -108,7 +108,7 @@ size_t dataSize( const TypedData<T> *data )
 	return 1;
 }
 
-template<typename T, bool isNormal = false>
+template<typename T>
 ccl::Attribute *convertTypedPrimitiveVariable( const std::string &name, const PrimitiveVariable &primitiveVariable, ccl::AttributeSet &attributes, ccl::TypeDesc typeDesc, ccl::AttributeElement attributeElement )
 {
 	// Get the data to convert, expanding indexed data if necessary, since Cycles doesn't support it
@@ -290,27 +290,14 @@ void convertPrimitiveVariable( const std::string &name, const IECoreScene::Primi
 			attr = convertTypedPrimitiveVariable<V2iVectorData>( name, primitiveVariable, attributes, ccl::TypeFloat2, attributeElement );
 			break;
 		case V3iVectorDataTypeId :
-		{
-			const ccl::TypeDesc typeDesc = typeFromGeometricDataInterpretation(
-				static_cast<const V3iVectorData *>( primitiveVariable.data.get() )->getInterpretation()
-			);
-			if( typeDesc == ccl::TypeNormal )
-			{
-				// Prevent a potential crash if the user decided to make an int-based normal.
-				msg(
-					Msg::Warning, "IECoreCyles::GeometryAlgo::convertPrimitiveVariable",
-					fmt::format(
-						"Primitive variable \"{}\" has unsupported type \"{}\" as Geometric Normal.",
-						name, primitiveVariable.data->typeName()
-					)
-				);
-				break;
-			}
 			attr = convertTypedPrimitiveVariable<V3iVectorData>(
-				name, primitiveVariable, attributes, typeDesc, attributeElement
+				name, primitiveVariable, attributes,
+				typeFromGeometricDataInterpretation(
+					static_cast<const V3iVectorData *>( primitiveVariable.data.get() )->getInterpretation()
+				),
+				attributeElement
 			);
 			break;
-		}
 
 		// Simple float-based data.
 
@@ -342,25 +329,14 @@ void convertPrimitiveVariable( const std::string &name, const IECoreScene::Primi
 			attr = convertTypedPrimitiveVariable<V2fVectorData>( name, primitiveVariable, attributes, ccl::TypeFloat2, attributeElement );
 			break;
 		case V3fVectorDataTypeId :
-		{
-			const ccl::TypeDesc typeDesc = typeFromGeometricDataInterpretation(
-				static_cast<const V3fVectorData *>( primitiveVariable.data.get() )->getInterpretation()
+			attr = convertTypedPrimitiveVariable<V3fVectorData>(
+				name, primitiveVariable, attributes,
+				typeFromGeometricDataInterpretation(
+					static_cast<const V3fVectorData *>( primitiveVariable.data.get() )->getInterpretation()
+				),
+				attributeElement
 			);
-			if( typeDesc == ccl::TypeNormal )
-			{
-				attr = convertTypedPrimitiveVariable<V3fVectorData, true>(
-					name, primitiveVariable, attributes, typeDesc,
-					( attributeElement == ccl::ATTR_ELEMENT_CORNER ) ? ccl::ATTR_ELEMENT_CORNER_NORMAL : ccl::ATTR_ELEMENT_VERTEX_NORMAL
-				);
-			}
-			else
-			{
-				attr = convertTypedPrimitiveVariable<V3fVectorData>(
-					name, primitiveVariable, attributes, typeDesc, attributeElement
-				);
-			}
 			break;
-		}
 		case Color3fVectorDataTypeId :
 			attr = convertTypedPrimitiveVariable<Color3fVectorData>( name, primitiveVariable, attributes, ccl::TypeColor, attributeElement );
 			break;
