@@ -47,6 +47,10 @@ enum TypeId
 	DispatcherTypeId = 118802,
 	TaskListTypeId = 118803,
 	FrameMaskTypeId = 118804,
+	FileListTypeId = 118805,
+	DeleteFilesTypeId = 118806,
+	CopyFilesTypeId = 118807,
+	RenameFilesTypeId = 118808,
 
 	LastTypeId = 118999
 

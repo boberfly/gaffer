@@ -48,6 +48,7 @@ enum TypeId
 	SphereLevelSetTypeId = 123204,
 	PointsToLevelSetTypeId = 123205,
 	VolumeScatterTypeId = 123206,
+	DeleteGridsTypeId = 123207,
 	LastTypeId = 123399
 };
 

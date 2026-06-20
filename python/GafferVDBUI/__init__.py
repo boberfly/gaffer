@@ -41,6 +41,7 @@ from ._GafferVDBUI import *
 # to get our custom visualiser registered.
 __import__( "Gaffer" ).__loadSharedLibrary( "GafferVDBUI" )
 
+from . import DeleteGridsUI
 from . import LevelSetToMeshUI
 from . import MeshToLevelSetUI
 from . import LevelSetOffsetUI

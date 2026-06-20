@@ -1,7 +1,70 @@
-1.7.x.x (relative to 1.7.0.0a1)
+1.7.x.x (relative to 1.7.0.0a3)
 =======
 
 
+
+1.7.0.0a3 (relative to 1.7.0.0a2)
+=========
+
+Features
+--------
+
+- FlamencoDispatcher : Added a new node for sending tasks to Blender's [Flamenco](https://flamenco.blender.org) render farm manager.
+- PrimitiveQuery : Added a new node for querying a primitive's type and variable sizes.
+- FileList : Added node for listing matching files.
+- DeleteFiles : Added node for deleting files.
+- CopyFiles : Added node for copying files.
+- RenameFiles : Added node for renaming files.
+
+Fixes
+-----
+
+- SceneInspector : Fixed Interpolation field for primitive variables that don't exist. Previously it said "Invalid", and now it shows nothing.
+- Renderer API : Added missing `Renderer.inl` header file.
+- NodeGadget : Fixed usage of `instanceCreatedSignal()` with NodeGadgets implemented in Python [^1].
+
+API
+---
+
+- Image : Added `updateImage()` method.
+
+Build
+-----
+
+- Cortex : Updated to version 10.7.0.0a11.
+
+Breaking Changes
+----------------
+
+- SceneReader : Removed `./` prefix from relative prototype paths loaded from USD files.
+- Instancer : Defaulted `GAFFERSCENE_INSTANCER_EXPLICIT_ABSOLUTE_PATHS` to `1`, as required by SceneReader's updated handling of relative USD prototypes. The environment variable may be removed in future.
+
+[^1]: Fix for bug introduced in `1.7.0.0a1`, so should be omitted from final `1.7.0.0` release notes.
+
+1.7.0.0a2 (relative to 1.7.0.0a1)
+=========
+
+Features
+--------
+
+- DeleteGrids : Added node for deleting grids from locations containing OpenVDB volumes.
+
+Fixes
+-----
+
+- RenderMan :
+  - Fixed PxrDisplace shader assignments, which now target the `ri:displacement` attribute rather than `osl:displacement`. This renders as before in Gaffer, but is more compatible with other applications when exported to USD.
+  - Fixed handling of multiple intervals in `ri:checkpoint:interval` option. Intervals may be separated by spaces or commas. [^1]
+- Dispatcher : [^1]
+  - Fixed `Context has no variable named...` error when dispatching an isolated task with a `StringPlug` script variable containing a frame substitution.
+  - Fixed unnecessary baking of values for ScriptNode variables plugs without input connections.
+
+[^1]: Included in `1.6.x.x`, so should be omitted from final `1.7.0.0` release notes.
+
+Breaking Changes
+----------------
+
+- RenderMan : PxrDisplace now assigns as an `ri:displacement` attribute rather than `osl:displacement`.
 
 1.7.0.0a1 (relative to 1.6.19.1)
 =========
@@ -151,10 +214,21 @@ Build
 - TBB : Updated to version 2021.13.0.
 - USD : Updated to version 26.05.
 
-1.6.x.x (relative to 1.6.19.1)
+1.6.x.x (relative to 1.6.19.2)
 =======
 
 
+
+1.6.19.2 (relative to 1.6.19.1)
+========
+
+Fixes
+-----
+
+- Dispatcher :
+  - Fixed `Context has no variable named...` error when dispatching an isolated task with a `StringPlug` script variable containing a frame substitution.
+  - Fixed unnecessary baking of values for ScriptNode variables plugs without input connections.
+- RenderMan : Fixed handling of multiple intervals in `ri:checkpoint:interval` option. Intervals may be separated by spaces or commas.
 
 1.6.19.1 (relative to 1.6.19.0)
 ========

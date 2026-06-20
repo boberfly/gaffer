@@ -363,6 +363,7 @@ nodeMenu.append( "/Scene/Utility/Attribute Query", GafferScene.AttributeQuery, s
 nodeMenu.append( "/Scene/Utility/Set Query", GafferScene.SetQuery, searchText = "SetQuery" )
 nodeMenu.append( "/Scene/Utility/Shader Query", GafferScene.ShaderQuery, searchText = "ShaderQuery" )
 nodeMenu.append( "/Scene/Utility/Option Query", GafferScene.OptionQuery, searchText = "OptionQuery" )
+nodeMenu.append( "/Scene/Utility/Primitive Query", GafferScene.PrimitiveQuery, searchText = "PrimitiveQuery" )
 nodeMenu.append( "/Scene/Utility/Primitive Variable Query", GafferScene.PrimitiveVariableQuery, searchText = "PrimitiveVariableQuery" )
 nodeMenu.append( "/Scene/Utility/Camera Query", GafferScene.CameraQuery, searchText = "CameraQuery" )
 nodeMenu.append( "/Scene/Passes/Render Passes", GafferScene.RenderPasses, searchText = "RenderPasses" )
@@ -500,6 +501,7 @@ nodeMenu.append( "/VDB/Level Set Offset", GafferVDB.LevelSetOffset, searchText =
 nodeMenu.append( "/VDB/Points Grid To Points", GafferVDB.PointsGridToPoints, searchText = "PointsGridToPoints" )
 nodeMenu.append( "/VDB/Sphere Level Set", GafferVDB.SphereLevelSet, searchText="SphereLevelSet")
 nodeMenu.append( "/VDB/Volume Scatter", GafferVDB.VolumeScatter, searchText = "VolumeScatter" )
+nodeMenu.append( "/VDB/Delete Grids", GafferVDB.DeleteGrids, searchText = "DeleteGrids" )
 
 # USD nodes
 
@@ -564,6 +566,9 @@ nodeMenu.append( "/Dispatch/Task List", GafferDispatch.TaskList, searchText = "T
 nodeMenu.append( "/Dispatch/Wedge", GafferDispatch.Wedge )
 nodeMenu.append( "/Dispatch/Frame Mask", GafferDispatch.FrameMask, searchText = "FrameMask" )
 nodeMenu.append( "/Dispatch/Local Dispatcher", GafferDispatch.LocalDispatcher, searchText = "LocalDispatcher" )
+nodeMenu.append( "/Dispatch/Delete Files", GafferDispatch.DeleteFiles, searchText = "DeleteFiles" )
+nodeMenu.append( "/Dispatch/Copy Files", GafferDispatch.CopyFiles, searchText = "CopyFiles" )
+nodeMenu.append( "/Dispatch/Rename Files", GafferDispatch.RenameFiles, searchText = "RenameFiles" )
 
 # ML nodes
 
@@ -601,6 +606,7 @@ nodeMenu.append( "/Utility/Spreadsheet", Gaffer.Spreadsheet )
 nodeMenu.append( "/Utility/Context Query", Gaffer.ContextQuery, searchText = "ContextQuery" )
 nodeMenu.append( "/Utility/Collect", Gaffer.Collect )
 nodeMenu.append( "/Utility/Pattern Match", Gaffer.PatternMatch, searchText = "PatternMatch" )
+nodeMenu.append( "/Utility/File List", GafferDispatch.FileList, searchText = "FileList" )
 
 ## Miscellaneous UI
 ###########################################################################
@@ -615,6 +621,11 @@ with IECore.IgnoredExceptions( ImportError ) :
 	# to the menus.
 	GafferTractor.tractorAPI()
 	nodeMenu.append( "/Dispatch/Tractor Dispatcher", GafferTractor.TractorDispatcher, searchText = "TractorDispatcher" )
+
+import GafferFlamenco
+import GafferFlamencoUI
+
+nodeMenu.append( "/Dispatch/Flamenco Dispatcher", GafferFlamenco.FlamencoDispatcher, searchText = "FlamencoDispatcher" )
 
 GafferDispatchUI.DispatcherUI.appendMenuDefinitions( scriptWindowMenu, "/Tools/Dispatch" )
 

@@ -66,7 +66,7 @@ gafferMilestoneVersion = 1 # for announcing major milestones - may contain all o
 gafferMajorVersion = 7 # backwards-incompatible changes
 gafferMinorVersion = 0 # new backwards-compatible features
 gafferPatchVersion = 0 # bug fixes
-gafferVersionSuffix = "a1" # used for alpha/beta releases : "a1", "b2", etc.
+gafferVersionSuffix = "a3" # used for alpha/beta releases : "a1", "b2", etc.
 
 # All of the following must be considered when determining
 # whether or not a change is backwards-compatible
@@ -1098,6 +1098,7 @@ cyclesDefines = [
 ###############################################################################################
 
 usdPythonLib = basePythonEnv.subst( "boost_python$BOOST_PYTHON_LIB_SUFFIX" )
+usdLibs = []
 if env["GAFFERUSD"] :
 
 	pxrVersionHeader = baseLibEnv.FindFile(
@@ -1200,7 +1201,7 @@ libraries = {
 		"pythonEnvAppends" : {
 			"LIBS" : [ "GafferBindings", "GafferScene", "GafferDispatch", "GafferImage", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreScene$CORTEX_LIB_SUFFIX", "IECoreGL$CORTEX_LIB_SUFFIX" ],
 		},
-		"additionalFiles" : glob.glob( "glsl/*.frag" ) + glob.glob( "glsl/*.vert" ) + glob.glob( "include/GafferScene/Private/IECore*Preview/*.h" )
+		"additionalFiles" : glob.glob( "glsl/*.frag" ) + glob.glob( "glsl/*.vert" ) + glob.glob( "include/GafferScene/Private/IECore*Preview/*.h" ) + glob.glob( "include/GafferScene/Private/IECore*Preview/*.inl" )
 	},
 
 	"GafferSceneTest" : {
@@ -1572,6 +1573,16 @@ libraries = {
 	"GafferTractorUI" : {},
 
 	"GafferTractorUITest" : {},
+
+	"GafferFlamenco" : {
+		"additionalFiles" : [ "python/GafferFlamenco/gaffer.js" ],
+	},
+
+	"GafferFlamencoTest" : {},
+
+	"GafferFlamencoUI" : {},
+
+	"GafferFlamencoUITest" : {},
 
 	"GafferUSD" : {
 		"envAppends" : {
