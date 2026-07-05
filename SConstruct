@@ -586,6 +586,12 @@ if env["PLATFORM"] != "win32" :
 			SHLINKFLAGS = [ "-Wl,-fatal_warnings" ],
 		)
 
+	# Disable consteval for fmt
+	if env["CXXSTD"] == "c++20":
+		env.Append(
+			CXXFLAGS = [ "-DFMT_CONSTEVAL=" ]
+		)
+
 	# Address Sanitiser
 
 	if env["ASAN"] :

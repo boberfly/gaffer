@@ -275,13 +275,19 @@ struct NodeDeleter
 		void scheduleDeletion( ccl::Object *object )
 		{
 			std::lock_guard lock( m_mutex );
-			m_pendingObjectDeletions.insert( object );
+			if( object )
+			{
+				m_pendingObjectDeletions.insert( object );
+			}
 		}
 
 		void scheduleDeletion( ccl::Geometry *geometry )
 		{
 			std::lock_guard lock( m_mutex );
-			m_pendingGeometryDeletions.insert( geometry );
+			if( geometry )
+			{
+				m_pendingGeometryDeletions.insert( geometry );
+			}
 		}
 
 		ccl::Scene *m_scene;
@@ -733,6 +739,7 @@ IECore::InternedString g_deformationBlurSegmentsAttributeName( "deformationBlurS
 IECore::InternedString g_displayColorAttributeName( "render:displayColor" );
 IECore::InternedString g_lightAttributeName( "light" );
 IECore::InternedString g_muteLightAttributeName( "light:mute" );
+IECore::InternedString g_automaticInstancingAttributeName( "gaffer:automaticInstancing" );
 // Cycles Attributes
 IECore::InternedString g_cclVisibilityAttributeName( "cycles:visibility" );
 IECore::InternedString g_useHoldoutAttributeName( "cycles:use_holdout" );
@@ -870,12 +877,12 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 				m_isCausticsCaster( false ),
 				m_isCausticsReceiver( false )
 		{
-			updateVisibility( g_cameraVisibilityAttributeName,       (int)ccl::PATH_RAY_CAMERA,         attributes );
-			updateVisibility( g_diffuseVisibilityAttributeName,      (int)ccl::PATH_RAY_DIFFUSE,        attributes );
-			updateVisibility( g_glossyVisibilityAttributeName,       (int)ccl::PATH_RAY_GLOSSY,         attributes );
-			updateVisibility( g_transmissionVisibilityAttributeName, (int)ccl::PATH_RAY_TRANSMIT,       attributes );
-			updateVisibility( g_shadowVisibilityAttributeName,       (int)ccl::PATH_RAY_SHADOW,         attributes );
-			updateVisibility( g_scatterVisibilityAttributeName,      (int)ccl::PATH_RAY_VOLUME_SCATTER, attributes );
+			updateVisibility( g_cameraVisibilityAttributeName,       (int)ccl::PATH_RAY_VISIBILITY_CAMERA,         attributes );
+			updateVisibility( g_diffuseVisibilityAttributeName,      (int)ccl::PATH_RAY_VISIBILITY_DIFFUSE,        attributes );
+			updateVisibility( g_glossyVisibilityAttributeName,       (int)ccl::PATH_RAY_VISIBILITY_GLOSSY,         attributes );
+			updateVisibility( g_transmissionVisibilityAttributeName, (int)ccl::PATH_RAY_VISIBILITY_TRANSMIT,       attributes );
+			updateVisibility( g_shadowVisibilityAttributeName,       (int)ccl::PATH_RAY_VISIBILITY_SHADOW,         attributes );
+			updateVisibility( g_scatterVisibilityAttributeName,      (int)ccl::PATH_RAY_VISIBILITY_VOLUME_SCATTER, attributes );
 
 			m_useHoldout = attributeValue<bool>( g_useHoldoutAttributeName, attributes, m_useHoldout );
 			m_isShadowCatcher = attributeValue<bool>( g_isShadowCatcherAttributeName, attributes, m_isShadowCatcher );
@@ -889,6 +896,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			m_assetName = attributeValue<std::string>( g_cryptomatteAssetAttributeName, attributes, m_assetName );
 			m_isCausticsCaster = attributeValue<bool>( g_isCausticsCasterAttributeName, attributes, m_isCausticsCaster );
 			m_isCausticsReceiver = attributeValue<bool>( g_isCausticsReceiverAttributeName, attributes, m_isCausticsReceiver );
+			m_automaticInstancing = attributeValue<bool>( g_automaticInstancingAttributeName, attributes, true );
 
 			// Surface shader
 			const IECoreScene::ShaderNetwork *volumeShaderAttribute = attribute<IECoreScene::ShaderNetwork>( g_cyclesVolumeShaderAttributeName, attributes );
@@ -933,7 +941,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 				{
 					// If the light has been converted from a USD light, we override diffuse and glossy visibility
 					// based on the USD light's diffuse and specular parameters. See ShaderNetworkAlgo::transferUSDLightParameters()
-					constexpr int rayMask = (int)( ccl::PATH_RAY_DIFFUSE | ccl::PATH_RAY_GLOSSY );
+					constexpr int rayMask = (int)( ccl::PATH_RAY_VISIBILITY_DIFFUSE | ccl::PATH_RAY_VISIBILITY_GLOSSY );
 					m_visibility = ( m_visibility & ~rayMask ) | ( rayVisibility->readable() & rayMask );
 				}
 			}
@@ -962,7 +970,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			for( const auto &attr : customMap )
 			{
 				ccl::ParamValue paramValue = SocketAlgo::setParamValue( attr.first, attr.second.get() );
-				if( paramValue.data() )
+				if( paramValue.nvalues() == 1 )
 				{
 					m_custom.push_back( paramValue );
 				}
@@ -1044,6 +1052,14 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 						return false;
 					}
 				}
+				else if( object->get_geometry()->is_light() && m_lightAttribute )
+				{
+					auto light = static_cast<ccl::Light *>( object->get_geometry() );
+					if( !ShaderNetworkAlgo::compatibleLightType( m_lightAttribute.get(), light ) )
+					{
+						return false;
+					}
+				}
 			}
 
 			object->set_visibility( m_visibility );
@@ -1069,10 +1085,11 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 			}
 			else if( object->get_geometry()->is_light() )
 			{
-				auto light = static_cast<ccl::Light *>( object->get_geometry() );
+				ccl::Light *light = static_cast<ccl::Light *>( object->get_geometry() );
 				if( m_lightAttribute )
 				{
-					ShaderNetworkAlgo::convertLight( m_lightAttribute.get(), light );
+					light->set_is_enabled( !m_muteLight );
+					light = ShaderNetworkAlgo::convertLight( m_lightAttribute.get(), scene, light );
 					ccl::array<ccl::Node *> shaders;
 					shaders.push_back_slow( m_lightShader->shader() );
 					{
@@ -1081,8 +1098,6 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 						std::scoped_lock sceneLock( scene->mutex );
 						light->set_used_shaders( shaders );
 					}
-
-					light->set_is_enabled( !m_muteLight );
 				}
 				else
 				{
@@ -1161,7 +1176,8 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 		void hashGeometry( const IECore::Object *object, IECore::MurmurHash &h ) const
 		{
 			// Currently Cycles can only have a shader assigned uniquely and not instanced...
-			//h.append( m_shaderHash );
+			h.append( m_shaderHash );
+			h.append( m_automaticInstancing );
 			const IECore::TypeId objectType = object->typeId();
 			switch( (int)objectType )
 			{
@@ -1185,6 +1201,10 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 		// Returns true if the given geometry can be instanced.
 		bool canInstanceGeometry( const IECore::Object *object ) const
 		{
+			if( !m_automaticInstancing )
+			{
+				return false;
+			}
 			if( !IECore::runTimeCast<const IECoreScene::VisibleRenderable>( object ) )
 			{
 				return false;
@@ -1213,6 +1233,11 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 		float getVolumeClipping() const
 		{
 			return m_volume.clipping ? m_volume.clipping.value() : 0.001f;
+		}
+
+		const IECoreScene::ShaderNetwork *getLightAttribute() const
+		{
+			return m_lightAttribute.get();
 		}
 
 	private :
@@ -1367,6 +1392,7 @@ class CyclesAttributes : public IECoreScenePreview::Renderer::AttributesInterfac
 		bool m_isCausticsCaster;
 		bool m_isCausticsReceiver;
 		bool m_muteLight;
+		bool m_automaticInstancing;
 
 		using CustomAttributes = ccl::vector<ccl::ParamValue>;
 		CustomAttributes m_custom;
@@ -1698,23 +1724,6 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 		{
 			ccl::array<ccl::Transform> motion;
 			ccl::Geometry *geo = m_object->get_geometry();
-			if( geo->get_use_motion_blur() && geo->get_motion_steps() != samples.size() )
-			{
-				IECore::msg(
-					IECore::Msg::Error, "IECoreCycles::Renderer",
-					fmt::format( "Transform step size on \"{}\" must match deformation step size.", m_object->name.c_str() )
-				);
-				m_object->set_tfm( SocketAlgo::setTransform( samples.front() ) );
-				motion.resize( geo->get_motion_steps(), ccl::transform_empty() );
-				for( size_t i = 0; i < motion.size(); ++i )
-				{
-					motion[i] = m_object->get_tfm();
-					m_object->set_motion( motion );
-				}
-				SceneAlgo::tagUpdateWithLock( m_object.get(), m_scene );
-				return;
-			}
-
 			const size_t numSamples = samples.size();
 
 			if( numSamples == 1 )
@@ -1796,17 +1805,11 @@ class CyclesObject : public IECoreScenePreview::Renderer::ObjectInterface
 			}
 
 			m_object->set_motion( motion );
-			if( !geo->get_use_motion_blur() )
-			{
-				/// \todo This is not thread-safe, nor is it compatible
-				/// with instancing.
-				geo->set_motion_steps( motion.size() );
-			}
 
 			if( geo->is_mesh() )
 			{
 				auto mesh = static_cast<ccl::Mesh *>( geo );
-				if( mesh->get_num_subd_faces() )
+				if( mesh->get_subdivision_type() != ccl::Mesh::SUBDIVISION_NONE )
 				{
 					mesh->set_subd_objecttoworld( m_object->get_tfm() );
 				}
@@ -1866,8 +1869,8 @@ class CyclesLight : public IECoreScenePreview::Renderer::ObjectInterface
 
 	public :
 
-		CyclesLight( ccl::Scene *scene, const std::string &name, NodeDeleter *nodeDeleter )
-			:	m_scene( scene ), m_light( SceneAlgo::createNodeWithLock<ccl::Light>( scene ), NodeDeleter::GeometryDeleter( nodeDeleter ) ), m_object( SceneAlgo::createNodeWithLock<ccl::Object>( scene ), NodeDeleter::ObjectDeleter( nodeDeleter ) )
+		CyclesLight( ccl::Scene *scene, const IECoreScene::ShaderNetwork *lightShader, const std::string &name, NodeDeleter *nodeDeleter )
+			:	m_scene( scene ), m_light( ShaderNetworkAlgo::convertLight( lightShader, scene ), NodeDeleter::GeometryDeleter( nodeDeleter ) ), m_object( SceneAlgo::createNodeWithLock<ccl::Object>( scene ), NodeDeleter::ObjectDeleter( nodeDeleter ) )
 		{
 			m_object->set_geometry( m_light.get() );
 			m_object->set_random_id( std::hash<string>()( name ) );
@@ -1899,7 +1902,7 @@ class CyclesLight : public IECoreScenePreview::Renderer::ObjectInterface
 			///   DomeLights correct - see ShaderNetworkAlgo.
 			/// - The light shader was created via `ShaderCache::get()`, and could therefore be shared
 			///   between several lights, so we're not at liberty to clobber the shader anyway.
-			if( m_light->get_light_type() == ccl::LIGHT_BACKGROUND && m_light->get_used_shaders().size() != 0 )
+			if( m_light->is_background_light() && m_light->get_used_shaders().size() != 0 )
 			{
 				ccl::Shader *shader = (ccl::Shader*)m_light->get_used_shaders()[0];
 				for( ccl::ShaderNode *node : shader->graph->nodes )
@@ -2424,25 +2427,38 @@ IECore::InternedString g_numBvhTimeStepsOptionName( "cycles:scene:num_bvh_time_s
 IECore::InternedString g_hairSubdivisionsOptionName( "cycles:scene:hair_subdivisions" );
 IECore::InternedString g_hairShapeOptionName( "cycles:scene:hair_shape" );
 IECore::InternedString g_textureLimitOptionName( "cycles:scene:texture_limit" );
+#if ( CYCLES_VERSION_MAJOR * 10000 + CYCLES_VERSION_MINOR * 100 + CYCLES_VERSION_PATCH >= 50200 )
+IECore::InternedString g_textureResolutionOptionName( "cycles:scene:texture_resolution" );
+IECore::InternedString g_useTextureCacheOptionName( "cycles:scene:use_texture_cache" );
+IECore::InternedString g_autoTextureCacheOptionName( "cycles:scene:auto_texture_cache" );
+IECore::InternedString g_textureCachePathOptionName( "cycles:scene:texture_cache_path" );
+#endif
 // Background shader
 IECore::InternedString g_backgroundShaderOptionName( "cycles:background:shader" );
 // Integrator
 IECore::InternedString g_seedOptionName( "cycles:integrator:seed" );
 IECore::InternedString g_denoiserTypeOptionName( "cycles:integrator:denoiser_type" );
 
-const boost::container::flat_map<std::string, ccl::PathRayFlag> g_rayTypes = {
-	{ "camera", ccl::PATH_RAY_CAMERA },
-	{ "diffuse", ccl::PATH_RAY_DIFFUSE },
-	{ "glossy", ccl::PATH_RAY_GLOSSY },
-	{ "transmission", ccl::PATH_RAY_TRANSMIT },
-	{ "shadow", ccl::PATH_RAY_SHADOW },
-	{ "scatter", ccl::PATH_RAY_VOLUME_SCATTER }
+const boost::container::flat_map<std::string, ccl::PathRayVisibilityFlag> g_rayTypes = {
+	{ "camera", ccl::PATH_RAY_VISIBILITY_CAMERA },
+	{ "diffuse", ccl::PATH_RAY_VISIBILITY_DIFFUSE },
+	{ "glossy", ccl::PATH_RAY_VISIBILITY_GLOSSY },
+	{ "transmission", ccl::PATH_RAY_VISIBILITY_TRANSMIT },
+	{ "shadow", ccl::PATH_RAY_VISIBILITY_SHADOW },
+	{ "scatter", ccl::PATH_RAY_VISIBILITY_VOLUME_SCATTER }
 };
 
 const boost::container::flat_map<int, ccl::LogLevel> g_logLevels = {
-	{ 0, ccl::LOG_LEVEL_ERROR },
-	{ 1, ccl::LOG_LEVEL_WARNING },
-	{ 2, ccl::LOG_LEVEL_INFO }
+	{ 0, ccl::LOG_LEVEL_FATAL },
+	{ 1, ccl::LOG_LEVEL_DFATAL },
+	{ 2, ccl::LOG_LEVEL_ERROR },
+	{ 3, ccl::LOG_LEVEL_DERROR },
+	{ 4, ccl::LOG_LEVEL_WARNING },
+	{ 5, ccl::LOG_LEVEL_DWARNING },
+	{ 6, ccl::LOG_LEVEL_INFO_IMPORTANT },
+	{ 7, ccl::LOG_LEVEL_INFO },
+	{ 8, ccl::LOG_LEVEL_DEBUG },
+	{ 9, ccl::LOG_LEVEL_TRACE }
 };
 
 // Dicing camera
@@ -2557,7 +2573,12 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			const IECore::MessageHandler::Scope s( m_messageHandler.get() );
 			acquireSession();
 
-			ObjectInterfacePtr result = new CyclesLight( m_scene, name, m_nodeDeleter.get() );
+			const CyclesAttributes *cyclesAttributes = static_cast<const CyclesAttributes *>( attributes );
+			if( !cyclesAttributes->getLightAttribute() )
+			{
+				return nullptr;
+			}
+			ObjectInterfacePtr result = new CyclesLight( m_scene, cyclesAttributes->getLightAttribute(), name, m_nodeDeleter.get() );
 			result->attributes( attributes );
 			return result;
 		}
@@ -2750,7 +2771,14 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 			params.use_bvh_unaligned_nodes = optionValue<bool>( g_useBvhUnalignedNodesOptionName, params.use_bvh_unaligned_nodes, modified );
 			params.num_bvh_time_steps = optionValue<int>( g_numBvhTimeStepsOptionName, params.num_bvh_time_steps, modified );
 			params.hair_subdivisions = optionValue<int>( g_hairSubdivisionsOptionName, params.hair_subdivisions, modified );
-			params.texture_limit = optionValue<int>( g_textureLimitOptionName, params.texture_limit, modified );
+			const int texture_limit = optionValue<int>( g_textureLimitOptionName, params.texture_limit, modified );
+			params.texture_limit = (texture_limit > 0) ? (1 << (texture_limit + 6)) : 0;
+#if ( CYCLES_VERSION_MAJOR * 10000 + CYCLES_VERSION_MINOR * 100 + CYCLES_VERSION_PATCH >= 50200 )
+			params.texture_resolution = optionValue<float>( g_textureResolutionOptionName, params.texture_resolution, modified );
+			params.use_texture_cache = optionValue<bool>( g_useTextureCacheOptionName, params.use_texture_cache, modified );
+			params.auto_texture_cache = optionValue<bool>( g_autoTextureCacheOptionName, params.auto_texture_cache, modified );
+			params.texture_cache_path = optionValue<string>( g_textureCachePathOptionName, params.texture_cache_path, modified );
+#endif
 			params.shadingsystem = nameToShadingSystemEnum( optionValue<string>( g_shadingsystemOptionName, "OSL", modified ) );
 			return params;
 		}
@@ -2889,7 +2917,7 @@ class CyclesRenderer final : public IECoreScenePreview::Renderer
 				it->second.modified = false;
 			}
 
-			uint32_t backgroundVisibility = ccl::PATH_RAY_ALL_VISIBILITY;
+			uint32_t backgroundVisibility = ccl::PATH_RAY_VISIBILITY_ALL;
 			for( const auto &[name, rayType] : g_rayTypes )
 			{
 				if( !optionValue<bool>( "cycles:background:visibility:" + name, true ) )
