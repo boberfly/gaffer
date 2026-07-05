@@ -39,6 +39,7 @@
 #include "GafferOSL/OSLShader.h"
 
 #include "Gaffer/Context.h"
+#include "Gaffer/Private/IECorePreview/LRUCache.h"
 
 #include "IECoreScene/ShaderNetworkAlgo.h"
 
@@ -53,6 +54,7 @@
 #include "OSL/oslclosure.h"
 #include "OSL/oslconfig.h"
 #include "OSL/oslexec.h"
+#include "OSL/oslquery.h"
 #include "OSL/oslversion.h"
 #include "OSL/rendererservices.h"
 
@@ -62,6 +64,7 @@
 #include "OSL/wide.h"
 #endif
 
+#include "OpenImageIO/imagecache.h"
 #include "OpenImageIO/ustring.h"
 #include "OpenImageIO/version.h"
 
@@ -309,7 +312,7 @@ bool convertValueToOSL( void *dst, TypeDesc dstType, const void *src, TypeDesc s
 		{
 			return true;
 		}
-#if OSL_LIBRARY_VERSION_CODE >= 11400
+
 		if( g_shadingSystemBatchSize > 1 )
 		{
 			*(ustring *)dst = *(const char**)src;
@@ -318,9 +321,7 @@ bool convertValueToOSL( void *dst, TypeDesc dstType, const void *src, TypeDesc s
 		{
 			*(ustringhash *)dst = ustringhash( *(const char**)src );
 		}
-#else
-		*(ustring *)dst = *(const char**)src;
-#endif
+
 		return true;
 	}
 
@@ -414,13 +415,7 @@ struct PointCloud
 
 	}
 
-#if OSL_LIBRARY_VERSION_CODE >= 11400
-		using PointIndex = int;
-#else
-		using PointIndex = size_t;
-#endif
-
-	int search( const OSL::Vec3 &center, float radius, int maxPoints, PointIndex *outIndices, float *outDistances ) const
+	int search( const OSL::Vec3 &center, float radius, int maxPoints, int *outIndices, float *outDistances ) const
 	{
 		vector<IECore::V3fTree::Neighbour> neighbours;
 		neighbours.reserve( maxPoints );
@@ -465,14 +460,13 @@ struct PointCloud
 		return it != m_attributes.end() ? &it->second : nullptr;
 	}
 
-	int get( const Attribute &attribute, PointIndex index, TypeDesc outType, void *outData ) const
+	int get( const Attribute &attribute, int index, TypeDesc outType, void *outData ) const
 	{
-#if OSL_LIBRARY_VERSION_CODE >= 11400
 		if( index < 0 )
 		{
 			return 0;
 		}
-#endif
+
 		if( (size_t)index >= m_size )
 		{
 			return 0;
@@ -827,7 +821,7 @@ class GafferBatchedRendererServices : public OSL::BatchedRendererServices<WidthT
 				return;
 			}
 
-			vector<PointCloud::PointIndex> tmpIndices( maxPoints ); tmpIndices.resize( maxPoints );
+			vector<int> tmpIndices( maxPoints ); tmpIndices.resize( maxPoints );
 			vector<float> tmpDistances( maxPoints ); tmpDistances.resize( maxPoints );
 
 			auto wideIndices = results.windices();
@@ -1130,7 +1124,7 @@ class RendererServices : public OSL::RendererServices
 
 		int pointcloud_search(
 			ShaderGlobals *sg, ustringhash filename, const OSL::Vec3 &center, float radius, int maxPoints,
-			bool sort, PointCloud::PointIndex *outIndices, float *outDistances,
+			bool sort, int *outIndices, float *outDistances,
 			int derivsOffset
 		) override
 		{
@@ -1170,14 +1164,8 @@ class RendererServices : public OSL::RendererServices
 			return numPoints;
 		}
 
-#if OSL_LIBRARY_VERSION_CODE >= 11400
-		using ConstPointIndex = const PointCloud::PointIndex;
-#else
-		using ConstPointIndex = PointCloud::PointIndex;
-#endif
-
 		int pointcloud_get(
-			ShaderGlobals *sg, ustringhash filename, ConstPointIndex *indices, int count,
+			ShaderGlobals *sg, ustringhash filename, const int *indices, int count,
 			ustringhash attrName, TypeDesc attrType,
 			void *outData
 		) override
@@ -1254,8 +1242,6 @@ struct EmissionParameters
 struct StringParameter
 {
 
-#if OSL_LIBRARY_VERSION_CODE >= 11400
-
 	static_assert( sizeof( ustring ) == sizeof( ustringhash ) );
 #if OIIO_VERSION >= 30000
 	static_assert( is_trivially_copyable_v<ustring> );
@@ -1283,14 +1269,6 @@ struct StringParameter
 	// We just use bytes for storage so we can deal with both cases.
 	std::byte storage[sizeof(ustring)];
 
-#else
-
-	ustring asUString() const { return string; }
-	ustring string;
-
-#endif
-
-
 };
 
 struct DebugParameters
@@ -1310,39 +1288,36 @@ struct DebugParameters
 using ShadingSystemWriteMutex = tbb::spin_mutex;
 ShadingSystemWriteMutex g_shadingSystemWriteMutex;
 
-OSL::ShadingSystem *shadingSystem( int *batchSize = nullptr )
+OSL::ShadingSystem *acquireShadingSystem( ShadingEngine::TextureOrigin textureOrigin, int *batchSize = nullptr )
 {
 	ShadingSystemWriteMutex::scoped_lock shadingSystemWriteLock( g_shadingSystemWriteMutex );
-#if OIIO_VERSION >= 30000
-	static std::shared_ptr<OSL::TextureSystem> g_textureSystem = nullptr;
-#else
-	static OSL::TextureSystem *g_textureSystem = nullptr;
-#endif
-	static OSL::ShadingSystem *g_shadingSystem = nullptr;
+	// One for each value of TextureOrigin.
+	static std::array<std::shared_ptr<OIIO::TextureSystem>, 2> g_textureSystems;
+	static std::array<OSL::ShadingSystem *, 2> g_shadingSystems = { nullptr, nullptr };
 
-	if( g_shadingSystem )
+	OSL::ShadingSystem *&shadingSystem = g_shadingSystems[(int)textureOrigin];
+
+	if( shadingSystem )
 	{
 		if( batchSize )
 		{
 			*batchSize = g_shadingSystemBatchSize;
 		}
-		return g_shadingSystem;
+		return shadingSystem;
 	}
 
-	g_textureSystem = OIIO::TextureSystem::create( /* shared = */ false );
-	// By default, OIIO considers the image origin to be at the
-	// top left. We consider it to be at the bottom left.
-	// Compensate.
-	g_textureSystem->attribute( "flip_t", 1 );
+	// One ImageCache, not shared with the outside world, but shared by both `TextureOrigin::Bottom`
+	// and `TextureOrigin::Top`.
+	static std::shared_ptr<OIIO::ImageCache> g_imageCache = OIIO::ImageCache::create( /* shared = */ false );
+	std::shared_ptr<OIIO::TextureSystem> &textureSystem = g_textureSystems[(int)textureOrigin];
 
-	g_shadingSystem = new ShadingSystem(
-#if OIIO_VERSION >= 30000
-		new RendererServices( g_textureSystem.get() ),
-		g_textureSystem.get()
-#else
-		new RendererServices( g_textureSystem ),
-		g_textureSystem
-#endif
+	textureSystem = OIIO::TextureSystem::create( /* shared = */ false, g_imageCache );
+	// By default, OIIO considers the image origin to be at the top left.
+	textureSystem->attribute( "flip_t", textureOrigin == ShadingEngine::TextureOrigin::Bottom ? 1 : 0 );
+
+	shadingSystem = new ShadingSystem(
+		new RendererServices( textureSystem.get() ),
+		textureSystem.get()
 	);
 
 	ClosureParam emissionParams[] = {
@@ -1359,7 +1334,7 @@ OSL::ShadingSystem *shadingSystem( int *batchSize = nullptr )
 		CLOSURE_FINISH_PARAM( DebugParameters )
 	};
 
-	g_shadingSystem->register_closure(
+	shadingSystem->register_closure(
 		/* name */ "emission",
 		/* id */ EmissionClosureId,
 		/* params */ emissionParams,
@@ -1367,7 +1342,7 @@ OSL::ShadingSystem *shadingSystem( int *batchSize = nullptr )
 		/* setup */ nullptr
 	);
 
-	g_shadingSystem->register_closure(
+	shadingSystem->register_closure(
 		/* name */ "debug",
 		/* id */ DebugClosureId,
 		/* params */ debugParams,
@@ -1375,7 +1350,7 @@ OSL::ShadingSystem *shadingSystem( int *batchSize = nullptr )
 		/* setup */ nullptr
 	);
 
-	g_shadingSystem->register_closure(
+	shadingSystem->register_closure(
 		/* name */ "deformation",
 		/* id */ DeformationClosureId,
 		/* params */ debugParams,
@@ -1385,21 +1360,21 @@ OSL::ShadingSystem *shadingSystem( int *batchSize = nullptr )
 
 	if( const char *searchPath = getenv( "OSL_SHADER_PATHS" ) )
 	{
-		g_shadingSystem->attribute( "searchpath:shader", searchPath );
+		shadingSystem->attribute( "searchpath:shader", searchPath );
 	}
 
 	if( const char *oslHome = getenv( "OSLHOME" ) )
 	{
-		g_shadingSystem->attribute( "searchpath:library", ( std::filesystem::path( oslHome ) / "lib" ).string() );
+		shadingSystem->attribute( "searchpath:library", ( std::filesystem::path( oslHome ) / "lib" ).string() );
 	}
 	else
 	{
 		msg( Msg::Warning, "ShadingEngine", "Please set OSLHOME env var to allow finding OSL libraries." );
 	}
 
-	g_shadingSystem->attribute( "lockgeom", 1 );
+	shadingSystem->attribute( "lockgeom", 1 );
 
-	g_shadingSystem->attribute( "commonspace", "object" );
+	shadingSystem->attribute( "commonspace", "object" );
 
 	g_shadingSystemBatchSize = 1;
 
@@ -1420,11 +1395,11 @@ OSL::ShadingSystem *shadingSystem( int *batchSize = nullptr )
 	// farm ... getting a subtle flicker because frames that hit out of date farm blades
 	// render ever-so-slightly darker is not much fun.
 
-	if( requestBatch && g_shadingSystem->configure_batch_execution_at( 16 ) )
+	if( requestBatch && shadingSystem->configure_batch_execution_at( 16 ) )
 	{
 		g_shadingSystemBatchSize = 16;
 	}
-	else if( requestBatch && g_shadingSystem->configure_batch_execution_at( 8 ) )
+	else if( requestBatch && shadingSystem->configure_batch_execution_at( 8 ) )
 	{
 		g_shadingSystemBatchSize = 8;
 	}
@@ -1440,9 +1415,9 @@ OSL::ShadingSystem *shadingSystem( int *batchSize = nullptr )
 	else
 	{
 		ustring llvm_jit_target;
-		g_shadingSystem->getattribute("llvm_jit_target", llvm_jit_target);
+		shadingSystem->getattribute("llvm_jit_target", llvm_jit_target);
 		int llvm_jit_fma;
-		g_shadingSystem->getattribute("llvm_jit_fma", llvm_jit_fma);
+		shadingSystem->getattribute("llvm_jit_fma", llvm_jit_fma);
 
 		msg( Msg::Info, "ShadingEngine", fmt::format( "Initialized shading system with support for {}-wide batched shading. Architecture: {}, Fused-Multiply-Add: {}", g_shadingSystemBatchSize, llvm_jit_target.string(), llvm_jit_fma ? "Enabled" : "Disabled" ) );
 	}
@@ -1452,7 +1427,7 @@ OSL::ShadingSystem *shadingSystem( int *batchSize = nullptr )
 	{
 		*batchSize = g_shadingSystemBatchSize;
 	}
-	return g_shadingSystem;
+	return shadingSystem;
 }
 
 } // namespace
@@ -1664,21 +1639,27 @@ class ShadingResults
 // and the OSL machinery that needs to be stored per "renderer-thread"
 struct ThreadInfo
 {
-	ThreadInfo() :
-		oslThreadInfo( ::shadingSystem()->create_thread_info() ),
-		shadingContext( ::shadingSystem()->get_context( oslThreadInfo ) )
+	ThreadInfo( OSL::ShadingSystem *shadingSystem ) :
+		oslThreadInfo( shadingSystem->create_thread_info() ),
+		shadingContext( shadingSystem->get_context( oslThreadInfo ) ),
+		m_shadingSystem( shadingSystem )
 	{
 	}
 
 	~ThreadInfo()
 	{
-		::shadingSystem()->release_context( shadingContext );
-		::shadingSystem()->destroy_thread_info( oslThreadInfo );
+		m_shadingSystem->release_context( shadingContext );
+		m_shadingSystem->destroy_thread_info( oslThreadInfo );
 	}
 
 	ShadingResults::DebugResultsMap debugResults;
 	OSL::PerThreadInfo *oslThreadInfo;
 	OSL::ShadingContext *shadingContext;
+
+	private :
+
+		OSL::ShadingSystem *m_shadingSystem;
+
 };
 
 
@@ -1746,19 +1727,35 @@ const T *varyingValue( const IECore::CompoundData *points, const char *name )
 	}
 }
 
+bool shaderExists( const IECoreScene::Shader *shader )
+{
+	using ExistenceCache = IECorePreview::LRUCache<string, bool>;
+	static ExistenceCache g_existenceCache(
+		[] ( const std::string &shaderName, size_t &cost, const IECore::Canceller *canceller )
+		{
+			const char *searchPath = getenv( "OSL_SHADER_PATHS" );
+			OSL::OSLQuery query;
+			return query.open( shaderName, searchPath ? searchPath : "" );
+		},
+		10000
+	);
+
+	return g_existenceCache.get( shader->getName() );
+}
+
 } // namespace
 
-ShadingEngine::ShadingEngine( const IECoreScene::ShaderNetwork *shaderNetwork ) : ShadingEngine( shaderNetwork->copy() )
+ShadingEngine::ShadingEngine( const IECoreScene::ShaderNetwork *shaderNetwork, TextureOrigin textureOrigin )
+	:	ShadingEngine( shaderNetwork->copy(), textureOrigin )
 {
 }
 
-
-ShadingEngine::ShadingEngine( IECoreScene::ShaderNetworkPtr &&shaderNetwork )
-	:	m_hash( shaderNetwork->Object::hash() ), m_timeNeeded( false ), m_unknownAttributesNeeded( false ), m_hasDeformation( false )
+ShadingEngine::ShadingEngine( IECoreScene::ShaderNetworkPtr &&shaderNetwork, TextureOrigin textureOrigin )
+	:	m_textureOrigin( textureOrigin ), m_hash( shaderNetwork->Object::hash() ), m_timeNeeded( false ), m_unknownAttributesNeeded( false ), m_hasDeformation( false )
 {
 	IECoreScene::ShaderNetworkAlgo::convertToOSLConventions( shaderNetwork.get(), OSL_VERSION );
 
-	ShadingSystem *shadingSystem = ::shadingSystem();
+	ShadingSystem *shadingSystem = acquireShadingSystem( textureOrigin );
 
 	{
 		ShadingSystemWriteMutex::scoped_lock shadingSystemWriteLock( g_shadingSystemWriteMutex );
@@ -1774,9 +1771,9 @@ ShadingEngine::ShadingEngine( IECoreScene::ShaderNetworkPtr &&shaderNetwork )
 				// full list of invalid shaders.
 
 				const Shader *shader = shaderNetwork->getShader( handle );
-				if( !boost::starts_with( shader->getType(), "osl:" ) )
+				if( !shaderExists( shader ) )
 				{
-					invalidShaders.push_back( shader->getName() + " (" + shader->getType() + ")" );
+					invalidShaders.push_back( shader->getName() );
 				}
 
 				if( invalidShaders.size() )
@@ -1813,7 +1810,7 @@ ShadingEngine::ShadingEngine( IECoreScene::ShaderNetworkPtr &&shaderNetwork )
 
 void ShadingEngine::queryShaderGroup()
 {
-	ShadingSystem *shadingSystem = ::shadingSystem();
+	ShadingSystem *shadingSystem = acquireShadingSystem( m_textureOrigin );
 	ShaderGroup &shaderGroup = **static_cast<ShaderGroupRef *>( m_shaderGroupRef );
 
 	// Globals
@@ -1916,6 +1913,11 @@ namespace
 
 struct ExecuteShadeParameters
 {
+	ExecuteShadeParameters( OSL::ShadingSystem *shadingSystem )
+		:	threadInfoCache( shadingSystem )
+	{
+	}
+
 	ShaderGlobals shaderGlobals;
 
 	const IECore::Canceller *canceller;
@@ -2118,9 +2120,9 @@ IECore::CompoundDataPtr ShadingEngine::shade( const IECore::CompoundData *points
 {
 	ShaderGroup &shaderGroup = **static_cast<ShaderGroupRef *>( m_shaderGroupRef );
 
-	ExecuteShadeParameters shadeParameters;
 	int batchSize;
-	ShadingSystem *shadingSystem = ::shadingSystem( &batchSize );
+	ShadingSystem *shadingSystem = ::acquireShadingSystem( m_textureOrigin, &batchSize );
+	ExecuteShadeParameters shadeParameters( shadingSystem );
 
 	const Gaffer::Context *context = Gaffer::Context::current();
 	shadeParameters.canceller = context->canceller();

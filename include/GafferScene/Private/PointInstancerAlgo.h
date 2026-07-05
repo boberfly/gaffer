@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2014, Image Engine Design Inc. All rights reserved.
+//  Copyright (c) 2026, Cinesite VFX Ltd. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -36,46 +36,26 @@
 
 #pragma once
 
-namespace GafferUIBindings
+#include "GafferScene/ScenePlug.h"
+#include "GafferScene/Private/RendererAlgo.h"
+
+#include "IECoreScene/PointInstancer.h"
+
+/// Utilities to aid in rendering PointInstancers.
+namespace GafferScene::Private::PointInstancerAlgo
 {
 
-namespace Detail
-{
+/// Returns a combined `SceneAlgo::hierarchyHash()` of all prototypes referenced by any PointInstancer
+/// at the current location. If there is no PointInstancer, returns an empty hash.
+GAFFERSCENE_API IECore::MurmurHash prototypesHash( const ScenePlug *scene );
 
-template<typename T>
-GafferUI::NodulePtr nodule( T &p, const Gaffer::Plug *plug )
-{
-	return p.T::nodule( plug );
-}
+/// Generates the list of `Renderer::Prototypes` ready for passing to `Renderer::pointInstancer()`.
+GAFFERSCENE_API std::vector<IECoreScenePreview::Renderer::Prototype> prototypes( const IECoreScene::PointInstancer *instancer, const RendererAlgo::RenderOptions &renderOptions, const ScenePlug *scene, IECoreScenePreview::Renderer *renderer );
 
-template<typename T>
-Imath::V3f connectionTangent( T &p, const GafferUI::ConnectionCreator *creator )
-{
-	return p.T::connectionTangent( creator );
-}
+/// Flattens a PointInstancer so that it refers only to leaf-level locations. Adds additional points
+/// as necessary whenever an input prototype contains multiple leaf locations. Also transfers transforms
+/// from the prototypes onto the points, so we don't need to pass prototype transforms to the Renderer.
+/// Omits invisible points, since there is no point passing them to the renderer.
+GAFFERSCENE_API IECoreScene::PointInstancerPtr flatten( const IECoreScene::PointInstancer *instancer, const RendererAlgo::RenderOptions &renderOptions, const ScenePlug *scene );
 
-GAFFERUIBINDINGS_API PyTypeObject *nodeGadgetMetaclass();
-
-} // namespace Detail
-
-// Override to prevent the default implementation emitting
-// `instanceCreatedSignal()` for wrapped instances. This allows
-// us to emit the signal ourselves from our custom metaclass, only
-// after the Python subclass is fully constructed.
-template<typename T>
-inline void intrusive_ptr_add_ref( NodeGadgetWrapper<T> *nodeGadget )
-{
-	nodeGadget->addRef();
-}
-
-template<typename T, typename TWrapper>
-NodeGadgetClass<T, TWrapper>::NodeGadgetClass( const char *docString )
-	:	GadgetClass<T, TWrapper>( docString )
-{
-	this->def( "nodule", &Detail::nodule<T> );
-	this->def( "connectionTangent", &Detail::connectionTangent<T> );
-	// Install our custom metaclass.
-	Py_SET_TYPE( this->ptr(), Detail::nodeGadgetMetaclass() );
-}
-
-} // namespace GafferUIBindings
+} // namespace GafferScene::Private::PointInstancerAlgo

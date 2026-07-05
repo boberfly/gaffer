@@ -646,7 +646,7 @@ class ShadingEngineTest( GafferOSLTest.OSLTestCase ) :
 				output = "output"
 			) )
 
-		self.assertEqual( str(engineError.exception), "The following shaders can't be used as they are not OSL shaders: aiImage (shader), aiImage (shader)" )
+		self.assertEqual( str(engineError.exception), "The following shaders can't be used as they are not OSL shaders: aiImage, aiImage" )
 
 	def testReadV2fUserData( self ) :
 
@@ -719,19 +719,25 @@ class ShadingEngineTest( GafferOSLTest.OSLTestCase ) :
 
 	def testTextureOrientation( self ) :
 
-		s = self.compileShader( pathlib.Path( __file__ ).parent / "shaders" / "uvTextureMap.osl" )
-		e = GafferOSL.ShadingEngine( IECoreScene.ShaderNetwork(
+		shader = self.compileShader( pathlib.Path( __file__ ).parent / "shaders" / "uvTextureMap.osl" )
+		shaderNetwork = IECoreScene.ShaderNetwork(
 			shaders = {
-				"output" : IECoreScene.Shader( s, "osl:surface", { "fileName" : ( pathlib.Path( __file__ ).parent / "images" / "vRamp.tx" ).as_posix() } )
+				"output" : IECoreScene.Shader( shader, "osl:surface", { "fileName" : ( pathlib.Path( __file__ ).parent / "images" / "vRamp.tx" ).as_posix() } )
 			},
 			output = "output"
-		) )
+		)
 
-		p = self.rectanglePoints()
-		r = e.shade( p )
+		for origin in ( GafferOSL.ShadingEngine.TextureOrigin.values.values() ) :
 
-		for i, c in enumerate( r["Ci"] ) :
-			self.assertAlmostEqual( c[1], p["v"][i], delta = 0.02 )
+			engine = GafferOSL.ShadingEngine( shaderNetwork, origin )
+			points = self.rectanglePoints()
+			result = engine.shade( points )
+
+			for i, c in enumerate( result["Ci"] ) :
+				if origin == GafferOSL.ShadingEngine.TextureOrigin.Bottom :
+					self.assertAlmostEqual( c[1], points["v"][i], delta = 0.02 )
+				else :
+					self.assertAlmostEqual( c[1], 1.0 - points["v"][i], delta = 0.02 )
 
 	def testDerivatives( self ) :
 
@@ -1232,6 +1238,20 @@ class ShadingEngineTest( GafferOSLTest.OSLTestCase ) :
 
 			self.assertEqual( len( results["Ci"] ), 1 )
 			self.assertEqual( results["Ci"][0][0], 0 )
+
+	def testShaderTypeNotNeeded( self ) :
+
+		shader = self.compileShader( pathlib.Path( __file__ ).parent / "shaders" / "constant.osl" )
+
+		engine = GafferOSL.ShadingEngine( IECoreScene.ShaderNetwork(
+			shaders = {
+				"constant" : IECoreScene.Shader( shader, "typeNotSpecified", { "Cs" : imath.Color3f( 1, 0.5, 0.25 ) } ),
+			},
+			output = "constant",
+		) )
+
+		points = engine.shade( self.rectanglePoints() )
+		self.assertEqual( points["Ci"], IECore.Color3fVectorData( [ imath.Color3f( 1, 0.5, 0.25 ) ] * 100 ) )
 
 if __name__ == "__main__":
 	unittest.main()

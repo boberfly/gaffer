@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2024, Cinesite VFX Ltd. All rights reserved.
+#  Copyright (c) 2026, Cinesite VFX Ltd. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -34,22 +34,51 @@
 #
 ##########################################################################
 
+import functools
+
 import Gaffer
-import GafferSceneUI
+import GafferUI
 
-Gaffer.Metadata.registerValues( {
+# This file adds context menu items associated with the PlugVisibilityGadget,
+# the rest of which is implemented in `src/GafferUI/PlugVisibilityGadget.cpp`.
 
-	"option:renderPass:type" : {
+def __setPlugMetadata( plug, key, value ) :
 
-		"plugValueWidget:type" : "GafferUI.PresetsPlugValueWidget",
-		"presetsPlugValueWidget:allowCustom" : True,
-		"preset:Standard" : "",
-		## \todo As part of the future great metadata reckoning, it would make more sense for renderPassTypePresetNames to be defined as
-		# part of this global metadata rather than by GafferSceneUI.RenderPassTypeAdaptorUI and then called here. This would also allow
-		# the registrations in this file to be combined with those in `startup/GafferScene/renderPassOptions.py`.
-		"presetNames" : GafferSceneUI.RenderPassTypeAdaptorUI.renderPassTypePresetNames,
-		"presetValues" : GafferSceneUI.RenderPassTypeAdaptorUI.renderPassTypePresetValues,
+	with Gaffer.UndoScope( plug.ancestor( Gaffer.ScriptNode ) ) :
+		Gaffer.Metadata.registerValue( plug, key, value )
 
-	},
+def __hasVisibilityGadget( plug ) :
 
-} )
+	parent = plug.parent()
+	while True :
+		for key in Gaffer.Metadata.registeredValues( parent ) :
+			if key.endswith( ":gadgetType" ) and Gaffer.Metadata.value( parent, key ) == "GafferUI.PlugVisibilityGadget" :
+				return True
+		parent = parent.parent()
+		if parent is None or isinstance( parent, Gaffer.Node ) :
+			return False
+
+def __graphEditorPlugContextMenu( graphEditor, plug, menuDefinition ) :
+
+	if not __hasVisibilityGadget( plug ) or not Gaffer.Metadata.value( plug, "plugVisibilityGadget:showable" ) :
+		return
+
+	if len( menuDefinition.items() ) :
+		menuDefinition.append( "/HideDivider", { "divider" : True } )
+
+	if plug.direction() == plug.Direction.In :
+		numConnections = 1 if plug.getInput() else 0
+	else :
+		numConnections = len( plug.outputs() )
+
+	menuDefinition.append(
+
+		"/Hide",
+		{
+			"command" : functools.partial( __setPlugMetadata, plug, "noduleLayout:visible", False ),
+			"active" : numConnections == 0 and not Gaffer.MetadataAlgo.readOnly( plug ),
+		}
+
+	)
+
+GafferUI.GraphEditor.plugContextMenuSignal().connect( __graphEditorPlugContextMenu )

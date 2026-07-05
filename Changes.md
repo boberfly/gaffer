@@ -1,7 +1,83 @@
-1.7.x.x (relative to 1.7.0.0a3)
+1.7.x.x (relative to 1.7.0.0a5)
 =======
 
+Features
+--------
 
+- SceneStats : Added a new node for computing aggregate scene statistics.
+- SceneInspector : Added Statistics tab with aggregated geometry statistics for the entire scene.
+
+Improvements
+------------
+
+- Outputs : Added output presets for RenderMan's NPR AOVs.
+
+Fixes
+-----
+
+- Arnold :
+  - Fixed fallback to a facing ratio shader when a shader is removed during an interactive render.
+  - Fixed crash attempting to render with a shader that doesn't exist.
+- Viewer : Fixed regression introduced in 1.6.16.0 that prevented visualisation of the renderer-specific camera visibility and matte attributes authored by the Render Pass Editor's render adaptors [^1].
+
+API
+---
+
+- DictPath : Added support for subclassing, without the need to override `copy()` or `_children()`.
+- PlugCreationGadget : Added counterpart to PlugCreationWidget, allowing plugs to be created easily in the GraphEditor.
+- PlugVisibilityGadget : Added gadget for managing plug visibility in the GraphEditor.
+
+Breaking Changes
+----------------
+
+- ShaderUI : Removed PlugAdder. Use `GafferUI.PlugVisibilityGadget` instead.
+
+[^1]: Included in `1.6.x.x`, so should be omitted from final `1.7.0.0` release notes.
+
+1.7.0.0a5 (relative to 1.7.0.0a4)
+=========
+
+Fixes
+-----
+
+- NodeEditor : Fixed redundant updates when editing private plugs, such as when repositioning the currently viewed node in the Graph Editor.
+- RenderPassEditor : Fixed errors displaying presets while editing the `type` column [^1].
+- RenderMan : Fixed potential hang when updating the Visible Set immediately after starting an interactive render with `useVisibleSet` enabled [^1].
+- NodeGadgetBinding : Fixed linking errors when using NodeGadgetClass. Clients should link to the new `GafferUIBindings` shared library [^1].
+
+API
+---
+
+- ShadingEngine : Added `TextureOrigin` enum, to allow emulation of renderers whose texture origin is at the top left rather than bottom left.
+
+Breaking Changes
+----------------
+
+- RenderPassTypeAdaptorUI : Removed `renderPassTypePresetNames()` and `renderPassTypePresetValues()`.
+- OpenImageIO : Removed source compatibility for versions prior to 3.
+- OpenShadingLanguage : Removed source compatibility for versions prior to 1.14.
+
+[^1]: Fix for bug introduced in `1.7.0.0a1`, so should be omitted from final `1.7.0.0` release notes.
+
+1.7.0.0a4 (relative to 1.7.0.0a3)
+=========
+
+Improvements
+------------
+
+- SceneWriter : Added `IECOREUSD_WRITE_CONFORMANT_OSL_SHADERS` environment variable. When set to a value of `1`, OSL shaders are written to USD in a format compatible with `hdPrman`, for rendering with RenderMan in `usdview` and other Hydra-based applications. [^1]
+
+Fixes
+-----
+
+- ShadingEngine : Fixed handling of shaders when an `.oso` file does exist, but `Shader::getType()` does not match `osl:*`. Examples include Pxr shaders loaded from USD files. [^1]
+
+Build
+-----
+
+- Cortex : Updated to version 10.7.0.0a12.
+
+[^1]: Included in `1.6.x.x`, so should be omitted from final `1.7.0.0` release notes.
 
 1.7.0.0a3 (relative to 1.7.0.0a2)
 =========
@@ -214,10 +290,31 @@ Build
 - TBB : Updated to version 2021.13.0.
 - USD : Updated to version 26.05.
 
-1.6.x.x (relative to 1.6.19.2)
+1.6.x.x (relative to 1.6.20.0)
 =======
 
+Fixes
+-----
 
+- Viewer : Fixed regression introduced in 1.6.16.0 that prevented visualisation of the renderer-specific camera visibility and matte attributes authored by the Render Pass Editor's render adaptors.
+
+1.6.20.0 (relative to 1.6.19.2)
+========
+
+Improvements
+------------
+
+- SceneWriter : Added `IECOREUSD_WRITE_CONFORMANT_OSL_SHADERS` environment variable. When set to a value of `1`, OSL shaders are written to USD in a format compatible with `hdPrman`, for rendering with RenderMan in `usdview` and other Hydra-based applications.
+
+Fixes
+-----
+
+- ShadingEngine : Fixed handling of shaders when an `.oso` file does exist, but `Shader::getType()` does not match `osl:*`. Examples include Pxr shaders loaded from USD files.
+
+Build
+-----
+
+- Cortex : Updated to version 10.6.6.0.
 
 1.6.19.2 (relative to 1.6.19.1)
 ========

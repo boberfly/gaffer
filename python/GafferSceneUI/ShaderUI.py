@@ -36,11 +36,10 @@
 
 import dataclasses
 import os
+import pathlib
 import re
-import string
 import fnmatch
 import functools
-import imath
 from collections import deque
 
 import IECore
@@ -49,7 +48,6 @@ import IECoreScene
 import Gaffer
 import GafferUI
 import GafferScene
-import GafferSceneUI
 
 from GafferUI.PlugValueWidget import sole
 
@@ -158,7 +156,7 @@ Gaffer.Metadata.registerNode(
 			"plugValueWidget:type" : "GafferUI.LayoutPlugValueWidget",
 
 			# Add + button for showing and hiding parameters in the GraphEditor
-			"noduleLayout:customGadget:addButton:gadgetType" : "GafferSceneUI.ShaderUI.PlugAdder",
+			"noduleLayout:customGadget:addButton:gadgetType" : "GafferUI.PlugVisibilityGadget",
 
 		},
 
@@ -176,6 +174,7 @@ Gaffer.Metadata.registerNode(
 			"noduleLayout:visible" : functools.partial( __parameterMetadata, key = "noduleLayout:visible", shaderFallbackKey = "noduleLayout:defaultVisibility" ),
 			"labelPlugValueWidget:icon" : functools.partial( __parameterMetadata, key = "labelPlugValueWidget:icon" ),
 			"labelPlugValueWidget:iconToolTip" : functools.partial( __parameterMetadata, key = "labelPlugValueWidget:iconToolTip" ),
+			"plugVisibilityGadget:showable" : True,
 
 		},
 
@@ -209,13 +208,14 @@ Gaffer.Metadata.registerNode(
 			"plugValueWidget:type" : "",
 
 			# Add + button for showing and hiding parameters in the GraphEditor
-			"noduleLayout:customGadget:addButton:gadgetType" : "GafferSceneUI.ShaderUI.PlugAdder",
+			"noduleLayout:customGadget:addButton:gadgetType" : "GafferUI.PlugVisibilityGadget",
 
 		},
 
 		"out.*" : {
 
 			"noduleLayout:section" : "right",
+			"plugVisibilityGadget:showable" : True,
 
 		},
 
@@ -296,6 +296,7 @@ GafferUI.NodeFinderDialogue.registerMode( "Shader Names", __shaderNameExtractor 
 ## Appends menu items for the creation of all shaders found on some searchpaths.
 def appendShaders( menuDefinition, prefix, searchPaths, extensions, nodeCreator, matchExpression = "*", searchTextPrefix = "" ) :
 
+	searchPaths = [ pathlib.Path( p ) for p in searchPaths ]
 	menuDefinition.append( prefix, { "subMenu" : functools.partial( __shaderSubMenu, searchPaths, extensions, nodeCreator, matchExpression, searchTextPrefix ) } )
 
 __hiddenShadersPathMatcher = IECore.PathMatcher()
@@ -338,23 +339,24 @@ def __shaderSubMenu( searchPaths, extensions, nodeCreator, matchExpression, sear
 		matchExpression = re.compile( fnmatch.translate( matchExpression ) )
 
 	shaders = set()
-	pathsVisited = set()
+	filesVisited = set()
 	for path in searchPaths :
 
-		if path in pathsVisited :
-			continue
+		path = path.resolve()
 
-		for root, dirs, files in os.walk( path ) :
-			for file in files :
-				if os.path.splitext( file )[1][1:] in extensions :
-					shaderPath = os.path.join( root, file ).partition( path )[-1].lstrip( os.path.sep )
-					shaderPath = shaderPath.replace( "\\", "/" )
-					if __hiddenShadersPathMatcher.match( shaderPath ) & IECore.PathMatcher.Result.ExactMatch :
-						continue
-					if shaderPath not in shaders and matchExpression.match( shaderPath ) :
-						shaders.add( os.path.splitext( shaderPath )[0] )
+		for extension in extensions :
+			for file in path.rglob( f"*.{extension}") :
 
-		pathsVisited.add( path )
+				if file in filesVisited :
+					continue
+				else :
+					filesVisited.add( file )
+
+				shaderPath = file.relative_to( path )
+				if __hiddenShadersPathMatcher.match( shaderPath.as_posix() ) & IECore.PathMatcher.Result.ExactMatch :
+					continue
+				if matchExpression.match( shaderPath.as_posix() ) :
+					shaders.add( shaderPath.with_suffix( "" ).as_posix() )
 
 	shaders = sorted( list( shaders ) )
 	categorisedShaders = [ x for x in shaders if "/" in x ]
@@ -385,47 +387,6 @@ def __shaderSubMenu( searchPaths, extensions, nodeCreator, matchExpression, sear
 	result.append( "/Load...", { "command" : GafferUI.NodeMenu.nodeCreatorWrapper( lambda menu : __loadFromFile( menu, extensions, nodeCreator ) ) } )
 
 	return result
-
-##########################################################################
-# Interaction with ShaderNodeGadget
-##########################################################################
-
-def __setPlugMetadata( plug, key, value ) :
-
-	with Gaffer.UndoScope( plug.ancestor( Gaffer.ScriptNode ) ) :
-		Gaffer.Metadata.registerValue( plug, key, value )
-
-def __graphEditorPlugContextMenu( graphEditor, plug, menuDefinition ) :
-
-	if not isinstance( plug.node(), GafferScene.Shader ) :
-		return
-
-	if not (
-		plug.node()["parameters"].isAncestorOf( plug ) or
-		plug.node()["out"].isAncestorOf( plug )
-	) :
-		return
-
-	if len( menuDefinition.items() ) :
-		menuDefinition.append( "/HideDivider", { "divider" : True } )
-
-	if plug.direction() == plug.Direction.In :
-		numConnections = 1 if plug.getInput() else 0
-	else :
-		numConnections = len( plug.outputs() )
-
-	menuDefinition.append(
-
-		"/Hide",
-		{
-			"command" : functools.partial( __setPlugMetadata, plug, "noduleLayout:visible", False ),
-			"active" : numConnections == 0 and not Gaffer.MetadataAlgo.readOnly( plug ),
-		}
-
-	)
-
-GafferUI.GraphEditor.plugContextMenuSignal().connect( __graphEditorPlugContextMenu )
-
 
 ##########################################################################
 # ShaderParameterDialog
