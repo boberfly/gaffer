@@ -1,5 +1,10 @@
-1.7.x.x (relative to 1.7.0.0a5)
+1.7.x.x (relative to 1.7.0.0a6)
 =======
+
+
+
+1.7.0.0a6 (relative to 1.7.0.0a5)
+=========
 
 Features
 --------
@@ -11,6 +16,7 @@ Improvements
 ------------
 
 - Outputs : Added output presets for RenderMan's NPR AOVs.
+- SceneWriter : Defaulted to writing OSL shaders in a format compatible with `hdPrman`, for rendering in `usdview` and other Hydra-based applications.
 
 Fixes
 -----
@@ -19,6 +25,11 @@ Fixes
   - Fixed fallback to a facing ratio shader when a shader is removed during an interactive render.
   - Fixed crash attempting to render with a shader that doesn't exist.
 - Viewer : Fixed regression introduced in 1.6.16.0 that prevented visualisation of the renderer-specific camera visibility and matte attributes authored by the Render Pass Editor's render adaptors [^1].
+- RenderMan :
+  - Fixed `R10043` warning when using PxrDisplace [^1].
+  - Fixed automatic creation of required AOVs for PxrStylized filters in XPU [^1].
+- Catalogue : Fixed errors caused by undoing an image deletion or snapshot.
+- Gaffer module : Fixed bug preventing `environment()` from returning environment variables modified after startup on macOS.
 
 API
 ---
@@ -31,8 +42,16 @@ Breaking Changes
 ----------------
 
 - ShaderUI : Removed PlugAdder. Use `GafferUI.PlugVisibilityGadget` instead.
+- SceneWriter : Changed writing of OSL shaders to USD. Set `IECOREUSD_WRITE_CONFORMANT_OSL_SHADERS=0` to revert to the default behaviour from Gaffer 1.6.
+- Catalogue : Removed support for image order metadata from versions prior to 1.4.0.0. In the unlikely event this is needed, reorder and resave from Gaffer 1.6.
+
+Build
+-----
+
+- Fixed errors building `gaffer` executable on macOS [^2].
 
 [^1]: Included in `1.6.x.x`, so should be omitted from final `1.7.0.0` release notes.
+[^2]: Fix for bug introduced in `1.7.0.0a1`, so should be omitted from final `1.7.0.0` release notes.
 
 1.7.0.0a5 (relative to 1.7.0.0a4)
 =========
@@ -290,13 +309,21 @@ Build
 - TBB : Updated to version 2021.13.0.
 - USD : Updated to version 26.05.
 
-1.6.x.x (relative to 1.6.20.0)
+1.6.x.x (relative to 1.6.20.1)
 =======
+
+
+
+1.6.20.1 (relative to 1.6.20.0)
+========
 
 Fixes
 -----
 
 - Viewer : Fixed regression introduced in 1.6.16.0 that prevented visualisation of the renderer-specific camera visibility and matte attributes authored by the Render Pass Editor's render adaptors.
+- RenderMan :
+  - Fixed `R10043` warning when using PxrDisplace.
+  - Fixed automatic creation of required AOVs for PxrStylized filters in XPU.
 
 1.6.20.0 (relative to 1.6.19.2)
 ========
