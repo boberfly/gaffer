@@ -1292,7 +1292,11 @@ OSL::ShadingSystem *acquireShadingSystem( ShadingEngine::TextureOrigin textureOr
 {
 	ShadingSystemWriteMutex::scoped_lock shadingSystemWriteLock( g_shadingSystemWriteMutex );
 	// One for each value of TextureOrigin.
+#if OIIO_VERSION >= 30000
 	static std::array<std::shared_ptr<OIIO::TextureSystem>, 2> g_textureSystems;
+#else
+	static std::array<OIIO::TextureSystem *, 2> g_textureSystems = { nullptr, nullptr };
+#endif
 	static std::array<OSL::ShadingSystem *, 2> g_shadingSystems = { nullptr, nullptr };
 
 	OSL::ShadingSystem *&shadingSystem = g_shadingSystems[(int)textureOrigin];
@@ -1308,17 +1312,29 @@ OSL::ShadingSystem *acquireShadingSystem( ShadingEngine::TextureOrigin textureOr
 
 	// One ImageCache, not shared with the outside world, but shared by both `TextureOrigin::Bottom`
 	// and `TextureOrigin::Top`.
+#if OIIO_VERSION >= 30000
 	static std::shared_ptr<OIIO::ImageCache> g_imageCache = OIIO::ImageCache::create( /* shared = */ false );
 	std::shared_ptr<OIIO::TextureSystem> &textureSystem = g_textureSystems[(int)textureOrigin];
+#else
+	static OIIO::ImageCache *g_imageCache = OIIO::ImageCache::create( /* shared = */ false );
+	OIIO::TextureSystem *&textureSystem = g_textureSystems[(int)textureOrigin];
+#endif
 
 	textureSystem = OIIO::TextureSystem::create( /* shared = */ false, g_imageCache );
 	// By default, OIIO considers the image origin to be at the top left.
 	textureSystem->attribute( "flip_t", textureOrigin == ShadingEngine::TextureOrigin::Bottom ? 1 : 0 );
 
+#if OIIO_VERSION >= 30000
 	shadingSystem = new ShadingSystem(
 		new RendererServices( textureSystem.get() ),
 		textureSystem.get()
 	);
+#else
+	shadingSystem = new ShadingSystem(
+		new RendererServices( textureSystem ),
+		textureSystem
+	);
+#endif
 
 	ClosureParam emissionParams[] = {
 		CLOSURE_FINISH_PARAM( EmissionParameters ),
