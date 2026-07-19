@@ -1,7 +1,52 @@
-1.7.x.x (relative to 1.7.0.0a6)
+1.7.x.x (relative to 1.7.0.0a7)
 =======
 
+Features
+--------
 
+- RenderMan : Added support for RenderMan 27.3.
+
+1.7.0.0a7 (relative to 1.7.0.0a6)
+=========
+
+Features
+--------
+
+- CopyObject : Added new node for copying objects from one scene to another.
+
+Improvements
+------------
+
+- PrimitiveQuery : Added `primitive` output [^2].
+- StandardAttributes :
+  - Added `linkedLights:exclusions` and `shadowedLights:exclusions` attributes, specifying lights that never illuminate or cast shadows from an object.
+  - Added `filteredLights:exclusions` attribute, specifying lights that are never filtered by a light filter.
+  - Moved `filteredLights` and `filteredLights:exclusions` to a new "Light Filters" section in the NodeEditor and AttributeEditor.
+- LightFilter, ArnoldLightFilter, RenderManLightFilter : Added `filteredLightsExclusions` plug.
+- SceneWriter : Defaulted to writing RenderMan attributes in a format compatible with `hdPrman`, for rendering in `usdview` and other Hydra-based applications.
+
+Fixes
+-----
+
+- RenderMan : Fixed handling of V3f data with non-geometric interpretation. Common sources include `float3` primvars and attributes loaded from USD files [^1].
+
+Documentation
+-------------
+
+- Light Linking : Updated to describe use of the `linkedLights:exclusions` attribute.
+
+Breaking Changes
+----------------
+
+- SceneWriter : Changed writing of `ri:` prefixed attributes to USD. Set `IECOREUSD_WRITE_CONFORMANT_RENDERMAN_ATTRIBUTES=0` to revert to the default behaviour from Gaffer 1.6.
+
+Build
+-----
+
+- Cortex : Updated to version 10.7.0.0a13.
+
+[^1]: Included in `1.6.x.x`, so should be omitted from final `1.7.0.0` release notes.
+[^2]: Improvement to a feature introduced in `1.7.0.0a3`, so should be omitted from final `1.7.0.0` release notes.
 
 1.7.0.0a6 (relative to 1.7.0.0a5)
 =========
@@ -309,10 +354,28 @@ Build
 - TBB : Updated to version 2021.13.0.
 - USD : Updated to version 26.05.
 
-1.6.x.x (relative to 1.6.20.1)
+1.6.x.x (relative to 1.6.21.0)
 =======
 
 
+
+1.6.21.0 (relative to 1.6.20.1)
+========
+
+Improvements
+------------
+
+- SceneWriter : Added `IECOREUSD_WRITE_CONFORMANT_RENDERMAN_ATTRIBUTES` environment variable. When set to a value of `1`, `ri:` prefixed attributes are written to USD in a format compatible with `hdPrman`, for rendering with RenderMan in `usdview` and other Hydra-based applications.
+
+Fixes
+-----
+
+- RenderMan : Fixed handling of V3f data with non-geometric interpretation. Common sources include `float3` primvars and attributes loaded from USD files.
+
+Build
+-----
+
+- Cortex : Updated to version 10.6.7.0.
 
 1.6.20.1 (relative to 1.6.20.0)
 ========

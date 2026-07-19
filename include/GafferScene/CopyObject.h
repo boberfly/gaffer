@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2013, Image Engine Design Inc. All rights reserved.
+//  Copyright (c) 2026, Cinesite VFX Ltd. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -34,44 +34,50 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "GafferScene/StandardAttributes.h"
+#pragma once
 
-#include "Gaffer/Metadata.h"
-#include "Gaffer/MetadataAlgo.h"
+#include "GafferScene/FilteredSceneProcessor.h"
 
-using namespace Gaffer;
-using namespace GafferScene;
+#include "Gaffer/StringPlug.h"
 
-namespace
+namespace GafferScene
 {
 
-const IECore::InternedString g_defaultValue( "defaultValue" );
-const std::string g_metadataTargets(
-	"attribute:scene:visible attribute:doubleSided attribute:render:* attribute:gaffer:* " \
-	"attribute:linkedLights attribute:linkedLights:exclusions attribute:shadowedLights attribute:shadowedLights:exclusions " \
-	"attribute:filteredLights attribute:filteredLights:exclusions"
-);
-
-} // namespace
-
-GAFFER_NODE_DEFINE_TYPE( StandardAttributes );
-
-StandardAttributes::StandardAttributes( const std::string &name )
-	:	Attributes( name )
+class GAFFERSCENE_API CopyObject : public FilteredSceneProcessor
 {
 
-	for( const auto &target : Metadata::targetsWithMetadata( g_metadataTargets, g_defaultValue ) )
-	{
-		if( auto valuePlug = MetadataAlgo::createPlugFromMetadata( "value", Plug::Direction::In, Plug::Flags::Default, target ) )
-		{
-			const std::string attributeName = target.string().substr( 10 );
-			NameValuePlugPtr attributePlug = new NameValuePlug( attributeName, valuePlug, false, attributeName );
-			attributesPlug()->addChild( attributePlug );
-		}
-	}
+	public :
 
-}
+		explicit CopyObject( const std::string &name=defaultName<CopyObject>() );
+		~CopyObject() override;
 
-StandardAttributes::~StandardAttributes()
-{
-}
+		GAFFER_NODE_DECLARE_TYPE( GafferScene::CopyObject, CopyObjectTypeId, FilteredSceneProcessor );
+
+		GafferScene::ScenePlug *sourcePlug();
+		const GafferScene::ScenePlug *sourcePlug() const;
+
+		Gaffer::StringPlug *sourceLocationPlug();
+		const Gaffer::StringPlug *sourceLocationPlug() const;
+
+		Gaffer::BoolPlug *adjustBoundsPlug();
+		const Gaffer::BoolPlug *adjustBoundsPlug() const;
+
+		void affects( const Gaffer::Plug *input, AffectedPlugsContainer &outputs ) const override;
+
+	protected :
+
+		void hashObject( const ScenePath &path, const Gaffer::Context *context, const ScenePlug *parent, IECore::MurmurHash &h ) const override;
+		IECore::ConstObjectPtr computeObject( const ScenePath &path, const Gaffer::Context *context, const ScenePlug *parent ) const override;
+
+		void hashBound( const ScenePath &path, const Gaffer::Context *context, const ScenePlug *parent, IECore::MurmurHash &h ) const override;
+		Imath::Box3f computeBound( const ScenePath &path, const Gaffer::Context *context, const ScenePlug *parent ) const override;
+
+	private :
+
+		static size_t g_firstPlugIndex;
+
+};
+
+IE_CORE_DECLAREPTR( CopyObject )
+
+} // namespace GafferScene
