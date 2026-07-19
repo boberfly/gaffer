@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2023, Cinesite VFX Ltd. All rights reserved.
+//  Copyright (c) 2016, Image Engine Design Inc. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -34,38 +34,27 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#pragma once
+#include "IECoreMaterialX/Private/CapturingErrorHandler.h"
 
-#include "GafferUSD/Export.h"
-#include "GafferUSD/TypeIds.h"
+using namespace IECoreMaterialX::Private;
 
-#include "GafferScene/Shader.h"
-
-namespace GafferUSD
+CapturingErrorHandler::CapturingErrorHandler()
 {
+}
 
-class GAFFERUSD_API USDShader : public GafferScene::Shader
+void CapturingErrorHandler::operator()( int errorCode, const std::string &message )
 {
+	if( errorCode >= EH_ERROR )
+	{
+		if( m_errors.size() && *m_errors.rbegin() != '\n' )
+		{
+			m_errors += "\n";
+		}
+		m_errors += message;
+	}
+}
 
-	public :
-
-		explicit USDShader( const std::string &name=defaultName<USDShader>() );
-		~USDShader() override;
-
-		GAFFER_NODE_DECLARE_TYPE( GafferUSD::USDShader, USDShaderTypeId, GafferScene::Shader );
-
-		void loadShader( const std::string &shaderName, bool keepExistingValues = false ) override;
-
-		/// Set a namespace remap based on the sourceType of the registered USD shader
-		/// eg. `USD` remaps to no namespace or `arnold` into `ai`.
-		static bool registerShaderNameSpace( const IECore::InternedString sourceType, const IECore::InternedString nameSpace );
-
-	protected :
-
-		IECore::ConstCompoundObjectPtr attributes( const Gaffer::Plug *output ) const override;
-
-};
-
-IE_CORE_DECLAREPTR( USDShader )
-
-} // namespace GafferUSD
+const std::string &CapturingErrorHandler::errors()
+{
+	return m_errors;
+}

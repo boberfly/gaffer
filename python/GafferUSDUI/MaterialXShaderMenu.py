@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2022, Cinesite VFX Ltd. All rights reserved.
+#  Copyright (c) 2026, Alex Fuller. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -34,12 +34,41 @@
 #
 ##########################################################################
 
-from . import USDAttributesUI
-from . import USDLayerWriterUI
-from . import USDShaderUI
-from . import USDLightUI
-from . import _PointInstancerAdaptorUI
-from . import PromotePointInstancesUI
-from . import MaterialXShaderMenu
+import GafferUI
+import GafferUSD
+from GafferMaterialX import _MaterialXUtils
+import collections
+import functools
 
-__import__( "IECore" ).loadConfig( "GAFFER_STARTUP_PATHS", subdirectory = "GafferUSDUI" )
+def __usdShaderCreator( shaderName, label ) :
+
+	node = GafferUSD.USDShader( name = label )
+	node.loadShader( shaderName )
+	return node
+
+def appendShaders( menuDefinition, prefix="/USD/MaterialX" ) :
+
+	MenuItem = collections.namedtuple( "MenuItem", [ "menuPath", "nodeCreator" ] )
+	menuItems = []
+
+	for role, labels in _MaterialXUtils.menuShaders.items() :
+
+		_role = _MaterialXUtils.labelNames["roles"].get( role, role )
+
+		for label in labels :
+
+			shaderName = _MaterialXUtils.nodeDefNameFromBaseName( label )
+			_label = _MaterialXUtils.labelNames["labels"].get( label, label.capitalize() )
+			menuPath = "{}/{}".format( _role, _label )
+			nodeCreator = functools.partial( __usdShaderCreator, shaderName, _label.replace( " ", "" ) )
+
+			menuItems.append( MenuItem( menuPath, nodeCreator ) )
+
+	for menuItem in menuItems :
+		menuDefinition.append(
+			prefix + "/" + menuItem.menuPath,
+			{
+				"command" : GafferUI.NodeMenu.nodeCreatorWrapper( menuItem.nodeCreator ),
+				"searchText" : "mtlx" + menuItem.menuPath.rpartition( "/" )[2].replace( " ", "" ),
+			}
+		)

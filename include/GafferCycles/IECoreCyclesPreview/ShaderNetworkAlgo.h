@@ -99,6 +99,8 @@ IECORECYCLES_API IECoreScene::ShaderNetworkPtr convertLightShader( const IECoreS
 /// caling `convertLight()` and `convertLightShader()`.
 IECORECYCLES_API void convertUSDShaders( IECoreScene::ShaderNetwork *shaderNetwork );
 
+IECORECYCLES_API void convertMtlxShaders( IECoreScene::ShaderNetwork *shaderNetwork );
+
 } // namespace ShaderNetworkAlgo
 
 } // namespace IECoreCycles

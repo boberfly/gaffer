@@ -349,6 +349,12 @@ options.Add(
 )
 
 options.Add(
+	"MATERIALX_ROOT",
+	"The directory in which the MaterialX library is installed. Used to build IECoreMaterialX",
+	"",
+)
+
+options.Add(
 	"ZLIB_ROOT",
 	"The directory in which zlib is installed. Used to get a static library.",
 	"",
@@ -870,6 +876,7 @@ for option, envVar in {
 	"ONNX_ROOT" : "ONNX_ROOT",
 	"RENDERMAN_ROOT" : "RMANTREE",
 	"CYCLES_ROOT" : "CYCLES_ROOT",
+	"MATERIALX_ROOT" : "MATERIALX_ROOT",
 }.items() :
 	if commandEnv[option] != "" :
 		commandEnv["ENV"][envVar] = commandEnv[option]
@@ -1060,6 +1067,25 @@ if env["RENDERMAN_ROOT"] :
 	# changes, and because it provides a more easily recognised number.
 
 	renderManInstallRoot = "${{BUILD_DIR}}/renderMan/{MAJOR}.{MINOR}".format( **renderManVersions )
+
+###############################################################################################
+# MaterialX shader generation function before we build it
+###############################################################################################
+
+mtlxShaders = []
+if "MATERIALX_ROOT" in commandEnv["ENV"] :
+
+	buildDir = os.path.join( "shaders", "__mtlx" )
+	if os.path.exists( buildDir ):
+		shutil.rmtree( buildDir )
+	os.makedirs( buildDir )
+
+	# Grab all the MaterialX shaders that we're interested about and generate OSL versions.
+	import importlib.util
+	spec = importlib.util.spec_from_file_location( "_MaterialXUtils", os.path.join( "python", "GafferMaterialX", "_MaterialXUtils.py" ) )
+	mtlxModule = importlib.util.module_from_spec( spec )
+	spec.loader.exec_module( mtlxModule )
+	mtlxShaders = mtlxModule.generateOSLCode( buildDir )
 
 ###############################################################################################
 # Cycles configuration
@@ -1299,12 +1325,29 @@ libraries = {
 		"requiredOptions" : [ "ONNX_ROOT" ],
 	},
 
+	"IECoreMaterialX" : {
+		"envAppends" : {
+			"CPPPATH" : [ "$OSLHOME/include", "$MATERIALX_ROOT/include" ],
+			"LIBPATH" : [ "$MATERIALX_ROOT/lib" ],
+			"LIBS" : [ "OpenImageIO$OIIO_LIB_SUFFIX", "OpenImageIO_Util$OIIO_LIB_SUFFIX", "oslcomp$OSL_LIB_SUFFIX", "oslquery$OSL_LIB_SUFFIX", "oslexec$OSL_LIB_SUFFIX", "Iex$OPENEXR_LIB_SUFFIX", "IECoreScene$CORTEX_LIB_SUFFIX", "MaterialXCore", "MaterialXFormat", "MaterialXGenShader", "MaterialXGenOsl" ],
+		},
+		"pythonEnvAppends" : {
+			"LIBS" : [ "IECoreScene$CORTEX_LIB_SUFFIX", "IECoreMaterialX" ],
+		},
+		"requiredOptions" : [ "MATERIALX_ROOT" ],
+		"mtlxShaders" : mtlxShaders,
+	},
+
+	"IECoreMaterialXTest" : {
+		"requiredOptions" : [ "MATERIALX_ROOT" ],
+	},
+
 	"IECoreArnold" : {
 		"envAppends" : {
 			"LIBPATH" : [ "$ARNOLD_ROOT/bin" ] if env["PLATFORM"] != "win32" else [ "$ARNOLD_ROOT/bin", "$ARNOLD_ROOT/lib" ],
 			## \todo Remove GafferScene. We need it at present to get access to `IECoreScenePreview::Renderer`,
 			# but IECoreArnold must never depend on Gaffer code; logically it is in the layer below Gaffer.
-			"LIBS" : [ "GafferScene", "ai", "IECoreScene$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX", "openvdb$VDB_LIB_SUFFIX" ],
+			"LIBS" : [ "GafferScene", "ai", "IECoreMaterialX", "IECoreScene$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX", "openvdb$VDB_LIB_SUFFIX" ],
 			"CXXFLAGS" : [ "-DAI_ENABLE_DEPRECATION_WARNINGS" ],
 			"CPPPATH" : [ "$ARNOLD_ROOT/include" ],
 		},
@@ -1459,7 +1502,7 @@ libraries = {
 		"envAppends" : {
 			"LIBPATH" : [ "$CYCLES_ROOT/lib" ],
 			"LIBS" : [
-				"IECoreScene$CORTEX_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX",
+				"IECoreScene$CORTEX_LIB_SUFFIX", "IECoreImage$CORTEX_LIB_SUFFIX", "IECoreVDB$CORTEX_LIB_SUFFIX", "IECoreMaterialX",
 				"Gaffer", "GafferScene", "GafferDispatch", "GafferOSL",
 				"cycles_device", "cycles_session", "cycles_scene", "cycles_graph", "cycles_bvh", "cycles_kernel_cpu", "cycles_kernel_osl",
 				"cycles_integrator", "cycles_util", "cycles_subd", "extern_sky", "extern_cuew",
@@ -1500,6 +1543,7 @@ libraries = {
 			"LIBS" : [
 				"GafferScene", "IECoreScene$CORTEX_LIB_SUFFIX",
 				"IECoreVDB$CORTEX_LIB_SUFFIX",
+				"IECoreMaterialX",
 				"pxrcore" if env["PLATFORM"] != "win32" else "libpxrcore",
 				"oslquery$OSL_LIB_SUFFIX",
 				"OpenImageIO_Util$OIIO_LIB_SUFFIX",
@@ -1594,6 +1638,10 @@ libraries = {
 	"GafferFlamencoUI" : {},
 
 	"GafferFlamencoUITest" : {},
+
+	"GafferMaterialX" : {
+		"requiredOptions" : [ "MATERIALX_ROOT" ],
+	},
 
 	"GafferUSD" : {
 		"envAppends" : {
@@ -2007,21 +2055,29 @@ for libraryName, libraryDef in libraries.items() :
 	# osl shaders
 
 	def buildOSL( target, source, env ) :
-		subprocess.check_call(
-			[
-				shutil.which( "oslc", path = env["ENV"]["PATH"] ) if env["PLATFORM"] == "win32" else "oslc",
-				"-I./shaders",
-				"-o",
-				str( target[0] ), str( source[0] )
-			],
-			env = env["ENV"]
-		)
+
+		command = [
+			shutil.which( "oslc", path = env["ENV"]["PATH"] ) if env["PLATFORM"] == "win32" else "oslc",
+			"-I./shaders",
+		]
+
+		if os.path.exists( env["ENV"]["MATERIALX_ROOT"] ) :
+			command.append( "-I" + os.path.join( env["ENV"]["MATERIALX_ROOT"], "libraries", "stdlib", "genosl", "include" ) )
+
+		command += [ "-o", str( target[0] ), str( source[0] ) ]
+
+		subprocess.check_call( command, env = env["ENV"] )
 
 	for oslShader in libraryDef.get( "oslShaders", [] ) :
 		env.Alias( "buildCore", oslShader )
 		compiledFile = commandEnv.Command( os.path.join( installRoot, os.path.splitext( oslShader )[0] + ".oso" ), oslShader, buildOSL )
 		env.Depends( compiledFile, "oslHeaders" )
 		env.Alias( "buildCore", compiledFile )
+
+	for mtlxShader in libraryDef.get( "mtlxShaders", [] ) :
+		env.Alias( "buildCore", mtlxShader )
+		mtlxCompiledFile = commandEnv.Command( os.path.join( installRoot, os.path.splitext( mtlxShader )[0] + ".oso" ), mtlxShader, buildOSL )
+		env.Alias( "buildCore", mtlxCompiledFile )
 
 	# class stubs
 

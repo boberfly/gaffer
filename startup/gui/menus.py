@@ -557,6 +557,10 @@ nodeMenu.append( "/USD/Attributes", GafferUSD.USDAttributes, searchText = "USDAt
 nodeMenu.append( "/USD/Layer Writer", GafferUSD.USDLayerWriter, searchText = "USDLayerWriter" )
 nodeMenu.append( "/USD/Promote Instances", GafferUSD.PromotePointInstances, searchText = "PromotePointInstances" )
 
+# MaterialX shader menu
+
+GafferUSDUI.MaterialXShaderMenu.appendShaders( nodeMenu.definition() )
+
 # Dispatch nodes
 
 import GafferDispatch

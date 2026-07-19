@@ -84,3 +84,42 @@ IECoreScene.ShaderNetworkAlgo.registerJoinAdapter(
 IECoreScene.ShaderNetworkAlgo.registerJoinAdapter(
 	"ai", IECore.Color4fData.staticTypeId(), IECoreScene.Shader( "float_to_rgba", "ai:shader" ), ( "r", "g", "b", "a" ), "out"
 )
+
+# MaterialX
+# =========
+
+for c, index in zip( "rgb", [0, 1, 2] ) :
+
+	IECoreScene.ShaderNetworkAlgo.registerSplitAdapter(
+			"mtlx", c, IECoreScene.Shader( "ND_extract_color3", "mtlx:shader", { "index" : index } ), "in", "out"
+	)
+
+IECoreScene.ShaderNetworkAlgo.registerSplitAdapter(
+		"mtlx", "a", IECoreScene.Shader( "ND_extract_color4", "mtlx:shader", { "index" : 3 } ), "in.a", "out"
+)
+
+for c, index in zip( "xyz", [0, 1, 2] ) :
+
+	IECoreScene.ShaderNetworkAlgo.registerSplitAdapter(
+			"mtlx", c, IECoreScene.Shader( "ND_extract_vector3", "mtlx:shader", { "index" : index } ), "in", "out"
+	)
+
+IECoreScene.ShaderNetworkAlgo.registerSplitAdapter(
+		"mtlx", "w", IECoreScene.Shader( "ND_extract_vector4", "mtlx:shader", { "index" : 3 } ), "in.w", "out"
+)
+
+IECoreScene.ShaderNetworkAlgo.registerJoinAdapter(
+	"mtlx", IECore.V3fData.staticTypeId(), IECoreScene.Shader( "ND_combine3_vector3", "mtlx:shader" ), ( "in1", "in2", "in3" ), "out"
+)
+
+IECoreScene.ShaderNetworkAlgo.registerJoinAdapter(
+	"mtlx", IECore.Color3fData.staticTypeId(), IECoreScene.Shader( "ND_combine3_color3", "mtlx:shader" ), ( "in1", "in2", "in3" ), "out"
+)
+
+IECoreScene.ShaderNetworkAlgo.registerJoinAdapter(
+	"mtlx", IECore.Color4fData.staticTypeId(), IECoreScene.Shader( "ND_combine4_color4", "mtlx:shader" ), ( "in1", "in2", "in3", "in4" ), "out"
+)
+
+IECoreScene.ShaderNetworkAlgo.registerJoinAdapter(
+	"mtlx", IECore.QuatfData.staticTypeId(), IECoreScene.Shader( "ND_combine4_vector4", "mtlx:shader" ), ( "in1", "in2", "in3", "in4" ), "out"
+)

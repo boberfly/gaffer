@@ -44,6 +44,8 @@
 #include "IECoreScene/Shader.h"
 #include "IECoreScene/ShaderNetworkAlgo.h"
 
+#include "IECoreMaterialX/ShaderNetworkAlgo.h"
+
 #include "IECore/AngleConversion.h"
 #include "IECore/LRUCache.h"
 #include "IECore/MessageHandler.h"
@@ -303,6 +305,15 @@ T parameterValue( const IECore::CompoundDataMap &parameters, const IECore::Inter
 	return defaultValue;
 }
 
+const bool g_disableMaterialxUSDShaders = []() -> bool {
+	const char *c = getenv( "GAFFERCYCLES_DISABLE_MATERIALX_USD_SHADERS" );
+	if( !c )
+	{
+		return false;
+	}
+	return strcmp( c, "0" );
+}();
+
 const bool g_useLegacyLights = []() -> bool {
 	const char *c = getenv( "GAFFERCYCLES_USE_LEGACY_LIGHTS" );
 	if( !c )
@@ -461,9 +472,25 @@ std::unique_ptr<ccl::ShaderGraph> convertGraph( const IECoreScene::ShaderNetwork
 		/// Hardcoded to the old OSL version to indicate that component connection adapters are
 		/// required - even though OSL now supports component connections, the Cycles API AFAIK doesn't.
 		IECoreScene::ShaderNetworkAlgo::convertToOSLConventions( toConvert.get(), 10900 );
+		// Convert MaterialX nodes that are better suited to native Cycles shaders eg.
+		// ND_geomparamvalue_*/ND_image_*. Only in SVM mode.
+		if( !scene->shader_manager->use_osl() )
+		{
+			IECoreCycles::ShaderNetworkAlgo::convertMtlxShaders( toConvert.get() );
+		}
+		// Convert all MaterialX nodes to OSL nodes, component connection adapters have already been added above.
+		// For the OSL backend, use the MaterialX OSL implementations of UsdPreviewSurface/UsdUVTexture/etc.
+		// as these would be a better match to the specification, and then pass to convertUSDShaders for the rest.
+		// GAFFERCYCLES_DISABLE_MATERIALX_USD_SHADERS environment variable disables this and uses the same
+		// conversion that the SVM backend uses.
+		const bool usdNodes = scene->shader_manager->use_osl() && !g_disableMaterialxUSDShaders;
+		if( scene->shader_manager->use_osl() )
+		{
+			IECoreMaterialX::ShaderNetworkAlgo::convertToOSLNodes( toConvert.get(), "cycles", /* usdNodes */ usdNodes, /* addAdapters */ false );
+		}
 		IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( toConvert.get() );
-		// The convertToOSLConventions call only added component connection adaptors for OSL.
-		// Now add them for native Cycles shaders.
+		// The above only added component connection adaptors for OSL. Now add them for native
+		// Cycles shaders, as well as MaterialX ones.
 		IECoreScene::ShaderNetworkAlgo::addComponentConnectionAdapters( toConvert.get() );
 		ShaderMap converted;
 		ccl::ShaderNode *node = convertWalk( toConvert->getOutput(), toConvert.get(), namePrefix, scene, graph.get(), converted );
@@ -965,6 +992,23 @@ T parameterValue( const Shader *shader, InternedString parameterName, const T &d
 			return d->readable().string();
 		}
 	}
+	else if constexpr( is_same_v<remove_cv_t<T>, V3f> )
+	{
+		// Convert V2f to V3f, UVs from MaterialX are often V2f but Cycles expects V3f.
+		if( auto d = shader->parametersData()->member<V2fData>( parameterName ) )
+		{
+			return V3f( d->readable()[0], d->readable()[1], 0.0f );
+		}
+	}
+	else if constexpr( is_same_v<remove_cv_t<T>, float > )
+	{
+		// Conversion of V2f to the first value eg. `ND_normalmap_vector2`
+		if( auto d = shader->parametersData()->member<V2fData>( parameterName ) )
+		{
+			const V2f &v = d->readable();
+			return v[0];
+		}
+	}
 
 	return defaultValue;
 }
@@ -1012,7 +1056,10 @@ const InternedString g_enableColorTemperatureParameter( "enableColorTemperature"
 const InternedString g_exposureParameter( "exposure" );
 const InternedString g_extensionParameter( "extension" );
 const InternedString g_facParameter( "fac" );
+const InternedString g_fallbackParameter( "fallback" );
+const InternedString g_fallbackAParameter( "fallback.a" );
 const InternedString g_fileParameter( "file" );
+const InternedString g_fileColorspaceParameter( "file_colorspace" );
 const InternedString g_filenameParameter( "filename" );
 const InternedString g_gParameter( "g" );
 const InternedString g_heightParameter( "height" );
@@ -1024,10 +1071,13 @@ const InternedString g_locationParameter( "location" );
 const InternedString g_mappingTypeParameter( "mapping_type" );
 const InternedString g_mathTypeParameter( "math_type" );
 const InternedString g_metallicParameter( "metallic" );
+const InternedString g_missingParameter( "missing" );
+const InternedString g_missingAlphaParameter( "missing_alpha" );
 const InternedString g_normalParameter( "normal" );
 const InternedString g_normalizeParameter( "normalize" );
 const InternedString g_occlusionParameter( "occlusion" );
 const InternedString g_opacityParameter( "opacity" );
+const InternedString g_opacityModeParameter( "opacityMode" );
 const InternedString g_opacityThresholdParameter( "opacityThreshold" );
 const InternedString g_parametricParameter( "parametric" );
 const InternedString g_positionParameter( "position");
@@ -1057,7 +1107,9 @@ const InternedString g_texMappingScaleParameter( "tex_mapping__scale" );
 const InternedString g_texMappingYMappingParameter( "tex_mapping__y_mapping" );
 const InternedString g_texMappingZMappingParameter( "tex_mapping__z_mapping" );
 const InternedString g_translationParameter( "translation" );
+const InternedString g_transmissionWeightParameter( "transmission_weight" );
 const InternedString g_treatAsPointParameter( "treatAsPoint" );
+const InternedString g_useClampParameter( "use_clamp" );
 const InternedString g_useMISParameter( "use_mis" );
 const InternedString g_useSpecularWorkflowParameter( "useSpecularWorkflow" );
 const InternedString g_UVParameter( "UV" );
@@ -1077,6 +1129,19 @@ const InternedString g_widthParameter( "width" );
 const InternedString g_wrapSParameter( "wrapS" );
 const InternedString g_wrapTParameter( "wrapT" );
 const InternedString g_USDRayVisibilityBlindDataKey( "__USDRayVisibility" );
+
+const InternedString g_interpolationParameter( "interpolation" );
+const InternedString g_filterTypeParameter( "filterType" );
+const InternedString g_uAddressModeParameter( "uaddressmode" );
+const InternedString g_vAddressModeParameter( "vaddressmode" );
+const InternedString g_texcoordParameter( "texcoord" );
+const InternedString g_defaultParameter( "default" );
+const InternedString g_defaultAParameter( "default.a" );
+const InternedString g_geompropParameter( "geomprop" );
+const InternedString g_indexParameter( "index" );
+const InternedString g_strengthParameter( "strength" );
+const InternedString g_tangentParameter( "tangent" );
+const InternedString g_bitangentParameter( "bitangent" );
 
 const string g_cyclesNamespace( "cycles:" );
 
@@ -1243,6 +1308,17 @@ const std::unordered_map<std::string, InternedString> g_resultParameterMap = {
 	{ "UsdPrimvarReader_point", g_vectorParameter },
 	{ "UsdPrimvarReader_vector", g_vectorParameter },
 	{ "UsdTransform2d", g_vectorParameter },
+	{ "ND_geompropvalue_boolean", g_facParameter },
+	{ "ND_geompropvalue_float", g_facParameter },
+	{ "ND_geompropvalue_integer", g_facParameter },
+	{ "ND_geompropvalue_color3", g_colorParameter },
+	{ "ND_geompropvalue_color4", g_colorParameter },
+	{ "ND_geompropvalue_vector2", g_UVParameter },
+	{ "ND_geompropvalue_vector3", g_colorParameter },
+	{ "ND_geompropvalue_vector4", g_colorParameter },
+	{ "ND_normalmap", g_normalParameter },
+	{ "ND_normalmap_float", g_normalParameter },
+	{ "ND_normalmap_vector2", g_normalParameter },
 };
 
 const InternedString remapOutputParameterName( const InternedString name, const InternedString shaderName )
@@ -1255,6 +1331,10 @@ const InternedString remapOutputParameterName( const InternedString name, const 
 		{
 			return it->second;
 		}
+	}
+	else if( boost::starts_with( shaderName.string(), "ND_image" ) )
+	{
+		return g_colorParameter;
 	}
 	else
 	{
@@ -1284,6 +1364,33 @@ void replaceUSDShader( ShaderNetwork *network, InternedString handle, ShaderPtr 
 	// Replace original shader with the new.
 	network->setShader( handle, std::move( newShader ) );
 
+	// Need a separate node
+	InternedString separareHandle;
+	bool hasSeparateNode = false;
+	if( shaderName == "image_texture" )
+	{
+		ShaderNetwork::ConnectionRange range = network->outputConnections( handle );
+		vector<ShaderNetwork::Connection> outputConnections( range.begin(), range.end() );
+		for( auto &c : outputConnections )
+		{
+			if(
+				c.source.name == g_rParameter ||
+				c.source.name == g_gParameter ||
+				c.source.name == g_bParameter
+			)
+			{
+				hasSeparateNode = true;
+				break;
+			}
+		}
+		if( hasSeparateNode )
+		{
+			ShaderPtr separate = new Shader( "separate_color", "cycles:shader" );
+			separareHandle = network->addShader( handle.string() + "Separate", std::move( separate ) );
+			network->addConnection( ShaderNetwork::Connection( { handle, g_rgbParameter }, { separareHandle, g_colorParameter } ) );
+		}
+	}
+
 	// When replacing the output shader, remap the network output parameter name.
 	ShaderNetwork::Parameter outParameter = network->getOutput();
 	if( outParameter.shader == handle )
@@ -1298,7 +1405,14 @@ void replaceUSDShader( ShaderNetwork *network, InternedString handle, ShaderPtr 
 	for( auto &c : outputConnections )
 	{
 		network->removeConnection( c );
-		c.source.name = remapOutputParameterName( c.source.name, shaderName );
+		if( hasSeparateNode && ( c.source.name == g_rParameter || c.source.name == g_gParameter || c.source.name == g_bParameter ) )
+		{
+			c.source.shader = separareHandle;
+		}
+		else
+		{
+			c.source.name = remapOutputParameterName( c.source.name, shaderName );
+		}
 		network->addConnection( c );
 	}
 }
@@ -1390,6 +1504,78 @@ void convertUSDUVTextures( ShaderNetwork *network )
 			network->addConnection( ShaderNetwork::Connection( { handle, g_alphaParameter }, { alphaMultiplyAddHandle, g_value1Parameter } ) );
 		}
 
+		// Fallback
+		const Color4f rgba = parameterValue( shader.get(), g_fallbackParameter, Color4f( 0.0f ) );
+		imageShader->parameters()[g_missingParameter] = new Color3fData( Color3f( rgba.r, rgba.g, rgba.b ) );
+		imageShader->parameters()[g_missingAlphaParameter] = new FloatData( rgba.a );
+		if( const ShaderNetwork::Parameter fallbackInput = network->input( { handle, g_fallbackParameter } ) )
+		{
+			network->addConnection( ShaderNetwork::Connection( fallbackInput, { handle, g_missingParameter } ) );
+			network->removeConnection( ShaderNetwork::Connection( fallbackInput, { handle, g_fallbackParameter } ) );
+		}
+		if( const ShaderNetwork::Parameter fallbackInput = network->input( { handle, g_fallbackAParameter } ) )
+		{
+			network->addConnection( ShaderNetwork::Connection( fallbackInput, { handle, g_missingAlphaParameter } ) );
+			network->removeConnection( ShaderNetwork::Connection( fallbackInput, { handle, g_fallbackAParameter } ) );
+		}
+
+		replaceUSDShader( network, handle, std::move( imageShader ) );
+	}
+}
+
+void convertMtlxTextures( ShaderNetwork *network )
+{
+	for( const auto &[handle, shader] : network->shaders() )
+	{
+		if( !boost::starts_with( shader->getName(), "ND_image" ) )
+		{
+			continue;
+		}
+
+		ShaderPtr imageShader = new Shader( "image_texture", "cycles:shader" );
+		transferUSDParameter( network, handle, shader.get(), g_fileParameter, imageShader.get(), g_filenameParameter, string() );
+		transferUSDParameter( network, handle, shader.get(), g_fileColorspaceParameter, imageShader.get(), g_colorspaceParameter, string() );
+
+		// ND_image has the same matching names as Cycles for `closest`, `linear`, `cubic`
+		imageShader->parameters()[g_interpolationParameter] = new StringData( parameterValue( shader.get(), g_filterTypeParameter, string( "linear" ) ) );
+
+		// Cycles has a single "extension" parameter for wrapping a texture in
+		// both directions, so we take the first wrap parameter with a value.
+		// All seem to match Cycles except `constant`, which we will map to `black`.
+		string mode = parameterValue( shader.get(), g_uAddressModeParameter, string() );
+		if( mode.empty() )
+		{
+			mode = parameterValue( shader.get(), g_vAddressModeParameter, string( "periodic" ) );
+		}
+		if( mode == "constant" )
+		{
+			mode = "black";
+		}
+		imageShader->parameters()[g_extensionParameter] = new StringData( mode );
+
+		transferUSDParameter( network, handle, shader.get(), g_texcoordParameter, imageShader.get(), g_vectorParameter, V3f( 0.0f ) );
+
+		if( shader->getName() == "ND_image_color4" || shader->getName() == "ND_image_vector4" )
+		{
+			const Color4f rgba = parameterValue( shader.get(), g_defaultParameter, Color4f( 0.0f, 0.0f, 0.0f, 1.0f ) );
+			imageShader->parameters()[g_missingParameter] = new Color3fData( Color3f( rgba.r, rgba.g, rgba.b ) );
+			imageShader->parameters()[g_missingAlphaParameter] = new FloatData( rgba.a );
+			if( const ShaderNetwork::Parameter defaultInput = network->input( { handle, g_defaultParameter } ) )
+			{
+				network->addConnection( ShaderNetwork::Connection( defaultInput, { handle, g_missingParameter } ) );
+				network->removeConnection( ShaderNetwork::Connection( defaultInput, { handle, g_defaultParameter } ) );
+			}
+			if( const ShaderNetwork::Parameter defaultInput = network->input( { handle, g_defaultAParameter } ) )
+			{
+				network->addConnection( ShaderNetwork::Connection( defaultInput, { handle, g_missingAlphaParameter } ) );
+				network->removeConnection( ShaderNetwork::Connection( defaultInput, { handle, g_defaultAParameter } ) );
+			}
+		}
+		else if( shader->getName() == "ND_image_color3" || shader->getName() == "ND_image_vector3" )
+		{
+			transferUSDParameter( network, handle, shader.get(), g_defaultParameter, imageShader.get(), g_missingParameter, Color3f( 0.0f ) );
+		}
+
 		replaceUSDShader( network, handle, std::move( imageShader ) );
 	}
 }
@@ -1447,6 +1633,7 @@ void IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( ShaderNetwork *shaderNe
 			// with a little compare/multiply network.
 
 			float opacity = parameterValue( shader.get(), g_opacityParameter, 1.0f );
+			const string opacityMode = parameterValue( shader.get(), g_opacityModeParameter, string( "transparent" ) );
 			const float opacityThreshold = parameterValue( shader.get(), g_opacityThresholdParameter, 0.0f );
 			if( const ShaderNetwork::Parameter opacityInput = shaderNetwork->input( { handle, g_opacityParameter } ) )
 			{
@@ -1465,17 +1652,35 @@ void IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( ShaderNetwork *shaderNe
 					shaderNetwork->removeConnection( ShaderNetwork::Connection( opacityInput, { handle, g_opacityParameter } ) );
 					shaderNetwork->addConnection( ShaderNetwork::Connection( { multiplyHandle, g_valueParameter }, { handle, g_alphaParameter } ) );
 				}
-				else
+				else if( opacityMode == string( "presence" ) )
 				{
 					transferUSDParameter( shaderNetwork, handle, shader.get(), g_opacityParameter, newShader.get(), g_alphaParameter, 1.0f );
 				}
+				else
+				{
+					shaderNetwork->removeConnection( ShaderNetwork::Connection( opacityInput, { handle, g_opacityParameter } ) );
+				}
+
+				if( opacityMode == string( "transparent" ) )
+				{
+					ShaderPtr invertShader = new Shader( "math", "cycles:shader" );
+					invertShader->parameters()[g_value1Parameter] = new FloatData( 1.0f );
+					invertShader->parameters()[g_mathTypeParameter] = new StringData( "subtract" );
+					invertShader->parameters()[g_useClampParameter] = new BoolData( true );
+					const InternedString invertHandle = shaderNetwork->addShader( handle.string() + "OpacityInvert", std::move( invertShader ) );
+					shaderNetwork->addConnection( ShaderNetwork::Connection( opacityInput, { invertHandle, g_value2Parameter } ) );
+					shaderNetwork->addConnection( ShaderNetwork::Connection( { invertHandle, g_valueParameter }, { handle, g_transmissionWeightParameter } ) );
+				}
+			}
+			else if( opacityMode == string( "transparent" ) )
+			{
+				newShader->parameters()[g_transmissionWeightParameter] = new FloatData( 1.0f - opacity );
 			}
 			else
 			{
 				opacity = opacity > opacityThreshold ? opacity : 0.0f;
+				newShader->parameters()[g_alphaParameter] = new FloatData( opacity );
 			}
-
-			newShader->parameters()[g_alphaParameter] = new FloatData( opacity );
 
 			// Normal.
 			if( const ShaderNetwork::Parameter normalInput = shaderNetwork->input( { handle, g_normalParameter } ) )
@@ -1531,18 +1736,43 @@ void IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( ShaderNetwork *shaderNe
 			}
 		}
 		else if(
-			shader->getName() == "UsdPrimvarReader_float" ||
 			shader->getName() == "UsdPrimvarReader_float3" ||
-			shader->getName() == "UsdPrimvarReader_float4" ||
 			shader->getName() == "UsdPrimvarReader_normal" ||
 			shader->getName() == "UsdPrimvarReader_point" ||
-			shader->getName() == "UsdPrimvarReader_vector" ||
+			shader->getName() == "UsdPrimvarReader_vector"
+		)
+		{
+			newShader = new Shader( "attribute", "cycles:shader" );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_varnameParameter, newShader.get(), g_attributeParameter, string() );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_fallbackParameter, newShader.get(), g_missingParameter, Imath::Color3f( 0.0f ) );
+		}
+		else if(
+			shader->getName() == "UsdPrimvarReader_float" ||
 			shader->getName() == "UsdPrimvarReader_int" ||
 			shader->getName() == "UsdPrimvarReader_string"
 		)
 		{
 			newShader = new Shader( "attribute", "cycles:shader" );
 			transferUSDParameter( shaderNetwork, handle, shader.get(), g_varnameParameter, newShader.get(), g_attributeParameter, string() );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_fallbackParameter, newShader.get(), g_missingAlphaParameter, 0.0f );
+		}
+		else if( shader->getName() == "UsdPrimvarReader_float4" )
+		{
+			newShader = new Shader( "attribute", "cycles:shader" );
+			const Color4f rgba = parameterValue( shader.get(), g_fallbackParameter, Color4f( 0.0f ) );
+			newShader->parameters()[g_missingParameter] = new Color3fData( Color3f( rgba.r, rgba.g, rgba.b ) );
+			newShader->parameters()[g_missingAlphaParameter] = new FloatData( rgba.a );
+			// Fallback
+			if( const ShaderNetwork::Parameter fallbackInput = shaderNetwork->input( { handle, g_fallbackParameter } ) )
+			{
+				shaderNetwork->addConnection( ShaderNetwork::Connection( fallbackInput, { handle, g_missingParameter } ) );
+				shaderNetwork->removeConnection( ShaderNetwork::Connection( fallbackInput, { handle, g_fallbackParameter } ) );
+			}
+			if( const ShaderNetwork::Parameter fallbackInput = shaderNetwork->input( { handle, g_fallbackAParameter } ) )
+			{
+				shaderNetwork->addConnection( ShaderNetwork::Connection( fallbackInput, { handle, g_missingAlphaParameter } ) );
+				shaderNetwork->removeConnection( ShaderNetwork::Connection( fallbackInput, { handle, g_fallbackAParameter } ) );
+			}
 		}
 		else if( shader->getName() == "SphereLight" )
 		{
@@ -1601,6 +1831,132 @@ void IECoreCycles::ShaderNetworkAlgo::convertUSDShaders( ShaderNetwork *shaderNe
 			transferUSDParameter( shaderNetwork, handle, shader.get(), g_widthParameter, newShader.get(), g_widthParameter, 1.0f );
 			transferUSDParameter( shaderNetwork, handle, shader.get(), g_heightParameter, newShader.get(), g_heightParameter, 1.0f );
 			transferUSDTextureFile( shaderNetwork, handle, shader.get(), newShader.get() );
+		}
+
+		if( newShader )
+		{
+			replaceUSDShader( shaderNetwork, handle, std::move( newShader ) );
+		}
+	}
+
+	IECoreScene::ShaderNetworkAlgo::removeUnusedShaders( shaderNetwork );
+}
+
+void IECoreCycles::ShaderNetworkAlgo::convertMtlxShaders( ShaderNetwork *shaderNetwork )
+{
+	// Must convert these first.
+	// Cycles doesn't allow us to use UDIMs on any other shaders except
+	// the built-in `image_texture` node, so we convert those.
+	// Unfortunately the biggest drawback here is there's no `default`
+	// or `missingColor` fallback so those cases will fail...
+	convertMtlxTextures( shaderNetwork );
+
+	for( const auto &[handle, shader] : shaderNetwork->shaders() )
+	{
+		ShaderPtr newShader;
+		if( shader->getName() == "ND_geompropvalue_vector2" )
+		{
+			// Cycles seems to do some extra plumbing to get UV reading to work that
+			// free-form calls to `getattribute` in OSL would fail on, so we swap it
+			// in the Cycles `uvmap` node.
+			newShader = new Shader( "uvmap", "cycles:shader" );
+
+			if( parameterValue<string>( shader.get(), g_geompropParameter, "" ) == "st" )
+			{
+				newShader->parameters()[g_attributeParameter] = new StringData( "uv" );
+			}
+			else
+			{
+				transferUSDParameter( shaderNetwork, handle, shader.get(), g_geompropParameter, newShader.get(), g_attributeParameter, string() );
+			}
+		}
+		else if( boost::starts_with( shader->getName(), "ND_geompropvalue" ) )
+		{
+			// Same story for geompropvalue, we swap these for a Cycles `attribute`.
+			newShader = new Shader( "attribute", "cycles:shader" );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_geompropParameter, newShader.get(), g_attributeParameter, string() );
+		}
+		else if( boost::starts_with( shader->getName(), "ND_texcoord" ) )
+		{
+			// This shader is an index, most likely for the GLSL backend of MaterialX
+			// which GenOSL essentially just maps u and v builtins of OSL and ignores
+			// the index number entirely. This isn't quite what we expect, so just default
+			// to the default UVs of the model and ignore the index number.
+			// Maya's LookdevX will make a similar warning that the node isn't supported
+			// for name-based renderers.
+			newShader = new Shader( "uvmap", "cycles:shader" );
+			newShader->parameters()[g_attributeParameter] = new StringData( "uv" );
+
+			if( parameterValue<int>( shader.get(), g_indexParameter, 0 ) != 0 )
+			{
+				msg(
+					Msg::Warning, "IECoreCycles::ShaderNetworkAlgo",
+					fmt::format( "MaterialX node \"{}\" is not supported in a name-based renderer and will use the default UVs.", shader->getName() )
+				);
+			}
+		}
+		else if( boost::starts_with( shader->getName(), "ND_geomcolor" ) )
+		{
+			msg(
+				Msg::Warning, "IECoreCycles::ShaderNetworkAlgo",
+				fmt::format( "MaterialX node \"{}\" is not supported in a name-based renderer.", shader->getName() )
+			);
+		}
+		/*
+		else if( boost::starts_with( shader->getName(), "ND_normalmap" ) )
+		{
+			newShader = new Shader( "normal_map", "cycles:shader" );
+
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_inParameter, newShader.get(), g_colorParameter, V3f( 0.5f, 0.5, 1.0f ) );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_scaleParameter, newShader.get(), g_strengthParameter, 1.0f );
+
+			if( const ShaderNetwork::Parameter tangentInput = shaderNetwork->input( { handle, g_tangentParameter } ) )
+			{
+				const Shader *inShader = shaderNetwork->getShader( tangentInput.shader );
+				if( boost::starts_with( inShader->getName(), "ND_tangent" ) )
+				{
+					IECore::msg(
+						IECore::Msg::Warning,
+						"IECoreCycles",
+						fmt::format( "MaterialX node `{}` is not supported in a name-based renderer.",
+						inShader->getName() ) );
+				}
+				shaderNetwork->removeConnection( { tangentInput, { handle, g_tangentParameter } } );
+			}
+
+			if( const ShaderNetwork::Parameter bitangentInput = shaderNetwork->input( { handle, g_bitangentParameter } ) )
+			{
+				const Shader *inShader = shaderNetwork->getShader( bitangentInput.shader );
+				if( boost::starts_with( inShader->getName(), "ND_bitangent" ) )
+				{
+					IECore::msg(
+						IECore::Msg::Warning,
+						"IECoreCycles",
+						fmt::format( "MaterialX node `{}` is not supported in a name-based renderer.",
+						inShader->getName() ) );
+				}
+				shaderNetwork->removeConnection( { bitangentInput, { handle, g_bitangentParameter } } );
+			}
+		}
+		*/
+
+		for( const auto &c : shaderNetwork->inputConnections( handle ) )
+		{
+			const Shader *inShader = shaderNetwork->getShader( c.source.shader );
+			if( boost::starts_with( shader->getName(), "ND_geompropvalueuniform" ) )
+			{
+				const std::string paramValue = parameterValue<string>( inShader, g_geompropParameter, std::string() );
+				if( !paramValue.empty() )
+				{
+					newShader->parameters()[c.destination.name] = new StringData( fmt::format( "<attr:{}>", paramValue ) );
+					msg(
+						Msg::Debug, "IECoreCycles::ShaderNetworkAlgo",
+						fmt::format( "MaterialX node \"{}\" of shader \"{}\" has been converted to a string substitution onto \"{}.{}\" but will ignore the default fallback value.",
+						inShader->getName(), c.source.shader.string(), handle.string(), c.destination.name.string() )
+					);
+				}
+				shaderNetwork->removeConnection( c );
+			}
 		}
 
 		if( newShader )

@@ -39,6 +39,7 @@
 #include "ParamListAlgo.h"
 
 #include "IECoreScene/ShaderNetworkAlgo.h"
+#include "IECoreMaterialX/ShaderNetworkAlgo.h"
 
 #include "IECore/DataAlgo.h"
 #include "IECore/LRUCache.h"
@@ -49,6 +50,7 @@
 #include "OSL/oslquery.h"
 
 #include "boost/algorithm/string.hpp"
+#include "boost/algorithm/string/predicate.hpp"
 #include "boost/container/flat_map.hpp"
 #include "boost/core/span.hpp"
 #include "boost/property_tree/xml_parser.hpp"
@@ -815,6 +817,11 @@ void convertShaderNetworkWalk( const ShaderNetwork::Parameter &outputParameter, 
 const InternedString g_sunDirectionParameter( "sunDirection" );
 
 
+const InternedString g_filterTypeParameter( "filterType" );
+const InternedString g_closestFilterName( "closest" );
+const InternedString g_cubicFilterName( "cubic" );
+const InternedString g_linearFilterName( "linear" );
+
 template<typename T>
 T parameterValue( const Shader *shader, InternedString parameterName, const T &defaultValue )
 {
@@ -858,6 +865,39 @@ T parameterValue( const Shader *shader, InternedString parameterName, const T &d
 			return d->readable().string();
 		}
 	}
+	else if constexpr( is_same_v<remove_cv_t<T>, int > )
+	{
+		// String to Enum for special-case `ND_image.filterType` to `PxrTexture.filter`.
+		// PxrTexture's filter enum numbers: 0 == closest, 1 == cubic, 2 == linear.
+		if( boost::starts_with( shader->getName(), "ND_image" ) && parameterName == g_filterTypeParameter )
+		{
+			if( auto d = shader->parametersData()->member<InternedStringData>( parameterName ) )
+			{
+				const InternedString &s = d->readable();
+				if( s == g_closestFilterName )
+				{
+					return 0;
+				}
+				else if( s == g_cubicFilterName )
+				{
+					return 1;
+				}
+				else if( s == g_linearFilterName )
+				{
+					return 2;
+				}
+			}
+		}
+	}
+	else if constexpr( is_same_v<remove_cv_t<T>, float > )
+	{
+		// Conversion of V2f to the first value eg. `ND_normalmap_vector2`
+		if( auto d = shader->parametersData()->member<V2fData>( parameterName ) )
+		{
+			const V2f &v = d->readable();
+			return v[0];
+		}
+	}
 
 	return defaultValue;
 }
@@ -886,6 +926,7 @@ ShaderNetworkPtr preprocessedNetwork( const IECoreScene::ShaderNetwork *shaderNe
 	correctParameters( result.get() );
 	IECoreScene::ShaderNetworkAlgo::expandRamps( result.get() );
 	IECoreRenderMan::ShaderNetworkAlgo::convertUSDShaders( result.get() );
+	IECoreMaterialX::ShaderNetworkAlgo::convertToOSLNodes( result.get(), "renderman", false );
 	IECoreRenderMan::ShaderNetworkAlgo::resolveVStructs( result.get() );
 
 	return result;
@@ -1001,15 +1042,20 @@ void transferUSDParameter( ShaderNetwork *network, InternedString shaderHandle, 
 	}
 }
 
+const InternedString g_aParameterName( "a" );
 const InternedString g_angleParameter( "angle" );
 const InternedString g_angleExtentParameter( "angleExtent" );
 const InternedString g_areaNormalizeParameter( "areaNormalize" );
+const InternedString g_bParameterName( "b" );
+const InternedString g_biasParameter( "bias" );
 const InternedString g_bumpNormalParameter( "bumpNormal" );
 const InternedString g_clearcoatDoubleSidedParameter( "clearcoatDoubleSided" );
 const InternedString g_clearcoatFaceColorParameter( "clearcoatFaceColor" );
 const InternedString g_clearcoatEdgeColorParameter( "clearcoatEdgeColor" );
 const InternedString g_clearcoatRoughnessParameter( "clearcoatRoughness" );
+const InternedString g_colorOffsetParameter( "colorOffset" );
 const InternedString g_colorParameter( "color" );
+const InternedString g_colorScaleParameter( "colorScale" );
 const InternedString g_colorTemperatureParameter( "colorTemperature" );
 const InternedString g_coneAngleParameter( "coneAngle" );
 const InternedString g_coneSoftnessParameter( "coneSoftness" );
@@ -1027,6 +1073,7 @@ const InternedString g_enableShadowsParameter( "enableShadows" );
 const InternedString g_enableTemperatureParameter( "enableTemperature" );
 const InternedString g_exposureParameter( "exposure" );
 const InternedString g_fallbackParameter( "fallback" );
+const InternedString g_gParameterName( "g" );
 const InternedString g_glassIorParameter( "glassIor" );
 const InternedString g_glassRoughnessParameter( "glassRoughness" );
 const InternedString g_glowColorParameter( "glowColor" );
@@ -1039,16 +1086,40 @@ const InternedString g_intensityParameter( "intensity" );
 const InternedString g_lengthParameter( "length" );
 const InternedString g_lightColorParameter( "lightColor" );
 const InternedString g_lightColorMapParameter( "lightColorMap" );
+const InternedString g_mainfoldParameter( "mainfold" );
+const InternedString g_manifoldQParameter( "manifold.Q" );
+const InternedString g_manifoldQNParameter( "manifold.QN" );
+const InternedString g_manifoldQradiusParameter( "manifold.Qradius" );
 const InternedString g_normalParameter( "normal" );
 const InternedString g_normalInParameter( "normalIn" );
 const InternedString g_normalizeParameter( "normalize" );
+const InternedString g_offsetSParameter( "offsetS" );
+const InternedString g_offsetTParameter( "offsetT" );
+const InternedString g_offsetXParameter( "offsetX" );
+const InternedString g_offsetYParameter( "offsetY" );
+const InternedString g_prefParameter( "pref" );
 const InternedString g_presenceParameter( "presence" );
+const InternedString g_rParameterName( "r" );
 const InternedString g_radiusParameter( "radius" );
 const InternedString g_refractionGainParameter( "refractionGain" );
 const InternedString g_resultFParameter( "resultF" );
 const InternedString g_resultIParameter( "resultI" );
+const InternedString g_resultRParameter( "resultR" );
+const InternedString g_resultGParameter( "resultG" );
+const InternedString g_resultBParameter( "resultB" );
+const InternedString g_resultAParameter( "resulta" );
 const InternedString g_resultRGBParameter( "resultRGB" );
+const InternedString g_resultQParameter( "result.Q" );
+const InternedString g_resultQNParameter( "result.QN" );
+const InternedString g_resultQradiusParameter( "result.Qradius" );
+const InternedString g_rgbParameterName( "rgb" );
+const InternedString g_rotateZParameter( "rotateZ" );
+const InternedString g_rotationParameter( "rotation" );
 const InternedString g_roughSpecularDoubleSidedParameter( "roughSpecularDoubleSided" );
+const InternedString g_scaleSParameter( "scaleS" );
+const InternedString g_scaleTParameter( "scaleT" );
+const InternedString g_scaleXParameter( "scaleX" );
+const InternedString g_scaleYParameter( "scaleY" );
 const InternedString g_shadowColorParameter( "shadowColor" );
 const InternedString g_shadowColorUSDParameter( "shadow:color" );
 const InternedString g_shadowDistanceParameter( "shadowDistance" );
@@ -1072,14 +1143,17 @@ const InternedString g_specularFaceColorParameter( "specularFaceColor" );
 const InternedString g_specularIorParameter( "specularIor" );
 const InternedString g_specularModelTypeParameter( "specularModelType" );
 const InternedString g_specularRoughnessParameter( "specularRoughness" );
+const InternedString g_stParameter( "st" );
 const InternedString g_temperatureParameter( "temperature" );
 const InternedString g_textureFileParameter( "texture:file" );
 const InternedString g_textureFormatParameter( "texture:format" );
+const InternedString g_transformParameter( "transform" );
 const InternedString g_treatAsPointParameter( "treatAsPoint" );
 const InternedString g_treatAsLineParameter( "treatAsLine" );
 const InternedString g_typeParameter( "type" );
 const InternedString g_usdPrimvarReaderIntShaderName( "UsdPrimvarReader_int" );
 const InternedString g_usdPrimvarReaderFloatShaderName( "UsdPrimvarReader_float" );
+const InternedString g_usdUVTextureShaderName( "UsdUVTexture" );
 const InternedString g_varnameParameter( "varname" );
 const InternedString g_widthParameter( "width" );
 
@@ -1166,9 +1240,195 @@ void transferUSDShapingParameters( ShaderNetwork *network, InternedString shader
 	}
 }
 
+// standard_surface
+
+const InternedString g_emissionParameter( "emission" );
+const InternedString g_emissionValueParameter( "emission_value" );
+
+const InternedString g_subsurfaceParameter( "subsurface" );
+const InternedString g_subsurfaceValueParameter( "subsurface_value" );
+
+const InternedString g_diffuseRoughnessParameter( "diffuseRoughness" );
+const InternedString g_specularFresnelModeParameter( "specularFresnelMode" );
+const InternedString g_specularExtinctionCoeffParameter( "specularExtinctionCoeff" );
+const InternedString g_specularAnisotropyParameter( "specularAnisotropy" );
+const InternedString g_clearcoatModelTypeParameter( "clearcoatModelType" );
+const InternedString g_clearcoatAnisotropyParameter( "clearcoatAnisotropy" );
+const InternedString g_reflectionGainParameter( "reflectionGain" );
+const InternedString g_refractionColorParameter( "refractionColor" );
+const InternedString g_glassAnisotropyParameter( "glassAnisotropy" );
+const InternedString g_thinGlassParameter( "thinGlass" );
+const InternedString g_ssAlbedoParameter( "ssAlbedo" );
+const InternedString g_extinctionParameter( "extinction" );
+const InternedString g_g0Parameter( "g0" );
+const InternedString g_subsurfaceGainParameter( "subsurfaceGain" );
+const InternedString g_subsurfaceColorParameter( "subsurfaceColor" );
+const InternedString g_subsurfaceDmfpParameter( "subsurfaceDmfp" );
+const InternedString g_subsurfaceDmfpColorParameter( "subsurfaceDmfpColor" );
+const InternedString g_subsurfaceDirectionalityParameter( "subsurfaceDirectionality" );
+const InternedString g_diffuseTransmitGainParameter( "diffuseTransmitGain" );
+const InternedString g_diffuseTransmitColorParameter( "diffuseTransmitColor" );
+const InternedString g_fuzzGainParameter( "fuzzGain" );
+const InternedString g_fuzzColorParameter( "fuzzColor" );
+const InternedString g_fuzzConeAngleParameter( "fuzzConeAngle" );
+const InternedString g_iridescenceModeParameter( "iridescenceMode" );
+const InternedString g_iridescenceFaceGainParameter( "iridescenceFaceGain" );
+const InternedString g_iridescenceEdgeGainParameter( "iridescenceEdgeGain" );
+const InternedString g_iridescenceThicknessParameter( "iridescenceThickness" );
+const InternedString g_orientationParameter( "orientation" );
+
+const std::vector<InternedString> g_standardSurfaceParameters = {
+	g_diffuseGainParameter,
+	g_diffuseColorParameter,
+	g_diffuseRoughnessParameter,
+	g_specularFresnelModeParameter,
+	g_specularModelTypeParameter,
+	g_specularFaceColorParameter,
+	g_specularEdgeColorParameter,
+	g_specularRoughnessParameter,
+	g_specularIorParameter,
+	g_specularExtinctionCoeffParameter,
+	g_specularAnisotropyParameter,
+	g_clearcoatModelTypeParameter,
+	g_clearcoatFaceColorParameter,
+	g_clearcoatEdgeColorParameter,
+	g_clearcoatRoughnessParameter,
+	g_clearcoatAnisotropyParameter,
+	g_glowGainParameter,
+	g_glowColorParameter,
+	g_reflectionGainParameter,
+	g_refractionGainParameter,
+	g_refractionColorParameter,
+	g_glassIorParameter,
+	g_glassRoughnessParameter,
+	g_glassAnisotropyParameter,
+	g_thinGlassParameter,
+	g_ssAlbedoParameter,
+	g_extinctionParameter,
+	g_g0Parameter,
+	g_subsurfaceGainParameter,
+	g_subsurfaceColorParameter,
+	g_subsurfaceDmfpParameter,
+	g_subsurfaceDmfpColorParameter,
+	g_subsurfaceDirectionalityParameter,
+	g_diffuseTransmitGainParameter,
+	g_diffuseTransmitColorParameter,
+	g_diffuseDoubleSidedParameter,
+	g_fuzzGainParameter,
+	g_fuzzColorParameter,
+	g_fuzzConeAngleParameter,
+	g_iridescenceModeParameter,
+	g_iridescenceFaceGainParameter,
+	g_iridescenceEdgeGainParameter,
+	g_iridescenceThicknessParameter,
+	g_bumpNormalParameter,
+};
+
+// Lama
+
+const std::unordered_map<std::string, std::string> g_lamaNameMap = {
+	{ "ND_lama_surface", "LamaSurface" },
+	{ "ND_lama_add", "LamaAdd" },
+	{ "ND_lama_mix", "LamaMix" },
+	{ "ND_lama_layer", "LamaLayer" },
+	{ "ND_lama_conductor", "LamaConductor" },
+	{ "ND_lama_dielectric", "LamaDielectric" },
+	{ "ND_lama_diffuse", "LamaDiffuse" },
+	{ "ND_lama_emission", "LamaEmission" },
+	{ "ND_lama_generalized_schlick", "LamaGeneralizedSchlick" },
+	{ "ND_lama_iridescence", "LamaIridescence" },
+	{ "ND_lama_sheen", "LamaSheen" },
+	{ "ND_lama_sss", "LamaSSS" },
+	{ "ND_lama_translucent", "LamaTranslucent" },
+};
+
+// image
+
+const InternedString g_mtlxImageFloatShader( "ND_image_float" );
+const InternedString g_mtlxImageColor3Shader( "ND_image_color3" );
+const InternedString g_mtlxImageColor4Shader( "ND_image_color4" );
+const InternedString g_mtlxImageVector2Shader( "ND_image_vector2" );
+const InternedString g_mtlxImageVector3Shader( "ND_image_vector3" );
+const InternedString g_mtlxImageVector4Shader( "ND_image_vector4" );
+
+const InternedString g_resultNGParameter( "resultNG" );
+
+const InternedString g_fileParameter( "file" );
+const InternedString g_filenameParameter( "filename" );
+const InternedString g_defaultParameter( "default" );
+const InternedString g_missingColorParameter( "missingColor" );
+const InternedString g_filterParameter( "filter" );
+const InternedString g_missingAlphaParameter( "missingAlpha" );
+const InternedString g_texcoordParameter( "texcoord" );
+const InternedString g_nameUvSetParameter( "name_uvSet" );
+
+const InternedString g_resultParameter( "result" );
+const InternedString g_resultNParameter( "resultN" );
+
+const InternedString g_inParameter( "in" );
+const InternedString g_inputRGBParameter( "inputRGB" );
+const InternedString g_scaleParameter( "scale" );
+const InternedString g_bumpScaleParameter( "bumpScale" );
+
+const InternedString g_tangentParameter( "tangent" );
+const InternedString g_bitangentParameter( "bitangent" );
+const InternedString g_flipYParameter( "flipY" );
+
+const std::vector<std::string> g_mtlxImageShaders = {
+	g_mtlxImageFloatShader.string(),
+	g_mtlxImageColor3Shader.string(),
+	g_mtlxImageColor4Shader.string(),
+	g_mtlxImageVector2Shader.string(),
+	g_mtlxImageVector3Shader.string(),
+	g_mtlxImageVector4Shader.string(),
+};
+
 const InternedString remapOutputParameterName( const InternedString name, const InternedString shaderName )
 {
-	if( boost::starts_with( shaderName.string(), "UsdPrimvarReader" ) )
+	if ( shaderName == g_usdUVTextureShaderName )
+	{
+		if( name == g_rParameterName )
+		{
+			return g_resultRParameter;
+		}
+		else if( name == g_gParameterName )
+		{
+			return g_resultGParameter;
+		}
+		else if( name == g_bParameterName )
+		{
+			return g_resultBParameter;
+		}
+		else if( name == g_aParameterName )
+		{
+			return g_resultAParameter;
+		}
+		else if( name == g_rgbParameterName )
+		{
+			return g_resultRGBParameter;
+		}
+	}
+	else if( shaderName == g_mtlxImageFloatShader )
+	{
+		return g_resultAParameter;
+	}
+	else if( shaderName == g_mtlxImageColor3Shader )
+	{
+		return g_resultRGBParameter;
+	}
+	else if( shaderName == g_mtlxImageColor4Shader )
+	{
+		return g_resultRGBParameter;
+	}
+	else if( shaderName == g_mtlxImageVector2Shader ||
+				shaderName == g_mtlxImageVector3Shader ||
+				shaderName == g_mtlxImageVector4Shader )
+	{
+		// There is resultNG but not suitable from my testing eg.
+		// PxrTexture -> PxrNormalMap is a better fit.
+		return g_resultRGBParameter;
+	}
+	else if( boost::starts_with( shaderName.string(), "UsdPrimvarReader" ) )
 	{
 		if( shaderName == g_usdPrimvarReaderFloatShaderName )
 		{
@@ -1182,6 +1442,14 @@ const InternedString remapOutputParameterName( const InternedString name, const 
 		{
 			return g_resultRGBParameter;
 		}
+	}
+	else if( boost::starts_with( shaderName.string(), "ND_texcoord" ) )
+	{
+		return g_resultParameter;
+	}
+	else if( boost::starts_with( shaderName.string(), "ND_normalmap" ) )
+	{
+		return g_resultNParameter;
 	}
 
 	return name;
@@ -1209,14 +1477,189 @@ void replaceUSDShader( ShaderNetwork *network, InternedString handle, ShaderPtr 
 	}
 }
 
+void convertUSDToManifold( ShaderNetwork *network, InternedString textureHandle, ShaderNetwork::Parameter inputParameter )
+{
+	// Renderman's manifold inputs to PxrTexture is a little restrictive as to only support known
+	// UVs/primvars that PxrManifold2D/PxrManifold3D will use and apply any transforms. We allow 1
+	// level of recursion if a UsdTranaform2d is found and apply the transforms to the final
+	// manifold shader. The actual UV or primvar must come from either a UsdPrimvarReader_float2
+	// or UsdPrimvarReader_float3/point/vector to be considered.
+	const Shader *shader = network->getShader( inputParameter.shader );
+	if( auto input = network->input( inputParameter ) )
+	{
+		const Shader *inputShader = network->getShader( input.shader );
+		if( inputShader->getName() == "UsdPrimvarReader_float2" )
+		{
+			ShaderPtr manifoldShader = new Shader( "PxrManifold2D", "osl:shader" );
+			const string st = parameterValue( inputShader, g_varnameParameter, string() );
+			manifoldShader->parameters()[g_nameUvSetParameter] = new StringData( st == "st" ? "" : st );
+			if( shader->getName() == "UsdTransform2d" )
+			{
+				// Apply transforms (if any)
+				const float rotation = parameterValue( shader, g_rotationParameter, 0.0f );
+				manifoldShader->parameters()[g_angleParameter] = new IECore::FloatData( rotation );
+				const V2f scale = parameterValue( shader, g_scaleParameter, V2f( 1.0f ) );
+				manifoldShader->parameters()[g_scaleSParameter] = new IECore::FloatData( scale[0] );
+				manifoldShader->parameters()[g_scaleTParameter] = new IECore::FloatData( scale[1] );
+				const V2f transform = parameterValue( shader, g_transformParameter, V2f( 0.0f ) );
+				manifoldShader->parameters()[g_offsetSParameter] = new IECore::FloatData( transform[0] );
+				manifoldShader->parameters()[g_offsetTParameter] = new IECore::FloatData( transform[1] );
+			}
+			const InternedString manifoldHandle = network->addShader( textureHandle.string() + "PxrManifold2D", std::move( manifoldShader ) );
+			network->removeConnection( { input, { textureHandle, g_stParameter } } );
+			network->addConnection( { { manifoldHandle, g_resultQParameter }, { textureHandle, g_manifoldQParameter } } );
+			network->addConnection( { { manifoldHandle, g_resultQNParameter }, { textureHandle, g_manifoldQNParameter } } );
+			network->addConnection( { { manifoldHandle, g_resultQradiusParameter }, { textureHandle, g_manifoldQradiusParameter } } );
+			// TODO: Connections from UsdTransform2d to PxrMaifold2D?
+		}
+		else if(
+			inputShader->getName() == "UsdPrimvarReader_float3" ||
+			inputShader->getName() == "UsdPrimvarReader_point" ||
+			inputShader->getName() == "UsdPrimvarReader_vector" )
+		{
+			ShaderPtr manifoldShader = new Shader( "PxrManifold3D", "osl:shader" );
+			const string pref = parameterValue( inputShader, g_varnameParameter, string() );
+			manifoldShader->parameters()[g_prefParameter] = new StringData( pref );
+			if( shader->getName() == "UsdTransform2d" )
+			{
+				// Apply transforms (if any).
+				const float rotation = parameterValue( shader, g_rotationParameter, 0.0f );
+				manifoldShader->parameters()[g_rotateZParameter] = new IECore::FloatData( rotation );
+				const V2f scale = parameterValue( shader, g_scaleParameter, V2f( 1.0f ) );
+				manifoldShader->parameters()[g_scaleXParameter] = new IECore::FloatData( scale[0] );
+				manifoldShader->parameters()[g_scaleYParameter] = new IECore::FloatData( scale[1] );
+				const V2f transform = parameterValue( shader, g_transformParameter, V2f( 0.0f ) );
+				manifoldShader->parameters()[g_offsetXParameter] = new IECore::FloatData( transform[0] );
+				manifoldShader->parameters()[g_offsetYParameter] = new IECore::FloatData( transform[1] );
+			}
+			const InternedString manifoldHandle = network->addShader( textureHandle.string() + "PxrManifold3D", std::move( manifoldShader ) );
+			network->removeConnection( { input, { textureHandle, g_stParameter } } );
+			network->addConnection( { { manifoldHandle, g_resultQParameter }, { textureHandle, g_manifoldQParameter } } );
+			network->addConnection( { { manifoldHandle, g_resultQNParameter }, { textureHandle, g_manifoldQNParameter } } );
+			network->addConnection( { { manifoldHandle, g_resultQradiusParameter }, { textureHandle, g_manifoldQradiusParameter } } );
+			// TODO: Connections from UsdTransform2d to PxrMaifold3D?
+		}
+		else if( ( inputShader->getName() == "UsdTransform2d" ) && ( inputParameter.name == g_stParameter ) )
+		{
+			convertUSDToManifold( network, textureHandle, input );
+		}
+		else
+		{
+			IECore::msg(
+				IECore::Msg::Warning,
+				"convertUSDShaders",
+				fmt::format( "Unsupported \"st\" input for UsdUVTexture \"{}\" to PxrTexture \"manifold\" input.", textureHandle.string() )
+			);
+			network->removeConnection( { input, { textureHandle, g_stParameter } } );
+		}
+	}
+}
+
+void convertUSDUVTextures( ShaderNetwork *network )
+{
+	for( const auto &[handle, shader] : network->shaders() )
+	{
+		if( shader->getName() != "UsdUVTexture" )
+		{
+			continue;
+		}
+
+		ShaderPtr imageShader = new Shader( "PxrTexture", "osl:shader" );
+
+		transferUSDParameter( network, handle, shader.get(), g_fileParameter, imageShader.get(), g_filenameParameter, string() );
+		transferUSDParameter( network, handle, shader.get(), g_fallbackParameter, imageShader.get(), g_missingColorParameter, Color3f( 0 ) );
+		transferUSDParameter( network, handle, shader.get(), g_scaleParameter, imageShader.get(), g_colorScaleParameter, Color3f( 1 ) );
+		transferUSDParameter( network, handle, shader.get(), g_biasParameter, imageShader.get(), g_colorOffsetParameter, Color3f( 0 ) );
+
+		if( auto input = network->input( { handle, g_stParameter } ) )
+		{
+			const Shader *inputShader = nullptr;
+			const Shader *usdTransform2dShader = nullptr;
+			ShaderNetwork::Parameter inputParameter;
+			if( network->getShader( input.shader )->getName() == "UsdTransform2d" )
+			{
+				usdTransform2dShader = network->getShader( input.shader );
+				if( auto input2 = network->input( { input.shader, g_inParameter } ) )
+				{
+					inputShader = network->getShader( input2.shader );
+					inputParameter = input2;
+				}
+			}
+			else
+			{
+				inputShader = network->getShader( input.shader );
+				inputParameter = input;
+			}
+
+			if( inputShader->getName() == "UsdPrimvarReader_float2" )
+			{
+				ShaderPtr manifoldShader = new Shader( "PxrManifold2D", "osl:shader" );
+				const string st = parameterValue( inputShader, g_varnameParameter, string() );
+				manifoldShader->parameters()[g_nameUvSetParameter] = new StringData( st == "st" ? "" : st );
+				if( usdTransform2dShader )
+				{
+					// Apply transforms (if any)
+					const float rotation = parameterValue( usdTransform2dShader, g_rotationParameter, 0.0f );
+					manifoldShader->parameters()[g_angleParameter] = new IECore::FloatData( rotation );
+					const V2f scale = parameterValue( usdTransform2dShader, g_scaleParameter, V2f( 1.0f ) );
+					manifoldShader->parameters()[g_scaleSParameter] = new IECore::FloatData( scale[0] );
+					manifoldShader->parameters()[g_scaleTParameter] = new IECore::FloatData( scale[1] );
+					const V2f transform = parameterValue( usdTransform2dShader, g_transformParameter, V2f( 0.0f ) );
+					manifoldShader->parameters()[g_offsetSParameter] = new IECore::FloatData( transform[0] );
+					manifoldShader->parameters()[g_offsetTParameter] = new IECore::FloatData( transform[1] );
+				}
+				const InternedString manifoldHandle = network->addShader( handle.string() + "PxrManifold2D", std::move( manifoldShader ) );
+				network->removeConnection( { input, { handle, g_stParameter } } );
+				network->addConnection( { { manifoldHandle, g_resultQParameter }, { handle, g_manifoldQParameter } } );
+				network->addConnection( { { manifoldHandle, g_resultQNParameter }, { handle, g_manifoldQNParameter } } );
+				network->addConnection( { { manifoldHandle, g_resultQradiusParameter }, { handle, g_manifoldQradiusParameter } } );
+				// TODO: Connections from UsdTransform2d to PxrMaifold2D?
+			}
+			else if(
+				inputShader->getName() == "UsdPrimvarReader_float3" ||
+				inputShader->getName() == "UsdPrimvarReader_point" ||
+				inputShader->getName() == "UsdPrimvarReader_vector" )
+			{
+				ShaderPtr manifoldShader = new Shader( "PxrManifold3D", "osl:shader" );
+				const string pref = parameterValue( inputShader, g_varnameParameter, string() );
+				manifoldShader->parameters()[g_prefParameter] = new StringData( pref );
+				if( usdTransform2dShader )
+				{
+					// Apply transforms (if any).
+					const float rotation = parameterValue( usdTransform2dShader, g_rotationParameter, 0.0f );
+					manifoldShader->parameters()[g_rotateZParameter] = new IECore::FloatData( rotation );
+					const V2f scale = parameterValue( usdTransform2dShader, g_scaleParameter, V2f( 1.0f ) );
+					manifoldShader->parameters()[g_scaleXParameter] = new IECore::FloatData( scale[0] );
+					manifoldShader->parameters()[g_scaleYParameter] = new IECore::FloatData( scale[1] );
+					const V2f transform = parameterValue( usdTransform2dShader, g_transformParameter, V2f( 0.0f ) );
+					manifoldShader->parameters()[g_offsetXParameter] = new IECore::FloatData( transform[0] );
+					manifoldShader->parameters()[g_offsetYParameter] = new IECore::FloatData( transform[1] );
+				}
+				const InternedString manifoldHandle = network->addShader( handle.string() + "PxrManifold3D", std::move( manifoldShader ) );
+				network->removeConnection( { input, { handle, g_stParameter } } );
+				network->addConnection( { { manifoldHandle, g_resultQParameter }, { handle, g_manifoldQParameter } } );
+				network->addConnection( { { manifoldHandle, g_resultQNParameter }, { handle, g_manifoldQNParameter } } );
+				network->addConnection( { { manifoldHandle, g_resultQradiusParameter }, { handle, g_manifoldQradiusParameter } } );
+				// TODO: Connections from UsdTransform2d to PxrMaifold3D?
+			}
+		}
+
+		//convertUSDToManifold( network, handle, { handle, g_stParameter } );
+
+		replaceUSDShader( network, handle, std::move( imageShader ) );
+	}
+}
+
 } // namespace
 
 void IECoreRenderMan::ShaderNetworkAlgo::convertUSDShaders( ShaderNetwork *shaderNetwork )
 {
+	convertUSDUVTextures( shaderNetwork );
+
 	for( const auto &[handle, shader] : shaderNetwork->shaders() )
 	{
 		ShaderPtr newShader;
-		if( shader->getName() == "UsdPreviewSurface" )
+		if( shader->getName() == "UsdPreviewSurface" || shader->getName() == "ND_UsdPreviewSurface_surfaceshader" )
 		{
 			newShader = new Shader( "__usd/__UsdPreviewSurfaceParameters", "osl:shader" );
 
@@ -1240,6 +1683,13 @@ void IECoreRenderMan::ShaderNetworkAlgo::convertUSDShaders( ShaderNetwork *shade
 			{
 				shaderNetwork->addConnection( ShaderNetwork::Connection( { handle, InternedString( p.string() + "Out" ) }, { pxrSurfaceHandle, p } ) );
 			}
+
+			// ALab doesn't look right, need to figure out...
+			if( auto input = shaderNetwork->input( { handle, g_normalParameter } ) )
+			{
+				shaderNetwork->removeConnection( { input, { handle, g_normalParameter } } );
+			}
+			//transferUSDParameter( shaderNetwork, handle, shader.get(), g_normalParameter, newShader.get(), g_normalInParameter, V3f( 0.0, 0.0, 1.0 ) );
 
 			shaderNetwork->setOutput( { pxrSurfaceHandle, "" } );
 		}
@@ -1334,6 +1784,116 @@ void IECoreRenderMan::ShaderNetworkAlgo::convertUSDShaders( ShaderNetwork *shade
 				},
 				defaultValue
 			);
+		}
+
+		if( shader->getName() == "standard_surface" || shader->getName() == "ND_standard_surface_surfaceshader" )
+		{
+			newShader = new Shader( "__renderman/__StandardSurfaceParameters.oso", "osl:shader" );
+
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_normalParameter, newShader.get(), g_normalInParameter, V3f( 0.0 ) );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_emissionParameter, newShader.get(), g_emissionValueParameter, 0.0f );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_subsurfaceParameter, newShader.get(), g_subsurfaceValueParameter, 0.0f );
+
+			for( const auto &[name, value] : shader->parameters() )
+			{
+				if( name == g_normalParameter ||
+					name == g_emissionParameter ||
+					name == g_subsurfaceParameter
+				)
+				{
+					continue;
+				}
+
+				newShader->parameters()[name] = value;
+			}
+
+			ShaderPtr pxrSurfaceShader = new Shader( "PxrSurface", "ri:surface" );
+			// Use GGX instead of Beckman specular model.
+			pxrSurfaceShader->parameters()[g_specularModelTypeParameter] = new IECore::IntData( 1 );
+			pxrSurfaceShader->parameters()[g_diffuseDoubleSidedParameter] = new IECore::IntData( 1 );
+			pxrSurfaceShader->parameters()[g_specularDoubleSidedParameter] = new IECore::IntData( 1 );
+			pxrSurfaceShader->parameters()[g_roughSpecularDoubleSidedParameter] = new IECore::IntData( 1 );
+			pxrSurfaceShader->parameters()[g_clearcoatDoubleSidedParameter] = new IECore::IntData( 1 );
+
+			const InternedString pxrSurfaceHandle = shaderNetwork->addShader( handle.string() + "PxrSurface", std::move( pxrSurfaceShader ) );
+
+			for( const auto &p : g_standardSurfaceParameters )
+			{
+				shaderNetwork->addConnection( ShaderNetwork::Connection( { handle, InternedString( p.string() + "Out" ) }, { pxrSurfaceHandle, p } ) );
+			}
+
+			shaderNetwork->setOutput( { pxrSurfaceHandle, "" } );
+		}
+
+		const auto lamaIt = g_lamaNameMap.find( shader->getName() );
+		if( lamaIt != g_lamaNameMap.end() )
+		{
+			newShader = new Shader( lamaIt->second, "ri:surface" );
+			for( const auto &[name, value] : shader->parameters() )
+			{
+				newShader->parameters()[name] = value;
+			}
+		}
+
+		// Currently `file_colorspace` MaterialX GenOSL will error out, so we just swap
+		// them with native PxrTexture. Possible future solution:
+		// https://github.com/AcademySoftwareFoundation/MaterialX/pull/2263
+		for( const std::string &imageShaderName : g_mtlxImageShaders )
+		{
+			if( shader->getName() == imageShaderName )
+			{
+				newShader = new Shader( "PxrTexture", "osl:shader" );
+
+				transferUSDParameter( shaderNetwork, handle, shader.get(), g_fileParameter, newShader.get(), g_filenameParameter, std::string() );
+				//transferUSDParameterRGBA( shaderNetwork, handle, shader.get(), g_defaultParameter, newShader.get(), g_missingColorParameter, g_missingAlphaParameter, Color4f( 0.0f, 0.0f, 0.0f, 1.0f ) );
+				transferUSDParameter( shaderNetwork, handle, shader.get(), g_defaultParameter, newShader.get(), g_missingColorParameter, Color3f( 0.0f ) );
+				transferUSDParameter( shaderNetwork, handle, shader.get(), g_filterTypeParameter, newShader.get(), g_filterParameter, 2 );
+				//transferUSDParameter( shaderNetwork, handle, shader.get(), g_defaultParameter, newShader.get(), g_missingAlphaParameter, 1.0f );
+				//transferUSDParameter( shaderNetwork, handle, shader.get(), g_texcoordParameter, newShader.get(), g_manifoldParameter, V3f( 0.0f ) );
+			}
+		}
+
+		if( boost::starts_with( shader->getName(), "ND_texcoord" ) )
+		{
+			newShader = new Shader( "PxrManifold2D", "osl:shader" );
+			newShader->parameters()[g_nameUvSetParameter] = new StringData( "st" );
+		}
+
+		if( boost::starts_with( shader->getName(), "ND_normalmap" ) )
+		{
+			newShader = new Shader( "PxrNormalMap", "osl:shader" );
+
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_inParameter, newShader.get(), g_inputRGBParameter, V3f( 0.0f ) );
+			transferUSDParameter( shaderNetwork, handle, shader.get(), g_scaleParameter, newShader.get(), g_bumpScaleParameter, 1.0f );
+			newShader->parameters()[g_flipYParameter] = new IntData( 1 );
+
+			if( const ShaderNetwork::Parameter tangentInput = shaderNetwork->input( { handle, g_tangentParameter } ) )
+			{
+				const Shader *inShader = shaderNetwork->getShader( tangentInput.shader );
+				if( boost::starts_with( inShader->getName(), "ND_tangent" ) )
+				{
+					IECore::msg(
+						IECore::Msg::Warning,
+						"IECoreRenderMan",
+						fmt::format( "MaterialX node `{}` is not supported in a name-based renderer.",
+						inShader->getName() ) );
+				}
+				shaderNetwork->removeConnection( { tangentInput, { handle, g_tangentParameter } } );
+			}
+
+			if( const ShaderNetwork::Parameter bitangentInput = shaderNetwork->input( { handle, g_bitangentParameter } ) )
+			{
+				const Shader *inShader = shaderNetwork->getShader( bitangentInput.shader );
+				if( boost::starts_with( inShader->getName(), "ND_bitangent" ) )
+				{
+					IECore::msg(
+						IECore::Msg::Warning,
+						"IECoreRenderMan",
+						fmt::format( "MaterialX node `{}` is not supported in a name-based renderer.",
+						inShader->getName() ) );
+				}
+				shaderNetwork->removeConnection( { bitangentInput, { handle, g_bitangentParameter } } );
+			}
 		}
 
 		if( newShader )

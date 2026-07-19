@@ -1,6 +1,6 @@
 ##########################################################################
 #
-#  Copyright (c) 2022, Cinesite VFX Ltd. All rights reserved.
+#  Copyright (c) 2026, Alex Fuller. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -34,12 +34,4 @@
 #
 ##########################################################################
 
-from . import USDAttributesUI
-from . import USDLayerWriterUI
-from . import USDShaderUI
-from . import USDLightUI
-from . import _PointInstancerAdaptorUI
-from . import PromotePointInstancesUI
-from . import MaterialXShaderMenu
-
-__import__( "IECore" ).loadConfig( "GAFFER_STARTUP_PATHS", subdirectory = "GafferUSDUI" )
+__import__( "IECore" ).loadConfig( "GAFFER_STARTUP_PATHS", subdirectory = "GafferMaterialX" )

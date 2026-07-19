@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2023, Cinesite VFX Ltd. All rights reserved.
+//  Copyright (c) 2016, Image Engine Design Inc. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -36,36 +36,20 @@
 
 #pragma once
 
-#include "GafferUSD/Export.h"
-#include "GafferUSD/TypeIds.h"
+#include "IECoreMaterialX/Export.h"
 
-#include "GafferScene/Shader.h"
+#include <filesystem>
+#include <string>
 
-namespace GafferUSD
+namespace IECoreMaterialX
 {
 
-class GAFFERUSD_API USDShader : public GafferScene::Shader
+namespace CompileAlgo
 {
 
-	public :
+/// Compile OSL shader source code and return the OSL bytecode result.
+IECOREMATERIALX_API std::filesystem::path compile( const std::string &shaderName, const std::string &shaderSource );
 
-		explicit USDShader( const std::string &name=defaultName<USDShader>() );
-		~USDShader() override;
+} // namespace CompileAlgo
 
-		GAFFER_NODE_DECLARE_TYPE( GafferUSD::USDShader, USDShaderTypeId, GafferScene::Shader );
-
-		void loadShader( const std::string &shaderName, bool keepExistingValues = false ) override;
-
-		/// Set a namespace remap based on the sourceType of the registered USD shader
-		/// eg. `USD` remaps to no namespace or `arnold` into `ai`.
-		static bool registerShaderNameSpace( const IECore::InternedString sourceType, const IECore::InternedString nameSpace );
-
-	protected :
-
-		IECore::ConstCompoundObjectPtr attributes( const Gaffer::Plug *output ) const override;
-
-};
-
-IE_CORE_DECLAREPTR( USDShader )
-
-} // namespace GafferUSD
+} // namespace IECoreMaterialX

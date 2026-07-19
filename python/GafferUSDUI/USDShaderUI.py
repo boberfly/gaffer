@@ -218,6 +218,80 @@ def __noduleType( plug ) :
 	# on the plug's type. `""` means "no nodule please".
 	return None if property.IsConnectable() else ""
 
+# The following are for MaterialX and its many signatures to support
+# drop-down + refresh to change the underlying shader.
+def __getShaderNameHasSignature( plug ) :
+
+	from GafferMaterialX import _MaterialXUtils
+	shaderName = __shaderName( plug )
+	if not shaderName.startswith( "ND_" ) :
+		# Only interested in MaterialX nodes
+		return None
+	shaderName = shaderName.removeprefix( "ND_" )
+	if shaderName in _MaterialXUtils.signatures :
+		# Doesn't have node types in the suffix
+		return None
+	_split = shaderName.split( "_" )
+	# convert and mix are outliers
+	shaderName = _split[0]
+	if shaderName == "convert" or shaderName == "mix" :
+		return shaderName
+	if len( _split ) > 1 :
+		shaderName = "_".join( _split[:-1] )
+	if _MaterialXUtils.signatures.get( shaderName, None ) :
+		return shaderName
+	return None
+
+def __shaderNameReadOnly( plug ) :
+
+	try :
+		from GafferMaterialX import _MaterialXUtils
+		shaderName = __getShaderNameHasSignature( plug )
+		if shaderName :
+			return False
+	except :
+		return True
+	return True
+
+def __signatureWidgetType( plug ) :
+
+	try :
+		from GafferMaterialX import _MaterialXUtils
+		shaderName = __getShaderNameHasSignature( plug )
+		if shaderName :
+			return "GafferUSDUI.USDShaderUI._ShaderNamePresetsPlugValueWidget"
+	except :
+		return None
+	return None
+
+def __signaturePresetNames( plug ) :
+
+	try :
+		from GafferMaterialX import _MaterialXUtils
+		shaderName = __getShaderNameHasSignature( plug )
+		if shaderName :
+			label = _MaterialXUtils.labelNames["labels"].get( shaderName.replace(" ", ""), shaderName.capitalize() )
+			return IECore.StringVectorData(
+				[ "MaterialX - {} - {}".format( label, signature.capitalize() ) for signature in _MaterialXUtils.signatures[shaderName] ]
+			)
+	except :
+		return None
+	return None
+
+def __signaturePresetValues( plug ) :
+
+	try :
+		from GafferMaterialX import _MaterialXUtils
+		shaderName = __getShaderNameHasSignature( plug )
+		if shaderName :
+			return IECore.StringVectorData(
+				[ "ND_{}_{}".format( shaderName, nodeType ) for nodeType in _MaterialXUtils.signatures[shaderName] ]
+			)
+	except :
+		return None
+	return None
+
+
 Gaffer.Metadata.registerNode(
 
 	GafferUSD.USDShader,
@@ -229,6 +303,15 @@ Gaffer.Metadata.registerNode(
 	""",
 
 	plugs = {
+
+		"name" : {
+
+			"readOnly" : __shaderNameReadOnly,
+			"plugValueWidget:type" : __signatureWidgetType,
+			"presetNames" : __signaturePresetNames,
+			"presetValues" : __signaturePresetValues,
+
+		},
 
 		"out" : {
 
@@ -331,4 +414,43 @@ __widgetTypes = {
 	"DomeLight.texture:file" : "GafferUI.FileSystemPathPlugValueWidget",
 	"RectLight.texture:file" : "GafferUI.FileSystemPathPlugValueWidget",
 
+	"ND_image_color3.file" : "GafferUI.FileSystemPathPlugValueWidget",
+	"ND_image_color4.file" : "GafferUI.FileSystemPathPlugValueWidget",
+	"ND_image_float.file" : "GafferUI.FileSystemPathPlugValueWidget",
+	"ND_image_vector2.file" : "GafferUI.FileSystemPathPlugValueWidget",
+	"ND_image_vector3.file" : "GafferUI.FileSystemPathPlugValueWidget",
+	"ND_image_vector4.file" : "GafferUI.FileSystemPathPlugValueWidget",
+
+	"ND_tiledimage_color3.file" : "GafferUI.FileSystemPathPlugValueWidget",
+	"ND_tiledimage_color4.file" : "GafferUI.FileSystemPathPlugValueWidget",
+	"ND_tiledimage_float.file" : "GafferUI.FileSystemPathPlugValueWidget",
+	"ND_tiledimage_vector2.file" : "GafferUI.FileSystemPathPlugValueWidget",
+	"ND_tiledimage_vector3.file" : "GafferUI.FileSystemPathPlugValueWidget",
+	"ND_tiledimage_vector4.file" : "GafferUI.FileSystemPathPlugValueWidget",
+
+	"ND_hextiledimage_color3.file" : "GafferUI.FileSystemPathPlugValueWidget",
+	"ND_hextiledimage_color4.file" : "GafferUI.FileSystemPathPlugValueWidget",
+
+	"ND_hextilednormalmap_vector3.file" : "GafferUI.FileSystemPathPlugValueWidget",
+
 }
+
+##########################################################################
+# PlugValueWidgets
+##########################################################################
+
+class _ShaderNamePresetsPlugValueWidget( GafferUI.PresetsPlugValueWidget ) :
+
+	def __init__( self, plugs, **kw ) :
+
+		GafferUI.PresetsPlugValueWidget.__init__( self, plugs, **kw )
+
+		self.getPlug().node().plugSetSignal().connect( Gaffer.WeakMethod( self.__plugSet ) )
+
+	def __plugSet( self, plug ) :
+
+		if plug != self.getPlug() :
+			return
+
+		with Gaffer.UndoScope( self.scriptNode() ) :
+			plug.node().reloadShader()

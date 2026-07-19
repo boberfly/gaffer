@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2023, Cinesite VFX Ltd. All rights reserved.
+//  Copyright (c) 2025, Alex Fuller. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -34,38 +34,20 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#pragma once
+#include "boost/python.hpp"
 
-#include "GafferUSD/Export.h"
-#include "GafferUSD/TypeIds.h"
+#include "IECoreMaterialX/ShaderNetworkAlgo.h"
 
-#include "GafferScene/Shader.h"
+using namespace boost::python;
+using namespace IECoreMaterialX;
 
-namespace GafferUSD
+BOOST_PYTHON_MODULE( _IECoreMaterialX )
 {
 
-class GAFFERUSD_API USDShader : public GafferScene::Shader
-{
+	object shaderNetworkAlgoModule( borrowed( PyImport_AddModule( "IECoreMaterialX.ShaderNetworkAlgo" ) ) );
+	scope().attr( "ShaderNetworkAlgo" ) = shaderNetworkAlgoModule;
+	scope shaderNetworkAlgoScope( shaderNetworkAlgoModule );
 
-	public :
+	def( "convertToOSLNodes", &ShaderNetworkAlgo::convertToOSLNodes );
 
-		explicit USDShader( const std::string &name=defaultName<USDShader>() );
-		~USDShader() override;
-
-		GAFFER_NODE_DECLARE_TYPE( GafferUSD::USDShader, USDShaderTypeId, GafferScene::Shader );
-
-		void loadShader( const std::string &shaderName, bool keepExistingValues = false ) override;
-
-		/// Set a namespace remap based on the sourceType of the registered USD shader
-		/// eg. `USD` remaps to no namespace or `arnold` into `ai`.
-		static bool registerShaderNameSpace( const IECore::InternedString sourceType, const IECore::InternedString nameSpace );
-
-	protected :
-
-		IECore::ConstCompoundObjectPtr attributes( const Gaffer::Plug *output ) const override;
-
-};
-
-IE_CORE_DECLAREPTR( USDShader )
-
-} // namespace GafferUSD
+}
